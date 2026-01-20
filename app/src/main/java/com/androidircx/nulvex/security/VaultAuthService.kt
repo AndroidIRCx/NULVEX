@@ -13,6 +13,7 @@ class VaultAuthService(
     private val argon2 = Argon2Kt()
 
     fun isSetup(): Boolean = prefs.getRealPinHash() != null
+    fun hasDecoyPin(): Boolean = prefs.getDecoyPinHash() != null
 
     fun setRealPin(pin: CharArray) {
         val hash = hashPin(pin)
@@ -39,6 +40,14 @@ class VaultAuthService(
         val matchDecoy = decoyHash != null && argon2.verify(Argon2Mode.ARGON2_ID, decoyHash, pinBytes)
         pinBytes.fill(0)
         return if (matchDecoy) VaultProfile.DECOY else null
+    }
+
+    fun verifyRealPin(pin: CharArray): Boolean {
+        val realHash = prefs.getRealPinHash() ?: return false
+        val pinBytes = pin.concatToString().toByteArray(Charsets.UTF_8)
+        val match = argon2.verify(Argon2Mode.ARGON2_ID, realHash, pinBytes)
+        pinBytes.fill(0)
+        return match
     }
 
     private fun hashPin(pin: CharArray): String {

@@ -14,7 +14,7 @@ class SelfDestructWorker(
             ?: return Result.success()
         val vaultService = VaultServiceLocator.vaultService()
         return try {
-            vaultService.sweepExpired()
+            vaultService.sweepExpired(vacuum = true)
             Result.success()
         } catch (_: Exception) {
             Result.retry()

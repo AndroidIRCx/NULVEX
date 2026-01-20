@@ -16,4 +16,11 @@ class VaultDatabaseProvider(
         val database = NulvexDatabaseFactory.buildEncrypted(context, dbKey, profile.dbName)
         return VaultSession(database = database, noteKey = noteKey)
     }
+
+    fun openSessionWithMasterKey(masterKey: ByteArray): VaultSession {
+        val dbKey = keyManager.deriveDbKey(masterKey)
+        val noteKey = keyManager.deriveNoteKey(masterKey)
+        val database = NulvexDatabaseFactory.buildEncrypted(context, dbKey, profile.dbName)
+        return VaultSession(database = database, noteKey = noteKey)
+    }
 }

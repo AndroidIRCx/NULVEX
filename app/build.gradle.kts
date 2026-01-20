@@ -56,6 +56,7 @@ dependencies {
     implementation(libs.argon2kt)
     implementation(libs.tink.android)
     implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.biometric)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

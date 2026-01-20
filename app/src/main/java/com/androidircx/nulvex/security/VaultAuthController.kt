@@ -7,6 +7,7 @@ class VaultAuthController(
     private val vaultService: VaultService
 ) {
     fun isSetup(): Boolean = authService.isSetup()
+    fun isDecoyEnabled(): Boolean = authService.hasDecoyPin()
 
     fun setupRealPin(pin: CharArray) {
         authService.setRealPin(pin)
@@ -26,8 +27,30 @@ class VaultAuthController(
             pin.wipe()
             return null
         }
-        vaultService.unlock(pin, profile)
-        return profile
+        return try {
+            vaultService.unlock(pin, profile)
+            profile
+        } catch (_: Exception) {
+            pin.wipe()
+            null
+        }
+    }
+
+    suspend fun changeRealPin(oldPin: CharArray, newPin: CharArray): Boolean {
+        if (!authService.verifyRealPin(oldPin)) {
+            oldPin.wipe()
+            return false
+        }
+        return try {
+            vaultService.changeRealPin(oldPin, newPin)
+            authService.setRealPin(newPin)
+            newPin.wipe()
+            true
+        } catch (_: Exception) {
+            oldPin.wipe()
+            newPin.wipe()
+            false
+        }
     }
 
     fun lock() {

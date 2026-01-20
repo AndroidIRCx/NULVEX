@@ -4,7 +4,7 @@ import android.content.Context
 import com.androidircx.nulvex.security.VaultProfile
 
 class VaultSessionManager(
-    private val context: Context
+    val context: Context
 ) {
     private var session: VaultSession? = null
     private var activeProfile: VaultProfile? = null
@@ -17,6 +17,18 @@ class VaultSessionManager(
             VaultDatabaseProvider(context, profile)
         }
         val newSession = provider.openSession(pin)
+        session = newSession
+        activeProfile = profile
+        return newSession
+    }
+
+    @Synchronized
+    fun openWithMasterKey(masterKey: ByteArray, profile: VaultProfile = VaultProfile.REAL): VaultSession {
+        close()
+        val provider = providers.getOrPut(profile.id) {
+            VaultDatabaseProvider(context, profile)
+        }
+        val newSession = provider.openSessionWithMasterKey(masterKey)
         session = newSession
         activeProfile = profile
         return newSession

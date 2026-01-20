@@ -6,6 +6,7 @@ import com.androidircx.nulvex.data.VaultSessionManager
 import com.androidircx.nulvex.security.VaultAuthController
 import com.androidircx.nulvex.security.VaultAuthService
 import com.androidircx.nulvex.security.PanicWipeService
+import com.androidircx.nulvex.security.AppPreferences
 
 object VaultServiceLocator {
     private lateinit var sessionManager: VaultSessionManager
@@ -13,6 +14,7 @@ object VaultServiceLocator {
     private lateinit var panicWipeService: PanicWipeService
     private lateinit var vaultAuthService: VaultAuthService
     private lateinit var vaultAuthController: VaultAuthController
+    private lateinit var appPreferences: AppPreferences
 
     fun init(context: Context) {
         val appContext = context.applicationContext
@@ -21,6 +23,7 @@ object VaultServiceLocator {
         panicWipeService = PanicWipeService(appContext, sessionManager)
         vaultAuthService = VaultAuthService(appContext)
         vaultAuthController = VaultAuthController(vaultAuthService, vaultService)
+        appPreferences = AppPreferences(appContext)
     }
 
     fun sessionManager(): VaultSessionManager = sessionManager
@@ -28,4 +31,5 @@ object VaultServiceLocator {
     fun panicWipeService(): PanicWipeService = panicWipeService
     fun vaultAuthService(): VaultAuthService = vaultAuthService
     fun vaultAuthController(): VaultAuthController = vaultAuthController
+    fun appPreferences(): AppPreferences = appPreferences
 }

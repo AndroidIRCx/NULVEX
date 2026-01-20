@@ -19,4 +19,13 @@ class PanicWipeService(
             KeystoreSecretProvider(profile).deleteSecret()
         }
     }
+
+    fun wipeDecoyOnly() {
+        sessionManager.close()
+        val profile = VaultProfile.DECOY
+        context.deleteDatabase(profile.dbName)
+        context.deleteSharedPreferences(profile.prefsName)
+        context.deleteSharedPreferences(profile.keystorePrefsName)
+        KeystoreSecretProvider(profile).deleteSecret()
+    }
 }

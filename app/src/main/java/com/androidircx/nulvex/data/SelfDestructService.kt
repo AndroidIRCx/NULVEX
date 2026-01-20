@@ -3,7 +3,7 @@ package com.androidircx.nulvex.data
 class SelfDestructService(
     private val database: NulvexDatabase
 ) {
-    suspend fun sweepExpired(now: Long = System.currentTimeMillis()) {
+    suspend fun sweepExpired(now: Long = System.currentTimeMillis(), vacuum: Boolean = false) {
         val noteDao = database.noteDao()
         val expired = noteDao.listExpired(now)
         for (note in expired) {
@@ -12,6 +12,8 @@ class SelfDestructService(
             noteDao.softDelete(note.id)
         }
         noteDao.purgeDeleted()
-        database.openHelper.writableDatabase.execSQL("VACUUM")
+        if (vacuum) {
+            database.openHelper.writableDatabase.execSQL("VACUUM")
+        }
     }
 }
