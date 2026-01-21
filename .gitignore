@@ -13,6 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+secrets/keystore.properties
+secrets/nulvex-release.jks
 /secrets/
 # Ignore local IDE device configs
 .idea/deviceManager.xml
+/logs/
+/nulvex-release.jks

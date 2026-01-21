@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -10,6 +13,12 @@ android {
         version = release(36)
     }
 
+    val keystorePropsFile = rootProject.file("secrets/keystore.properties")
+    val keystoreProps = Properties()
+    if (keystorePropsFile.exists()) {
+        keystoreProps.load(FileInputStream(keystorePropsFile))
+    }
+
     defaultConfig {
         applicationId = "com.androidircx.nulvex"
         minSdk = 26
@@ -20,9 +29,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (keystoreProps.isNotEmpty()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+                keyAlias = keystoreProps["keyAlias"] as String
+                keyPassword = keystoreProps["keyPassword"] as String
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (keystoreProps.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
