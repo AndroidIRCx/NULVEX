@@ -54,6 +54,18 @@ class MainActivity : FragmentActivity() {
                     onOpenNote = vm::openNote,
                     onCloseNote = vm::closeNoteDetail,
                     onDelete = vm::deleteNote,
+                    onTogglePinned = vm::togglePinned,
+                    onToggleChecklistItem = vm::toggleChecklistItem,
+                    onAddChecklistItem = vm::addChecklistItem,
+                    onRemoveChecklistItem = vm::removeChecklistItem,
+                    onUpdateChecklistText = vm::updateChecklistText,
+                    onMoveChecklistItem = vm::moveChecklistItem,
+                    onAddLabel = vm::addLabel,
+                    onRemoveLabel = vm::removeLabel,
+                    onSearchQueryChange = vm::updateSearchQuery,
+                    onSelectLabel = vm::updateActiveLabel,
+                    onLoadAttachmentPreview = vm::loadAttachmentPreview,
+                    onRemoveAttachment = vm::removeAttachment,
                     onClearError = vm::clearError
                 )
             }
@@ -204,10 +216,22 @@ fun GreetingPreview() {
             onChangeRealPin = { _, _, _ -> },
             onUpdateThemeMode = {},
             onOpenNew = {},
-            onCreate = { _, _, _ -> },
+            onCreate = { _, _, _, _, _, _, _ -> },
             onOpenNote = {},
             onCloseNote = {},
             onDelete = {},
+            onTogglePinned = {},
+            onToggleChecklistItem = { _, _ -> },
+            onAddChecklistItem = { _, _ -> },
+            onRemoveChecklistItem = { _, _ -> },
+            onUpdateChecklistText = { _, _, _ -> },
+            onMoveChecklistItem = { _, _, _ -> },
+            onAddLabel = { _, _ -> },
+            onRemoveLabel = { _, _ -> },
+            onSearchQueryChange = {},
+            onSelectLabel = {},
+            onLoadAttachmentPreview = { _, _ -> },
+            onRemoveAttachment = { _, _ -> },
             onClearError = {}
         )
     }

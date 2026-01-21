@@ -8,14 +8,25 @@ class NoteRepository(
     private val noteCrypto: NoteCrypto
 ) {
     suspend fun saveNote(
-        content: String,
+        id: String = UUID.randomUUID().toString(),
+        text: String,
+        checklist: List<ChecklistItem> = emptyList(),
+        labels: List<String> = emptyList(),
+        attachments: List<NoteAttachment> = emptyList(),
+        pinned: Boolean = false,
         noteKey: ByteArray,
         expiresAt: Long? = null,
         readOnce: Boolean = false
     ): String {
-        val id = UUID.randomUUID().toString()
         val createdAt = System.currentTimeMillis()
-        val plaintext = content.toByteArray(Charsets.UTF_8)
+        val payload = NotePayload(
+            text = text,
+            checklist = checklist,
+            labels = labels,
+            attachments = attachments,
+            pinned = pinned
+        )
+        val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
         val ciphertext = noteCrypto.encrypt(plaintext, noteKey)
         val entity = NoteEntity(
             id = id,
@@ -32,35 +43,31 @@ class NoteRepository(
     suspend fun getNoteById(id: String, noteKey: ByteArray): Note? {
         val entity = noteDao.getById(id) ?: return null
         if (entity.deleted) return null
-        val plaintext = noteCrypto.decrypt(entity.ciphertext, noteKey)
-        val content = plaintext.toString(Charsets.UTF_8)
-        val note = Note(
-            id = entity.id,
-            content = content,
-            createdAt = entity.createdAt,
-            expiresAt = entity.expiresAt,
-            readOnce = entity.readOnce
-        )
-        if (entity.readOnce) {
-            destroyEntity(entity)
-        }
-        return note
+        return decodeEntity(entity, noteKey)
     }
 
     suspend fun listNotes(noteKey: ByteArray): List<Note> {
         val entities = noteDao.listActive()
         return entities.mapNotNull { entity ->
             if (entity.deleted) return@mapNotNull null
-            val plaintext = noteCrypto.decrypt(entity.ciphertext, noteKey)
-            val content = plaintext.toString(Charsets.UTF_8)
-            Note(
-                id = entity.id,
-                content = content,
-                createdAt = entity.createdAt,
-                expiresAt = entity.expiresAt,
-                readOnce = entity.readOnce
-            )
+            decodeEntity(entity, noteKey)
         }
+    }
+
+    suspend fun updateNote(note: Note, noteKey: ByteArray): Boolean {
+        val entity = noteDao.getById(note.id) ?: return false
+        if (entity.deleted) return false
+        val payload = NotePayload(
+            text = note.text,
+            checklist = note.checklist,
+            labels = note.labels,
+            attachments = note.attachments,
+            pinned = note.pinned
+        )
+        val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
+        val ciphertext = noteCrypto.encrypt(plaintext, noteKey)
+        noteDao.overwriteCiphertext(entity.id, ciphertext)
+        return true
     }
 
     suspend fun deleteNote(id: String) {
@@ -72,5 +79,28 @@ class NoteRepository(
         val zeroed = ByteArray(entity.ciphertext.size)
         noteDao.overwriteCiphertext(entity.id, zeroed)
         noteDao.softDelete(entity.id)
+    }
+
+    private fun decodeEntity(entity: NoteEntity, noteKey: ByteArray): Note? {
+        val plaintext = noteCrypto.decrypt(entity.ciphertext, noteKey)
+        val raw = plaintext.toString(Charsets.UTF_8)
+        val payload = NotePayloadCodec.decode(raw) ?: NotePayload(
+            text = raw,
+            checklist = emptyList(),
+            labels = emptyList(),
+            attachments = emptyList(),
+            pinned = false
+        )
+        return Note(
+            id = entity.id,
+            text = payload.text,
+            checklist = payload.checklist,
+            labels = payload.labels,
+            attachments = payload.attachments,
+            pinned = payload.pinned,
+            createdAt = entity.createdAt,
+            expiresAt = entity.expiresAt,
+            readOnce = entity.readOnce
+        )
     }
 }

@@ -1,9 +1,13 @@
 package com.androidircx.nulvex.ui
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.androidircx.nulvex.VaultServiceLocator
+import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
 import com.androidircx.nulvex.security.VaultProfile
 import com.androidircx.nulvex.ui.theme.ThemeMode
@@ -26,7 +30,10 @@ data class UiState(
     val defaultExpiry: String = "none",
     val defaultReadOnce: Boolean = false,
     val biometricEnabled: Boolean = false,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val searchQuery: String = "",
+    val activeLabel: String? = null,
+    val attachmentPreviews: Map<String, Bitmap> = emptyMap()
 )
 
 sealed class Screen {
@@ -124,7 +131,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         uiState.value = uiState.value.copy(
             screen = Screen.Unlock,
             notes = emptyList(),
-            selectedNote = null
+            selectedNote = null,
+            attachmentPreviews = emptyMap()
         )
     }
 
@@ -292,7 +300,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         selectedNote = note,
                         screen = Screen.NoteDetail,
                         error = null,
-                        isBusy = false
+                        isBusy = false,
+                        attachmentPreviews = emptyMap()
                     )
                     resetInactivityTimer()
                 }
@@ -301,24 +310,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun closeNoteDetail() {
-        refreshNotes(Screen.Vault)
+        val note = uiState.value.selectedNote
+        if (note?.readOnce == true) {
+            deleteNote(note.id)
+        } else {
+            refreshNotes(Screen.Vault)
+        }
     }
 
-    fun createNote(content: String, expiresAt: Long?, readOnce: Boolean) {
-        if (content.isBlank()) {
+    fun createNote(
+        text: String,
+        checklist: List<ChecklistItem>,
+        labels: List<String>,
+        pinned: Boolean,
+        attachments: List<Uri>,
+        expiresAt: Long?,
+        readOnce: Boolean
+    ) {
+        val hasContent = text.isNotBlank() || checklist.any { it.text.isNotBlank() } || attachments.isNotEmpty()
+        if (!hasContent) {
             uiState.value = uiState.value.copy(error = "Note cannot be empty")
             return
         }
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            vaultService.createNote(content, expiresAt, readOnce)
+            val noteId = java.util.UUID.randomUUID().toString()
+            val storedAttachments = vaultService.storeAttachments(noteId, attachments)
+            vaultService.createNote(
+                id = noteId,
+                text = text,
+                checklist = checklist,
+                labels = labels,
+                attachments = storedAttachments,
+                pinned = pinned,
+                expiresAt = expiresAt,
+                readOnce = readOnce
+            )
             val notes = vaultService.listNotes()
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(
                     screen = Screen.Vault,
                     notes = notes,
                     error = null,
-                    isBusy = false
+                    isBusy = false,
+                    attachmentPreviews = emptyMap()
                 )
                 resetInactivityTimer()
             }
@@ -336,9 +371,118 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     notes = notes,
                     selectedNote = null,
                     error = null,
-                    isBusy = false
+                    isBusy = false,
+                    attachmentPreviews = emptyMap()
                 )
                 resetInactivityTimer()
+            }
+        }
+    }
+
+    fun togglePinned(noteId: String) {
+        val note = findNote(noteId) ?: return
+        persistNoteUpdate(note.copy(pinned = !note.pinned))
+    }
+
+    fun toggleChecklistItem(noteId: String, itemId: String) {
+        val note = findNote(noteId) ?: return
+        val updatedChecklist = note.checklist.map { item ->
+            if (item.id == itemId) item.copy(checked = !item.checked) else item
+        }
+        persistNoteUpdate(note.copy(checklist = updatedChecklist))
+    }
+
+    fun updateChecklistText(noteId: String, itemId: String, text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return
+        val note = findNote(noteId) ?: return
+        val updatedChecklist = note.checklist.map { item ->
+            if (item.id == itemId) item.copy(text = trimmed) else item
+        }
+        persistNoteUpdate(note.copy(checklist = updatedChecklist))
+    }
+
+    fun moveChecklistItem(noteId: String, itemId: String, direction: Int) {
+        val note = findNote(noteId) ?: return
+        val index = note.checklist.indexOfFirst { it.id == itemId }
+        if (index < 0) return
+        val newIndex = index + direction
+        if (newIndex < 0 || newIndex >= note.checklist.size) return
+        val mutable = note.checklist.toMutableList()
+        val item = mutable.removeAt(index)
+        mutable.add(newIndex, item)
+        persistNoteUpdate(note.copy(checklist = mutable))
+    }
+
+    fun addChecklistItem(noteId: String, text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return
+        val note = findNote(noteId) ?: return
+        val updatedChecklist = note.checklist + ChecklistItem(
+            id = java.util.UUID.randomUUID().toString(),
+            text = trimmed,
+            checked = false
+        )
+        persistNoteUpdate(note.copy(checklist = updatedChecklist))
+    }
+
+    fun removeChecklistItem(noteId: String, itemId: String) {
+        val note = findNote(noteId) ?: return
+        val updatedChecklist = note.checklist.filterNot { it.id == itemId }
+        persistNoteUpdate(note.copy(checklist = updatedChecklist))
+    }
+
+    fun removeAttachment(noteId: String, attachmentId: String) {
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = vaultService.removeAttachment(noteId, attachmentId)
+            val notes = vaultService.listNotes()
+            withContext(Dispatchers.Main) {
+                val selected = notes.firstOrNull { it.id == noteId }
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = selected,
+                    error = if (ok) null else "Attachment removal failed",
+                    isBusy = false,
+                    attachmentPreviews = uiState.value.attachmentPreviews - attachmentId
+                )
+                resetInactivityTimer()
+            }
+        }
+    }
+
+    fun addLabel(noteId: String, label: String) {
+        val trimmed = label.trim()
+        if (trimmed.isBlank()) return
+        val note = findNote(noteId) ?: return
+        val updatedLabels = (note.labels + trimmed).distinct()
+        persistNoteUpdate(note.copy(labels = updatedLabels))
+    }
+
+    fun removeLabel(noteId: String, label: String) {
+        val note = findNote(noteId) ?: return
+        val updatedLabels = note.labels.filterNot { it == label }
+        persistNoteUpdate(note.copy(labels = updatedLabels))
+    }
+
+    fun updateSearchQuery(query: String) {
+        uiState.value = uiState.value.copy(searchQuery = query)
+    }
+
+    fun updateActiveLabel(label: String?) {
+        uiState.value = uiState.value.copy(activeLabel = label)
+    }
+
+    fun loadAttachmentPreview(noteId: String, attachmentId: String) {
+        val current = uiState.value.attachmentPreviews
+        if (current.containsKey(attachmentId)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val bytes = vaultService.loadAttachment(noteId, attachmentId) ?: return@launch
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@launch
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    attachmentPreviews = uiState.value.attachmentPreviews + (attachmentId to bitmap)
+                )
             }
         }
     }
@@ -398,11 +542,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
-                    themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
+                    themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
+                    attachmentPreviews = emptyMap()
                 )
                 resetInactivityTimer()
             }
         }
+    }
+
+    private fun persistNoteUpdate(note: Note) {
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = vaultService.updateNote(note)
+            val notes = vaultService.listNotes()
+            withContext(Dispatchers.Main) {
+                val selected = if (uiState.value.selectedNote?.id == note.id) note else uiState.value.selectedNote
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = selected,
+                    error = if (ok) null else "Note update failed",
+                    isBusy = false
+                )
+                resetInactivityTimer()
+            }
+        }
+    }
+
+    private fun findNote(noteId: String): Note? {
+        val state = uiState.value
+        return state.selectedNote?.takeIf { it.id == noteId } ?: state.notes.firstOrNull { it.id == noteId }
     }
 
     private fun setBusy(value: Boolean) {
