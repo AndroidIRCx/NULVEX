@@ -8,28 +8,28 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val versionPropsFile = rootProject.file("version.properties")
+val versionProps = Properties()
+if (versionPropsFile.exists()) {
+    versionProps.load(FileInputStream(versionPropsFile))
+} else {
+    versionProps.setProperty("versionCode", "1")
+    versionProps.setProperty("versionName", "1.0")
+    versionProps.store(FileOutputStream(versionPropsFile), null)
+}
+val versionCodeValue = versionProps.getProperty("versionCode")?.toIntOrNull() ?: 1
+val versionNameValue = versionProps.getProperty("versionName") ?: "1.0"
+
+val keystorePropsFile = rootProject.file("secrets/keystore.properties")
+val keystoreProps = Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(FileInputStream(keystorePropsFile))
+}
+
 android {
     namespace = "com.androidircx.nulvex"
     compileSdk {
         version = release(36)
-    }
-
-    val versionPropsFile = rootProject.file("version.properties")
-    val versionProps = Properties()
-    if (versionPropsFile.exists()) {
-        versionProps.load(FileInputStream(versionPropsFile))
-    } else {
-        versionProps.setProperty("versionCode", "1")
-        versionProps.setProperty("versionName", "1.0")
-        versionProps.store(FileOutputStream(versionPropsFile), null)
-    }
-    val versionCodeValue = versionProps.getProperty("versionCode")?.toIntOrNull() ?: 1
-    val versionNameValue = versionProps.getProperty("versionName") ?: "1.0"
-
-    val keystorePropsFile = rootProject.file("secrets/keystore.properties")
-    val keystoreProps = Properties()
-    if (keystorePropsFile.exists()) {
-        keystoreProps.load(FileInputStream(keystorePropsFile))
     }
 
     defaultConfig {
@@ -81,7 +81,7 @@ tasks.register("incrementVersionCode") {
     }
 }
 
-tasks.named("bundleRelease") {
+tasks.matching { it.name == "bundleRelease" }.configureEach {
     dependsOn("incrementVersionCode")
 }
 
