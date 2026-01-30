@@ -49,6 +49,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.Label
@@ -316,16 +319,28 @@ private fun TopHeader(
                         tint = onBackground.copy(alpha = 0.7f)
                     )
                 }
-                TextButton(onClick = onPanicClick) {
-                    Text(text = "PANIC", color = Ember)
+                IconButton(onClick = onPanicClick) {
+                    Icon(
+                        imageVector = Icons.Filled.Warning,
+                        contentDescription = "Panic wipe",
+                        tint = Ember
+                    )
                 }
-                TextButton(onClick = onLock) {
-                    Text(text = "LOCK", color = Brass)
+                IconButton(onClick = onLock) {
+                    Icon(
+                        imageVector = Icons.Filled.Lock,
+                        contentDescription = "Lock",
+                        tint = Brass
+                    )
                 }
             }
         } else if (state.screen == Screen.Settings) {
-            TextButton(onClick = onCloseSettings) {
-                Text(text = "BACK", color = Brass)
+            IconButton(onClick = onCloseSettings) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Brass
+                )
             }
         }
     }
