@@ -1,0 +1,42 @@
+default_platform(:android)
+
+platform :android do
+
+  # ─── fastlane closed ────────────────────────────────────────────────────────
+  # Full release flow in one command:
+  #   1. bundleRelease (auto-increments versionCode via Gradle task)
+  #   2. Commits version.properties and pushes to git
+  #   3. Uploads AAB + R8 mapping to Closed testing (Alpha)
+  desc "Build, bump version, push to git, upload to Closed testing (Alpha)"
+  lane :closed do
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      print_command: false
+    )
+
+    git_commit(
+      path: "version.properties",
+      message: "chore: bump versionCode [fastlane]"
+    )
+    push_to_git_remote
+
+    upload_to_play_store(
+      track: "alpha",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      mapping: lane_context[SharedValues::GRADLE_MAPPING_TXT_OUTPUT_PATH],
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  # ─── fastlane test ──────────────────────────────────────────────────────────
+  desc "Run unit tests"
+  lane :test do
+    gradle(task: "test")
+  end
+
+end

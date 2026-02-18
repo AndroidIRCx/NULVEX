@@ -1,0 +1,24 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+secrets/keystore.properties
+secrets/nulvex-release.jks
+/secrets/
+# Ignore local IDE device configs
+.idea/deviceManager.xml
+/logs/
+/nulvex-release.jks
+/fastlane/report.xml
+/.claude/

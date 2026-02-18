@@ -1,0 +1,3 @@
+# Use path relative to project root; keep the JSON key file in secrets/ (gitignored)
+json_key_file(File.expand_path("../secrets/androidircx-691ead5ea35c.json", __dir__)) # Path to the json secret file - Follow https://docs.fastlane.tools/actions/supply/#setup to get one
+package_name("com.androidircx.nulvex") # e.g. com.krausefx.app

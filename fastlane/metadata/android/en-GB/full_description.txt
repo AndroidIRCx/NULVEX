@@ -1,0 +1,11 @@
+NULVEX is a private notes vault designed for the real world: offline by default, end-to-end encrypted, and built to leave no trace when you need it.
+
+- Offline-first: your notes stay on your device, not on someone else’s cloud.
+- Strong encryption: modern authenticated encryption (XChaCha20-Poly1305 / AES-256-GCM).
+- Self-destruct notes: expire after 1 hour, 24 hours, 7 days — or after the first read.
+- Panic button: instantly wipes the vault and keys.
+- Biometrics: convenient unlock (never used as the encryption secret).
+- Optional sync (zero-knowledge): if enabled, the server only sees encrypted data — never plaintext, never master keys.
+- No analytics. No tracking.
+
+Built for privacy-focused users, journalists, activists, and anyone who wants secure notes without vendor lock-in.
