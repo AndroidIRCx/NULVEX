@@ -74,18 +74,20 @@ Biometrics authenticate the user but do not derive cryptographic keys — the ma
 # Debug
 ./gradlew assembleDebug
 
-# Release AAB (signs if secrets/keystore.properties is present)
+# Release AAB
 ./gradlew bundleRelease
 ```
 
-Release signing config is loaded from `secrets/keystore.properties` (gitignored):
+Release signing requires a gitignored `keystore.properties` file next to the project root:
 
 ```properties
-storeFile=../secrets/nulvex.keystore
-storePassword=...
-keyAlias=...
-keyPassword=...
+storeFile=path/to/your.keystore
+storePassword=your_store_password
+keyAlias=your_key_alias
+keyPassword=your_key_password
 ```
+
+Without it the build compiles but produces an unsigned AAB.
 
 ---
 
@@ -104,7 +106,14 @@ What it does:
 
 See [`fastlane/README.md`](fastlane/README.md) for all available lanes.
 
-Google Play API credentials are loaded from `secrets/androidircx-*.json` (gitignored).
+Fastlane requires a Google Play service account JSON key. Configure the path in `fastlane/Appfile`:
+
+```ruby
+json_key_file("path/to/service-account.json")
+package_name("com.androidircx.nulvex")
+```
+
+Follow the [supply setup guide](https://docs.fastlane.tools/actions/supply/#setup) to generate the service account key in Google Play Console.
 
 ---
 

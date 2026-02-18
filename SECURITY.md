@@ -41,4 +41,4 @@ Out of scope:
 
 ## Cryptographic Design
 
-See [`secrets/CRYPTO_THREAT_MODEL.md`](secrets/CRYPTO_THREAT_MODEL.md) (maintainers only) for the full threat model and key hierarchy.
+The threat model, key hierarchy, and crypto flow are documented internally and shared with confirmed contributors under NDA.
