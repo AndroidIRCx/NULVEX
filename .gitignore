@@ -16,9 +16,11 @@ local.properties
 secrets/keystore.properties
 secrets/nulvex-release.jks
 /secrets/
-# Ignore local IDE device configs
+# Ignore local IDE device configs and telemetry settings
 .idea/deviceManager.xml
+.idea/appInsightsSettings.xml
 /logs/
 /nulvex-release.jks
 /fastlane/report.xml
 /.claude/
+/app/google-services.json
