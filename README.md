@@ -31,7 +31,9 @@ No accounts. No telemetry. No plaintext on disk.
 ### UX
 - **Secure PIN pad** — custom circular numpad, no system keyboard; dot indicator, haptic feedback
 - **Light / Dark / System theme**
-- **Search** — full-text search across decrypted note content
+- **Settings search** — section/options search with clear button
+- **Collapsible settings sections** — cleaner navigation as settings grow
+- **Rewards & Ads first** — monetization section moved to top of Settings
 
 ---
 
@@ -169,9 +171,13 @@ app/src/main/java/com/androidircx/nulvex/
 
 ## Testing
 
-135 tests, 0 failures.
+Current local status (February 19, 2026):
+- `./gradlew test` passes
+- `./gradlew connectedAndroidTest` requires a running emulator/device
+- JaCoCo report: `./gradlew :app:jacocoDebugUnitTestReport`
+- JaCoCo gate: `./gradlew :app:jacocoDebugUnitTestCoverageVerification` (default line threshold `0.05`, override with `-Pcoverage.minimum.line=...`)
 
-**JVM unit tests** (`./gradlew test`):
+**JVM unit tests** (`./gradlew test`, CI-ready):
 
 | Suite | Tests | What it covers |
 |---|---|---|
@@ -181,6 +187,7 @@ app/src/main/java/com/androidircx/nulvex/
 | `NoteRepositoryTest` | 11 | Encrypt-on-write, decrypt-on-read, secure delete (ciphertext zeroing) |
 | `SelfDestructServiceTest` | 7 | Expired note sweep, ciphertext zeroing, VACUUM |
 | `VaultSessionManagerTest` | 5 | Session state machine, null-state thread safety |
+| `PlayBillingProductsTest` | 2 | One-time product IDs and INAPP query mapping |
 
 **Instrumented tests** (`./gradlew connectedAndroidTest`, requires device or emulator):
 
@@ -193,13 +200,17 @@ app/src/main/java/com/androidircx/nulvex/
 | `PanicWipeServiceTest` | 6 | Session closure, wipeAll/wipeDecoyOnly without throwing |
 | `NulvexUiTest` | 31 | Compose UI: onboarding, setup PIN, unlock pad, vault list, panic button, error banner |
 
+CI runs JVM tests + JaCoCo report + JaCoCo coverage gate on every push/PR to `main`, `master`, and `develop` via `.github/workflows/android-unit-tests.yml`, and uploads HTML/XML coverage artifacts.
+
 ---
 
 ## Roadmap
 
 - [x] Core test suite (crypto, vault, self-destruct, panic, DAO)
 - [x] UI flow tests (Compose: onboarding, setup, unlock, vault, panic, error banner)
-- [ ] AdMob integration (free tier ads / pro unlock)
+- [x] Firebase Gradle plugin + Analytics dependency
+- [x] Play Billing base wiring (product IDs + BillingClient factory)
+- [ ] Purchase flow integration (query, launch billing flow, entitlement persistence)
 - [ ] Security whitepaper + crypto flow diagram
 - [ ] Play Store listing + privacy policy
 - [ ] Device matrix test (StrongBox / no StrongBox, API 26 / 30 / 33 / 34+)

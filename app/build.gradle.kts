@@ -1,11 +1,16 @@
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.math.BigDecimal
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+import org.gradle.testing.jacoco.tasks.JacocoReport
 import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    id("com.google.gms.google-services")
+    jacoco
 }
 
 val versionPropsFile = rootProject.file("version.properties")
@@ -76,6 +81,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -109,7 +115,97 @@ tasks.matching { it.name == "bundleRelease" }.configureEach {
     dependsOn("incrementVersionCode")
 }
 
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
+    dependsOn("testDebugUnitTest")
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+
+    val excludes = listOf(
+        "**/R.class",
+        "**/R$*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*",
+        "**/*Test*.*",
+        "android/**/*.*",
+        "**/*\$Lambda$*.*",
+        "**/*Companion*.*"
+    )
+
+    classDirectories.setFrom(
+        files(
+            fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") { exclude(excludes) },
+            fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/classes") { exclude(excludes) }
+        )
+    )
+    sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
+    executionData.setFrom(
+        fileTree(layout.buildDirectory.get().asFile) {
+            include("jacoco/testDebugUnitTest.exec")
+            include("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
+            include("**/*.ec")
+        }
+    )
+}
+
+tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerification") {
+    dependsOn("testDebugUnitTest")
+    dependsOn("jacocoDebugUnitTestReport")
+
+    val excludes = listOf(
+        "**/R.class",
+        "**/R$*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*",
+        "**/*Test*.*",
+        "android/**/*.*",
+        "**/*\$Lambda$*.*",
+        "**/*Companion*.*"
+    )
+
+    classDirectories.setFrom(
+        files(
+            fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") { exclude(excludes) },
+            fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/classes") { exclude(excludes) }
+        )
+    )
+    sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
+    executionData.setFrom(
+        fileTree(layout.buildDirectory.get().asFile) {
+            include("jacoco/testDebugUnitTest.exec")
+            include("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
+            include("**/*.ec")
+        }
+    )
+
+    val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.05"
+
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = BigDecimal(minimumLineCoverage)
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("jacocoDebugUnitTestCoverageVerification")
+}
+
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
+    implementation("com.google.firebase:firebase-analytics")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -130,6 +226,7 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.biometric)
     implementation(libs.play.services.ads)
+    implementation(libs.billing.ktx)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)

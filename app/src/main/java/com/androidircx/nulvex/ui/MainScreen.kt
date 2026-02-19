@@ -55,6 +55,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
@@ -100,6 +101,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
@@ -109,6 +112,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.viewinterop.AndroidView
 import com.androidircx.nulvex.ads.AdManager
+import com.androidircx.nulvex.BuildConfig
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
 import com.google.android.gms.ads.AdRequest
@@ -1133,7 +1137,81 @@ private fun SettingsScreen(
     var confirmNewPin by remember { mutableStateOf("") }
     var biometricPin by remember { mutableStateOf("") }
     val realPinMismatch = newPin.isNotEmpty() && confirmNewPin.isNotEmpty() && newPin != confirmNewPin
-    var expandedSection by remember { mutableStateOf<String?>(null) }
+    var settingsSearch by remember { mutableStateOf("") }
+    var expandedSections by remember { mutableStateOf(setOf<String>()) }
+    val normalizedQuery = settingsSearch.trim().lowercase()
+
+    fun matchesSection(vararg terms: String): Boolean {
+        if (normalizedQuery.isBlank()) return true
+        return terms.any { it.lowercase().contains(normalizedQuery) }
+    }
+
+    fun isExpanded(sectionId: String): Boolean {
+        return normalizedQuery.isNotBlank() || expandedSections.contains(sectionId)
+    }
+
+    fun toggleSection(sectionId: String) {
+        expandedSections = if (expandedSections.contains(sectionId)) {
+            expandedSections - sectionId
+        } else {
+            expandedSections + sectionId
+        }
+    }
+
+    val showAds = matchesSection(
+        "rewards",
+        "ads",
+        "credits",
+        "share credits",
+        "watch ad",
+        "remove ads",
+        "ad-free time"
+    )
+    val showDisplay = matchesSection("display", "theme", "appearance", "dark", "light", "system")
+    val showVaultDefaults = matchesSection(
+        "vault defaults",
+        "auto-lock",
+        "timeout",
+        "self-destruct",
+        "expiry",
+        "read-once"
+    )
+    val showSecurity = matchesSection(
+        "security",
+        "fingerprint",
+        "biometric",
+        "pin",
+        "change primary pin",
+        "encryption"
+    )
+    val showDanger = matchesSection(
+        "danger zone",
+        "decoy",
+        "decoy pin",
+        "wipe",
+        "coercion",
+        "plausible deniability"
+    )
+    val showAbout = matchesSection("about", "version", "nulvex", "offline", "xchacha20", "kyber768")
+    val hasVisibleSections = showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showAbout
+
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1_000L)
+            nowMs = System.currentTimeMillis()
+        }
+    }
+
+    val remainingMs = maxOf(0L, state.adFreeUntil - nowMs)
+    val adFreeActive = remainingMs > 0L
+
+    fun formatRemaining(ms: Long): String {
+        val totalSecs = ms / 1000L
+        val mins = totalSecs / 60L
+        val secs = totalSecs % 60L
+        return if (mins > 0L) "${mins}m ${secs}s" else "${secs}s"
+    }
 
     Surface(
         shape = RoundedCornerShape(24.dp),
@@ -1147,30 +1225,162 @@ private fun SettingsScreen(
                 .imePadding()
         ) {
             Text("Settings", style = MaterialTheme.typography.titleLarge, color = onSurface)
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = settingsSearch,
+                onValueChange = { settingsSearch = it },
+                label = { Text("Search settings") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = null
+                    )
+                },
+                trailingIcon = {
+                    if (settingsSearch.isNotBlank()) {
+                        IconButton(onClick = { settingsSearch = "" }) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Clear search"
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(modifier = Modifier.height(20.dp))
 
-            // === DISPLAY SECTION ===
-            SettingsSection(
-                icon = Icons.Filled.Palette,
-                title = "Display",
-                description = "Appearance and theme"
-            ) {
-                Text("Theme", style = MaterialTheme.typography.labelLarge, color = onSurface)
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip("System", state.themeMode == ThemeMode.SYSTEM) { onUpdateThemeMode(ThemeMode.SYSTEM) }
-                    Chip("Dark", state.themeMode == ThemeMode.DARK) { onUpdateThemeMode(ThemeMode.DARK) }
-                    Chip("Light", state.themeMode == ThemeMode.LIGHT) { onUpdateThemeMode(ThemeMode.LIGHT) }
+            if (showAds) {
+                SettingsSection(
+                    icon = Icons.Filled.Star,
+                    title = "Rewards & Ads",
+                    description = "Remove ads and earn share credits",
+                    expanded = isExpanded("ads"),
+                    onToggle = { toggleSection("ads") }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Timer,
+                            contentDescription = null,
+                            tint = if (adFreeActive) Moss else onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Ad-free time", color = onSurface)
+                            Text(
+                                if (adFreeActive) "${formatRemaining(remainingMs)} remaining" else "Ads are active",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (adFreeActive) Moss else onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        if (adFreeActive) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Moss.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("ACTIVE", style = MaterialTheme.typography.labelSmall, color = Moss)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onWatchAdToRemoveAds,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (adFreeActive) "EXTEND BY 10 MIN" else "WATCH AD - 10 MIN NO ADS")
+                    }
+                    Text(
+                        "Stacks - watch multiple times to bank more ad-free minutes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.5f)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    HorizontalDivider(color = onSurface.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Sort,
+                            contentDescription = null,
+                            tint = Brass,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Share credits", color = onSurface)
+                            Text(
+                                "Used to share notes via the secure API",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(Brass.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                "${state.shareCredits}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Brass
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onWatchAdForShares,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("WATCH AD - EARN 1 SHARE CREDIT")
+                    }
+                    Text(
+                        "Credits accumulate - watch 3 ads to earn 3 shares.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.5f)
+                    )
                 }
             }
 
-            SettingsDivider()
+            if (showDisplay) {
+                if (showAds) SettingsDivider()
+                SettingsSection(
+                    icon = Icons.Filled.Palette,
+                    title = "Display",
+                    description = "Appearance and theme",
+                    expanded = isExpanded("display"),
+                    onToggle = { toggleSection("display") }
+                ) {
+                    Text("Theme", style = MaterialTheme.typography.labelLarge, color = onSurface)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("System", state.themeMode == ThemeMode.SYSTEM) { onUpdateThemeMode(ThemeMode.SYSTEM) }
+                        Chip("Dark", state.themeMode == ThemeMode.DARK) { onUpdateThemeMode(ThemeMode.DARK) }
+                        Chip("Light", state.themeMode == ThemeMode.LIGHT) { onUpdateThemeMode(ThemeMode.LIGHT) }
+                    }
+                }
+            }
+
+            if (showVaultDefaults && (showAds || showDisplay)) SettingsDivider()
 
             // === VAULT DEFAULTS SECTION ===
-            SettingsSection(
+            if (showVaultDefaults) SettingsSection(
                 icon = Icons.Filled.Timer,
                 title = "Vault defaults",
-                description = "Auto-lock and note behavior"
+                description = "Auto-lock and note behavior",
+                expanded = isExpanded("vault_defaults"),
+                onToggle = { toggleSection("vault_defaults") }
             ) {
                 Text("Auto-lock timeout", style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1227,13 +1437,15 @@ private fun SettingsScreen(
                 }
             }
 
-            SettingsDivider()
+            if (showSecurity && (showAds || showDisplay || showVaultDefaults)) SettingsDivider()
 
             // === SECURITY SECTION ===
-            SettingsSection(
+            if (showSecurity) SettingsSection(
                 icon = Icons.Filled.Security,
                 title = "Security",
-                description = "Authentication and encryption"
+                description = "Authentication and encryption",
+                expanded = isExpanded("security"),
+                onToggle = { toggleSection("security") }
             ) {
                 // Biometric
                 Row(
@@ -1376,14 +1588,16 @@ private fun SettingsScreen(
                 }
             }
 
-            SettingsDivider()
+            if (showDanger && (showAds || showDisplay || showVaultDefaults || showSecurity)) SettingsDivider()
 
             // === DANGER ZONE SECTION ===
-            SettingsSection(
+            if (showDanger) SettingsSection(
                 icon = Icons.Filled.VisibilityOff,
                 title = "Danger zone",
                 description = "Decoy vault and destructive actions",
-                accentColor = Ember
+                accentColor = Ember,
+                expanded = isExpanded("danger"),
+                onToggle = { toggleSection("danger") }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -1475,136 +1689,17 @@ private fun SettingsScreen(
                 }
             }
 
-            SettingsDivider()
-
-            // === ADS & CREDITS SECTION ===
-            run {
-                // Live countdown — ticks every second while this screen is visible
-                var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        delay(1_000L)
-                        nowMs = System.currentTimeMillis()
-                    }
-                }
-
-                val remainingMs = maxOf(0L, state.adFreeUntil - nowMs)
-                val adFreeActive = remainingMs > 0L
-
-                fun formatRemaining(ms: Long): String {
-                    val totalSecs = ms / 1000L
-                    val mins = totalSecs / 60L
-                    val secs = totalSecs % 60L
-                    return if (mins > 0L) "${mins}m ${secs}s" else "${secs}s"
-                }
-
-                SettingsSection(
-                    icon = Icons.Filled.Star,
-                    title = "Ads & Credits",
-                    description = "Remove ads and earn share credits"
-                ) {
-                    // --- No-ads timer ---
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Timer,
-                            contentDescription = null,
-                            tint = if (adFreeActive) Moss else onSurface.copy(alpha = 0.4f),
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Ad-free time", color = onSurface)
-                            Text(
-                                if (adFreeActive) "${formatRemaining(remainingMs)} remaining" else "Ads are active",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (adFreeActive) Moss else onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        if (adFreeActive) {
-                            Box(
-                                modifier = Modifier
-                                    .background(Moss.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text("ACTIVE", style = MaterialTheme.typography.labelSmall, color = Moss)
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = onWatchAdToRemoveAds,
-                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (adFreeActive) "EXTEND BY 10 MIN" else "WATCH AD — 10 MIN NO ADS")
-                    }
-                    Text(
-                        "Stacks — watch multiple times to bank more ad-free minutes.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = onSurface.copy(alpha = 0.5f)
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-                    HorizontalDivider(color = onSurface.copy(alpha = 0.1f))
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // --- Share credits ---
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Sort,
-                            contentDescription = null,
-                            tint = Brass,
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Share credits", color = onSurface)
-                            Text(
-                                "Used to share notes via the secure API",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .background(Brass.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                "${state.shareCredits}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Brass
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = onWatchAdForShares,
-                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("WATCH AD — EARN 1 SHARE CREDIT")
-                    }
-                    Text(
-                        "Credits accumulate — watch 3 ads to earn 3 shares.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = onSurface.copy(alpha = 0.5f)
-                    )
-                }
+            if (showAbout && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger)) {
+                SettingsDivider()
             }
 
-            SettingsDivider()
-
             // === ABOUT SECTION ===
-            SettingsSection(
+            if (showAbout) SettingsSection(
                 icon = Icons.Filled.Info,
                 title = "About",
-                description = "App information"
+                description = "App information",
+                expanded = isExpanded("about"),
+                onToggle = { toggleSection("about") }
             ) {
                 Text("Nulvex", style = MaterialTheme.typography.titleMedium, color = onSurface)
                 Text(
@@ -1613,16 +1708,24 @@ private fun SettingsScreen(
                     color = onSurface.copy(alpha = 0.6f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Version 1.0.0",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = onSurface.copy(alpha = 0.5f)
-                )
+                    Text(
+                        "Version ${BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = onSurface.copy(alpha = 0.5f)
+                    )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "XChaCha20-Poly1305 + Kyber768",
                     style = MaterialTheme.typography.labelSmall,
                     color = Moss.copy(alpha = 0.8f)
+                )
+            }
+
+            if (!hasVisibleSections) {
+                Text(
+                    "No settings match your search.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = onSurface.copy(alpha = 0.7f)
                 )
             }
 
@@ -1640,11 +1743,18 @@ private fun SettingsSection(
     title: String,
     description: String,
     accentColor: Color = Brass,
+    expanded: Boolean,
+    onToggle: () -> Unit,
     content: @Composable () -> Unit
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
@@ -1659,10 +1769,17 @@ private fun SettingsSection(
                     color = onSurface.copy(alpha = 0.6f)
                 )
             }
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = onSurface.copy(alpha = 0.65f)
+            )
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        Column(modifier = Modifier.padding(start = 36.dp)) {
-            content()
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(top = 16.dp, start = 36.dp)) {
+                content()
+            }
         }
     }
 }
@@ -2873,4 +2990,3 @@ private fun LabelsMenu(
         }
     }
 }
-
