@@ -1,4 +1,7 @@
-# Nulvex
+# NULVEX
+
+[![codecov](https://codecov.io/gh/AndroidIRCx/NULVEX/graph/badge.svg?token=7FSYO5H48A)](https://codecov.io/gh/AndroidIRCx/NULVEX)
+[![Android Unit Tests](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml/badge.svg)](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml)
 
 **Offline-first encrypted notes vault for Android.**
 No accounts. No telemetry. No plaintext on disk.
@@ -34,6 +37,20 @@ No accounts. No telemetry. No plaintext on disk.
 - **Settings search** — section/options search with clear button
 - **Collapsible settings sections** — cleaner navigation as settings grow
 - **Rewards & Ads first** — monetization section moved to top of Settings
+
+---
+
+## Download (Closed testing)
+
+The app is currently in **Google Play Closed Testing** and can be installed only through the Play testing flow.
+
+Join Google Groups first:
+- https://groups.google.com/g/androidircx
+- https://groups.google.com/g/testers-community
+
+Then join testing and install:
+- Join on Android & install: https://play.google.com/store/apps/details?id=com.androidircx.nulvex
+- Join on the web: https://play.google.com/apps/testing/com.androidircx.nulvex
 
 ---
 

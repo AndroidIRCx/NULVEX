@@ -119,6 +119,17 @@ jacoco {
     toolVersion = "0.8.12"
 }
 
+val jacocoDebugExec = layout.buildDirectory.file("jacoco/testDebugUnitTest.exec")
+val jacocoDebugAltExec = layout.buildDirectory.file(
+    "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"
+)
+val debugKotlinClassesDir = layout.buildDirectory.dir(
+    "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"
+)
+val debugJavaClassesDir = layout.buildDirectory.dir(
+    "intermediates/javac/debug/compileDebugJavaWithJavac/classes"
+)
+
 tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
     dependsOn("testDebugUnitTest")
 
@@ -141,18 +152,12 @@ tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
 
     classDirectories.setFrom(
         files(
-            fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") { exclude(excludes) },
-            fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/classes") { exclude(excludes) }
+            fileTree(debugKotlinClassesDir) { exclude(excludes) },
+            fileTree(debugJavaClassesDir) { exclude(excludes) }
         )
     )
     sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
-    executionData.setFrom(
-        fileTree(layout.buildDirectory.get().asFile) {
-            include("jacoco/testDebugUnitTest.exec")
-            include("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
-            include("**/*.ec")
-        }
-    )
+    executionData.setFrom(files(jacocoDebugExec, jacocoDebugAltExec))
 }
 
 tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerification") {
@@ -172,18 +177,12 @@ tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerificat
 
     classDirectories.setFrom(
         files(
-            fileTree("${layout.buildDirectory.get()}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") { exclude(excludes) },
-            fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug/classes") { exclude(excludes) }
+            fileTree(debugKotlinClassesDir) { exclude(excludes) },
+            fileTree(debugJavaClassesDir) { exclude(excludes) }
         )
     )
     sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
-    executionData.setFrom(
-        fileTree(layout.buildDirectory.get().asFile) {
-            include("jacoco/testDebugUnitTest.exec")
-            include("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec")
-            include("**/*.ec")
-        }
-    )
+    executionData.setFrom(files(jacocoDebugExec, jacocoDebugAltExec))
 
     val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.05"
 

@@ -1,6 +1,7 @@
 package com.androidircx.nulvex.security
 
 import android.content.Context
+import android.os.Build
 import android.util.Base64
 import androidx.core.content.edit
 import java.security.KeyStore
@@ -83,10 +84,17 @@ class BiometricKeyStore(context: Context) {
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setUserAuthenticationRequired(true)
-            .setUserAuthenticationParameters(
-                0,
-                KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
-            )
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    setUserAuthenticationParameters(
+                        0,
+                        KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
+                    )
+                } else {
+                    // Pre-API 30 fallback for per-use auth.
+                    setUserAuthenticationValidityDurationSeconds(-1)
+                }
+            }
             .build()
         generator.init(spec)
         return generator.generateKey()
