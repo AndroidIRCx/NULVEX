@@ -24,3 +24,4 @@ secrets/nulvex-release.jks
 /fastlane/report.xml
 /.claude/
 /app/google-services.json
+/.kotlin/
