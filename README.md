@@ -53,6 +53,18 @@ Then join testing and install:
 - Join on Android & install: https://play.google.com/store/apps/details?id=com.androidircx.nulvex
 - Join on the web: https://play.google.com/apps/testing/com.androidircx.nulvex
 
+Troubleshooting:
+- Use the same Google account for Google Groups and Play Store.
+- If opt-in does not appear immediately, wait a few minutes and reopen Play Store.
+
+---
+
+## Telemetry & Ads
+
+- Firebase Analytics is enabled.
+- Google Mobile Ads SDK (AdMob) is integrated.
+- Crashlytics is not enabled in the current Gradle config.
+
 ---
 
 ## Cryptography
@@ -83,8 +95,8 @@ Biometrics authenticate the user but do not derive cryptographic keys — the ma
 ## Requirements
 
 - Android 8.0+ (API 26)
-- Kotlin 2.2.10
-- AGP 9.0.1 / Gradle 9.2.1
+- Kotlin 2.3.10
+- AGP 9.0.1 / Gradle 9.3.1
 
 ---
 
@@ -94,9 +106,16 @@ Biometrics authenticate the user but do not derive cryptographic keys — the ma
 # Debug
 ./gradlew assembleDebug
 
+# Release APK
+./gradlew assembleRelease
+
 # Release AAB
 ./gradlew bundleRelease
 ```
+
+Build outputs:
+- APK: `app/build/outputs/apk/release/`
+- AAB: `app/build/outputs/bundle/release/`
 
 Release signing requires a gitignored `keystore.properties` file next to the project root:
 
@@ -113,23 +132,28 @@ Without it the build compiles but produces an unsigned AAB.
 
 ## Release
 
-Releases are automated with Fastlane. One command builds, bumps the version, commits, pushes and uploads to Google Play Closed testing:
+Releases are automated with Fastlane. Use Bundler-installed fastlane:
 
 ```bash
-fastlane closed
+bundle exec fastlane closed
 ```
 
 What it does:
-1. `bundleRelease` — builds the AAB and auto-increments `versionCode` + `versionName`
-2. `git commit` + `push` — commits `version.properties` and pushes to `main`
-3. `upload_to_play_store` — uploads AAB + R8 mapping to the **alpha** track
+1. `assembleRelease` — builds release APK for local/device testing
+2. `bundleRelease` — builds release AAB for Play upload and auto-increments `versionCode` + `versionName`
+3. `git commit` + `push` — commits `version.properties` and pushes to `main`
+4. `upload_to_play_store` — uploads only AAB + R8 mapping to the **alpha** track (`skip_upload_apk: true`)
+
+Notes:
+- Lane currently runs Gradle with `--no-configuration-cache` for stability with custom version bump task.
+- If upload fails after step 3, the version bump commit is already pushed.
 
 See [`fastlane/README.md`](fastlane/README.md) for all available lanes.
 
 Fastlane requires a Google Play service account JSON key. Configure the path in `fastlane/Appfile`:
 
 ```ruby
-json_key_file("path/to/service-account.json")
+json_key_file("secrets/play-service-account.json")
 package_name("com.androidircx.nulvex")
 ```
 
@@ -218,7 +242,8 @@ Current local status (February 19, 2026):
 | `PanicWipeServiceTest` | 6 | Session closure, wipeAll/wipeDecoyOnly without throwing |
 | `NulvexUiTest` | 31 | Compose UI: onboarding, setup PIN, unlock pad, vault list, panic button, error banner |
 
-CI runs JVM tests + JaCoCo report + JaCoCo coverage gate on every push/PR to `main`, `master`, and `develop` via `.github/workflows/android-unit-tests.yml`, and uploads HTML/XML coverage artifacts.
+CI workflow (`.github/workflows/android-unit-tests.yml`) runs JVM tests only (`./gradlew test` + JaCoCo report + JaCoCo coverage gate) on every push/PR to `main`, `master`, and `develop`, and uploads HTML/XML coverage artifacts.  
+`connectedAndroidTest` is not executed in GitHub Actions.
 
 ---
 

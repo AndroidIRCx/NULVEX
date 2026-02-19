@@ -37,7 +37,7 @@ class NulvexUiTest {
     private fun show(
         state: UiState,
         onCompleteOnboarding: () -> Unit = {},
-        onSetup: (String, String?) -> Unit = { _, _ -> },
+        onSetup: (String, String?, Boolean) -> Unit = { _, _, _ -> },
         onUnlock: (String) -> Unit = {},
         onPanic: () -> Unit = {},
         onOpenNew: () -> Unit = {},
@@ -172,7 +172,7 @@ class NulvexUiTest {
         var capturedPin: String? = null
         show(
             state = UiState(screen = Screen.Setup),
-            onSetup = { pin, _ -> capturedPin = pin }
+            onSetup = { pin, _, _ -> capturedPin = pin }
         )
         rule.onAllNodes(hasSetTextAction())[0].performTextInput("5678")
         rule.onAllNodes(hasSetTextAction())[1].performTextInput("5678")
