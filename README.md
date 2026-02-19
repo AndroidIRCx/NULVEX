@@ -167,9 +167,37 @@ app/src/main/java/com/androidircx/nulvex/
 
 ---
 
+## Testing
+
+104 tests, 0 failures.
+
+**JVM unit tests** (`./gradlew test`):
+
+| Suite | Tests | What it covers |
+|---|---|---|
+| `XChaCha20Poly1305NoteCryptoTest` | 8 | AEAD round-trip, nonce uniqueness, tamper detection |
+| `HkdfTest` | 8 | RFC 5869 vectors, key length flexibility, domain separation |
+| `VaultKeyManagerTest` | 11 | Master / DB / note key derivation, layer isolation |
+| `NoteRepositoryTest` | 11 | Encrypt-on-write, decrypt-on-read, secure delete (ciphertext zeroing) |
+| `SelfDestructServiceTest` | 7 | Expired note sweep, ciphertext zeroing, VACUUM |
+| `VaultSessionManagerTest` | 5 | Session state machine, null-state thread safety |
+
+**Instrumented tests** (`./gradlew connectedAndroidTest`, requires device or emulator):
+
+| Suite | Tests | What it covers |
+|---|---|---|
+| `Argon2idKdfTest` | 8 | Native Argon2id: correct output length, determinism, salt/password sensitivity |
+| `VaultAuthServiceTest` | 12 | PIN setup/verify, real vs decoy resolution, clearDecoyPin, random salt per hash |
+| `NotePayloadCodecTest` | 12 | JSON codec: round-trip, unicode, special chars, optional fields |
+| `NoteDaoTest` | 16 | Room DAO: upsert, expiry queries, soft delete, purge, ciphertext overwrite |
+| `PanicWipeServiceTest` | 6 | Session closure, wipeAll/wipeDecoyOnly without throwing |
+
+---
+
 ## Roadmap
 
-- [ ] Instrumented test suite (Argon2, VaultAuthService, NoteRepository, SelfDestructService)
+- [x] Core test suite (crypto, vault, self-destruct, panic, DAO)
+- [ ] UI flow tests (Compose: unlock, note create, panic wipe)
 - [ ] Security whitepaper + crypto flow diagram
 - [ ] Play Store listing + privacy policy
 - [ ] Device matrix test (StrongBox / no StrongBox, API 26 / 30 / 33 / 34+)
