@@ -30,6 +30,16 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Prepare google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "Missing GOOGLE_SERVICES_JSON secret" >&2
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
       - name: Run unit tests
         run: ./gradlew test :app:jacocoDebugUnitTestReport :app:jacocoDebugUnitTestCoverageVerification --no-daemon --stacktrace
 
