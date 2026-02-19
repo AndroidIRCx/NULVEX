@@ -169,7 +169,7 @@ app/src/main/java/com/androidircx/nulvex/
 
 ## Testing
 
-104 tests, 0 failures.
+135 tests, 0 failures.
 
 **JVM unit tests** (`./gradlew test`):
 
@@ -191,13 +191,15 @@ app/src/main/java/com/androidircx/nulvex/
 | `NotePayloadCodecTest` | 12 | JSON codec: round-trip, unicode, special chars, optional fields |
 | `NoteDaoTest` | 16 | Room DAO: upsert, expiry queries, soft delete, purge, ciphertext overwrite |
 | `PanicWipeServiceTest` | 6 | Session closure, wipeAll/wipeDecoyOnly without throwing |
+| `NulvexUiTest` | 31 | Compose UI: onboarding, setup PIN, unlock pad, vault list, panic button, error banner |
 
 ---
 
 ## Roadmap
 
 - [x] Core test suite (crypto, vault, self-destruct, panic, DAO)
-- [ ] UI flow tests (Compose: unlock, note create, panic wipe)
+- [x] UI flow tests (Compose: onboarding, setup, unlock, vault, panic, error banner)
+- [ ] AdMob integration (free tier ads / pro unlock)
 - [ ] Security whitepaper + crypto flow diagram
 - [ ] Play Store listing + privacy policy
 - [ ] Device matrix test (StrongBox / no StrongBox, API 26 / 30 / 33 / 34+)

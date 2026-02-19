@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.androidircx.nulvex.VaultServiceLocator
+import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
 import com.androidircx.nulvex.security.VaultProfile
@@ -35,7 +36,12 @@ data class UiState(
     val activeLabel: String? = null,
     val attachmentPreviews: Map<String, Bitmap> = emptyMap(),
     val wrongAttempts: Int = 0,
-    val lockoutUntil: Long = 0L
+    val lockoutUntil: Long = 0L,
+    val isAdFree: Boolean = false,
+    /** Epoch millis when the ad-free window expires (0 = not active). */
+    val adFreeUntil: Long = 0L,
+    /** Accumulated share credits earned by watching rewarded ads. */
+    val shareCredits: Int = 0
 )
 
 sealed class Screen {
@@ -53,6 +59,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val vaultService = VaultServiceLocator.vaultService()
     private val panicWipeService = VaultServiceLocator.panicWipeService()
     private val appPreferences = VaultServiceLocator.appPreferences()
+    private val adPreferences = VaultServiceLocator.adPreferences()
     private var inactivityJob: Job? = null
 
     var uiState = androidx.compose.runtime.mutableStateOf(
@@ -70,7 +77,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             biometricEnabled = appPreferences.isBiometricEnabled(),
             themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
             wrongAttempts = appPreferences.getWrongAttempts(),
-            lockoutUntil = appPreferences.getLockoutUntil()
+            lockoutUntil = appPreferences.getLockoutUntil(),
+            isAdFree = adPreferences.isAdFree(),
+            adFreeUntil = adPreferences.getAdFreeUntil(),
+            shareCredits = adPreferences.getShareCredits()
         )
     )
         private set
@@ -79,6 +89,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         appPreferences.setHasSeenOnboarding(true)
         uiState.value = uiState.value.copy(
             screen = if (authController.isSetup()) Screen.Unlock else Screen.Setup
+        )
+    }
+
+    /** Re-checks the ad-free timer and share credits; call from onResume. */
+    fun refreshAdFreeState() {
+        uiState.value = uiState.value.copy(
+            isAdFree = adPreferences.isAdFree(),
+            adFreeUntil = adPreferences.getAdFreeUntil(),
+            shareCredits = adPreferences.getShareCredits()
+        )
+    }
+
+    /**
+     * Called when the user earns a "no_ads" reward.
+     * [rewardAmount] comes from AdMob (10 units per view = 10 minutes).
+     * Repeated watches stack on top of any remaining time.
+     */
+    fun grantAdFree(rewardAmount: Int) {
+        adPreferences.extendAdFreeBy(rewardAmount.toLong() * AdManager.AD_FREE_MILLIS_PER_UNIT)
+        uiState.value = uiState.value.copy(
+            isAdFree = true,
+            adFreeUntil = adPreferences.getAdFreeUntil()
+        )
+    }
+
+    /**
+     * Called when the user earns a "share" reward.
+     * [rewardAmount] comes from AdMob (1 unit per view = 1 share credit).
+     */
+    fun grantShareCredits(rewardAmount: Int) {
+        adPreferences.addShareCredits(rewardAmount)
+        uiState.value = uiState.value.copy(
+            shareCredits = adPreferences.getShareCredits()
         )
     }
 

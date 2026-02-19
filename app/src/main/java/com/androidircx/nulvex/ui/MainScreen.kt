@@ -107,12 +107,18 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.viewinterop.AndroidView
+import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -169,7 +175,9 @@ fun MainScreen(
     onSelectLabel: (String?) -> Unit,
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onWatchAdToRemoveAds: () -> Unit = {},
+    onWatchAdForShares: () -> Unit = {}
 ) {
     var showPanicConfirm by remember { mutableStateOf(false) }
     var showLabelMenu by remember { mutableStateOf(false) }
@@ -188,8 +196,18 @@ fun MainScreen(
                 modifier = Modifier
                     .weight(1f)
                     .statusBarsPadding()
-                    .padding(20.dp)
             ) {
+                if (!state.isAdFree) {
+                    BannerAdSection(
+                        adUnitId = AdManager.AD_UNIT_BANNER,
+                        onRemoveAds = onWatchAdToRemoveAds
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(20.dp)
+                ) {
                 TopHeader(
                     state = state,
                     onLock = onLock,
@@ -226,7 +244,9 @@ fun MainScreen(
                             onRequestBiometricEnroll = onRequestBiometricEnroll,
                             onChangeRealPin = onChangeRealPin,
                             onUpdateThemeMode = onUpdateThemeMode,
-                            onClose = onCloseSettings
+                            onClose = onCloseSettings,
+                            onWatchAdToRemoveAds = onWatchAdToRemoveAds,
+                            onWatchAdForShares = onWatchAdForShares
                         )
                         Screen.NewNote -> NewNoteScreen(
                             state = state,
@@ -250,6 +270,7 @@ fun MainScreen(
                         )
                     }
                 }
+                } // end inner padding Column
             }
         }
         ErrorBar(state, onClearError)
@@ -370,6 +391,46 @@ private fun AppBackground(content: @Composable () -> Unit) {
                 )
         )
         content()
+    }
+}
+
+/**
+ * Full-width banner ad row with a small "Remove ads (10 min)" text button below it.
+ * Only rendered when [state.isAdFree] is false.
+ */
+@Composable
+private fun BannerAdSection(adUnitId: String, onRemoveAds: () -> Unit) {
+    Column {
+        AndroidView(
+            factory = { ctx ->
+                AdView(ctx).apply {
+                    val density = ctx.resources.displayMetrics.density
+                    val widthPx = ctx.resources.displayMetrics.widthPixels.toFloat()
+                    val adWidthDp = (widthPx / density).toInt()
+                    setAdSize(
+                        AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, adWidthDp)
+                    )
+                    this.adUnitId = adUnitId
+                    loadAd(AdRequest.Builder().build())
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onRemoveAds) {
+                Text(
+                    text = "Remove ads (10 min)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+        }
+        HorizontalDivider()
     }
 }
 
@@ -1059,7 +1120,9 @@ private fun SettingsScreen(
     onRequestBiometricEnroll: (String) -> Unit,
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onWatchAdToRemoveAds: () -> Unit = {},
+    onWatchAdForShares: () -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     var decoyPin by remember { mutableStateOf("") }
@@ -1408,6 +1471,129 @@ private fun SettingsScreen(
                         "Changing the decoy PIN wipes the old decoy vault.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Ember.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
+            SettingsDivider()
+
+            // === ADS & CREDITS SECTION ===
+            run {
+                // Live countdown — ticks every second while this screen is visible
+                var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        delay(1_000L)
+                        nowMs = System.currentTimeMillis()
+                    }
+                }
+
+                val remainingMs = maxOf(0L, state.adFreeUntil - nowMs)
+                val adFreeActive = remainingMs > 0L
+
+                fun formatRemaining(ms: Long): String {
+                    val totalSecs = ms / 1000L
+                    val mins = totalSecs / 60L
+                    val secs = totalSecs % 60L
+                    return if (mins > 0L) "${mins}m ${secs}s" else "${secs}s"
+                }
+
+                SettingsSection(
+                    icon = Icons.Filled.Star,
+                    title = "Ads & Credits",
+                    description = "Remove ads and earn share credits"
+                ) {
+                    // --- No-ads timer ---
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Timer,
+                            contentDescription = null,
+                            tint = if (adFreeActive) Moss else onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Ad-free time", color = onSurface)
+                            Text(
+                                if (adFreeActive) "${formatRemaining(remainingMs)} remaining" else "Ads are active",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (adFreeActive) Moss else onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        if (adFreeActive) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Moss.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("ACTIVE", style = MaterialTheme.typography.labelSmall, color = Moss)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onWatchAdToRemoveAds,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (adFreeActive) "EXTEND BY 10 MIN" else "WATCH AD — 10 MIN NO ADS")
+                    }
+                    Text(
+                        "Stacks — watch multiple times to bank more ad-free minutes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.5f)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    HorizontalDivider(color = onSurface.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // --- Share credits ---
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Sort,
+                            contentDescription = null,
+                            tint = Brass,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Share credits", color = onSurface)
+                            Text(
+                                "Used to share notes via the secure API",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(Brass.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                "${state.shareCredits}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Brass
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onWatchAdForShares,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("WATCH AD — EARN 1 SHARE CREDIT")
+                    }
+                    Text(
+                        "Credits accumulate — watch 3 ads to earn 3 shares.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.5f)
                     )
                 }
             }

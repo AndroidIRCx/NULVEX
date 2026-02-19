@@ -1,6 +1,8 @@
 package com.androidircx.nulvex
 
 import android.content.Context
+import com.androidircx.nulvex.ads.AdManager
+import com.androidircx.nulvex.ads.AdPreferences
 import com.androidircx.nulvex.data.VaultService
 import com.androidircx.nulvex.data.VaultSessionManager
 import com.androidircx.nulvex.security.VaultAuthController
@@ -15,6 +17,8 @@ object VaultServiceLocator {
     private lateinit var vaultAuthService: VaultAuthService
     private lateinit var vaultAuthController: VaultAuthController
     private lateinit var appPreferences: AppPreferences
+    private lateinit var adPreferences: AdPreferences
+    private lateinit var adManager: AdManager
 
     fun init(context: Context) {
         val appContext = context.applicationContext
@@ -24,6 +28,8 @@ object VaultServiceLocator {
         vaultAuthService = VaultAuthService(appContext)
         vaultAuthController = VaultAuthController(vaultAuthService, vaultService)
         appPreferences = AppPreferences(appContext)
+        adPreferences = AdPreferences(appContext)
+        adManager = AdManager(adPreferences)
     }
 
     fun sessionManager(): VaultSessionManager = sessionManager
@@ -32,4 +38,6 @@ object VaultServiceLocator {
     fun vaultAuthService(): VaultAuthService = vaultAuthService
     fun vaultAuthController(): VaultAuthController = vaultAuthController
     fun appPreferences(): AppPreferences = appPreferences
+    fun adPreferences(): AdPreferences = adPreferences
+    fun adManager(): AdManager = adManager
 }

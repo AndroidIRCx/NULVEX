@@ -5,12 +5,14 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.androidircx.nulvex.work.SelfDestructWorker
+import com.google.android.gms.ads.MobileAds
 import java.util.concurrent.TimeUnit
 
 class NulvexApp : Application() {
     override fun onCreate() {
         super.onCreate()
         VaultServiceLocator.init(this)
+        MobileAds.initialize(this)
         scheduleSelfDestructWork()
     }
 

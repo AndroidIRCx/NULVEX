@@ -15,6 +15,7 @@ import com.androidircx.nulvex.ui.MainViewModel
 import com.androidircx.nulvex.ui.theme.NULVEXTheme
 import com.androidircx.nulvex.security.BiometricKeyStore
 import com.androidircx.nulvex.security.VaultKeyManager
+import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.VaultServiceLocator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ import androidx.fragment.app.FragmentActivity
 class MainActivity : FragmentActivity() {
     private val vm: MainViewModel by viewModels()
     private val biometricStore by lazy { BiometricKeyStore(applicationContext) }
+    private val adManager by lazy { VaultServiceLocator.adManager() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,10 +74,26 @@ class MainActivity : FragmentActivity() {
                     onSelectLabel = vm::updateActiveLabel,
                     onLoadAttachmentPreview = vm::loadAttachmentPreview,
                     onRemoveAttachment = vm::removeAttachment,
-                    onClearError = vm::clearError
+                    onClearError = vm::clearError,
+                    onWatchAdToRemoveAds = {
+                        adManager.showRewardedNoAds(this) { amount ->
+                            vm.grantAdFree(amount)
+                        }
+                    },
+                    onWatchAdForShares = {
+                        adManager.showRewardedShare(this) { amount ->
+                            vm.grantShareCredits(amount)
+                            // TODO: when Laravel backend is ready, also POST credits to API
+                        }
+                    }
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        vm.refreshAdFreeState()
     }
 
     override fun onStop() {
