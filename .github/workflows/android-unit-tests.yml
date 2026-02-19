@@ -62,10 +62,3 @@ jobs:
           name: jacoco-xml-report
           path: app/build/reports/jacoco/jacocoDebugUnitTestReport/jacocoDebugUnitTestReport.xml
           if-no-files-found: warn
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: app/build/reports/jacoco/jacocoDebugUnitTestReport/jacocoDebugUnitTestReport.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: AndroidIRCx/NULVEX

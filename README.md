@@ -1,10 +1,11 @@
 # NULVEX
 
-[![codecov](https://codecov.io/gh/AndroidIRCx/NULVEX/graph/badge.svg?token=7FSYO5H48A)](https://codecov.io/gh/AndroidIRCx/NULVEX)
 [![Android Unit Tests](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml/badge.svg)](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml)
+[![Google Play Closed Testing](https://img.shields.io/badge/Google%20Play-Closed%20Testing-01875f?logo=googleplay&logoColor=white)](https://play.google.com/apps/testing/com.androidircx.nulvex)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 **Offline-first encrypted notes vault for Android.**
-No accounts. No telemetry. No plaintext on disk.
+Built for secure local notes with strong encryption, clean UX, and optional cloud-era monetization/testing integrations.
 
 ---
 
