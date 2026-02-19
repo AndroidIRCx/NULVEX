@@ -17,6 +17,26 @@ import com.androidircx.nulvex.security.BiometricKeyStore
 import com.androidircx.nulvex.security.VaultKeyManager
 import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.VaultServiceLocator
+import com.android.billingclient.api.AcknowledgePurchaseParams
+import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.BillingClientStateListener
+import com.android.billingclient.api.BillingFlowParams
+import com.android.billingclient.api.BillingResult
+import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.Purchase
+import com.android.billingclient.api.PurchasesUpdatedListener
+import com.android.billingclient.api.QueryProductDetailsParams
+import com.android.billingclient.api.QueryPurchasesParams
+import com.androidircx.nulvex.billing.PlayBillingFactory
+import com.androidircx.nulvex.billing.PlayBillingCoordinator
+import com.androidircx.nulvex.billing.PlayBillingGateway
+import com.androidircx.nulvex.billing.PlayBillingProducts
+import com.androidircx.nulvex.billing.PlayBillingStateSink
+import com.androidircx.nulvex.billing.BillingProductInfo
+import com.androidircx.nulvex.billing.BillingPurchaseInfo
+import com.androidircx.nulvex.billing.BillingPurchaseState
+import com.androidircx.nulvex.billing.PurchaseUpdateResult
+import com.androidircx.nulvex.billing.PurchaseUpdateStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,6 +46,22 @@ class MainActivity : FragmentActivity() {
     private val vm: MainViewModel by viewModels()
     private val biometricStore by lazy { BiometricKeyStore(applicationContext) }
     private val adManager by lazy { VaultServiceLocator.adManager() }
+    private var billingClient: BillingClient? = null
+    private val productDetailsById = mutableMapOf<String, ProductDetails>()
+    private lateinit var billingCoordinator: PlayBillingCoordinator
+    private val purchasesListener = PurchasesUpdatedListener { billingResult, purchases ->
+        billingCoordinator.onPurchasesUpdated(
+            PurchaseUpdateResult(
+                status = when (billingResult.responseCode) {
+                    BillingClient.BillingResponseCode.OK -> PurchaseUpdateStatus.OK
+                    BillingClient.BillingResponseCode.USER_CANCELED -> PurchaseUpdateStatus.USER_CANCELED
+                    else -> PurchaseUpdateStatus.ERROR
+                },
+                debugMessage = billingResult.debugMessage,
+                purchases = purchases.orEmpty().map { it.toPurchaseInfo() }
+            )
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,10 +127,17 @@ class MainActivity : FragmentActivity() {
                             vm.grantShareCredits(amount)
                             // TODO: when Laravel backend is ready, also POST credits to API
                         }
-                    }
+                    },
+                    onOpenPurchases = vm::openPurchases,
+                    onClosePurchases = vm::closePurchases,
+                    onBuyRemoveAds = { billingCoordinator.buy(PlayBillingProducts.REMOVE_ADS_ONE_TIME) },
+                    onBuyProFeatures = { billingCoordinator.buy(PlayBillingProducts.PRO_FEATURES_ONE_TIME) },
+                    onRestorePurchases = { billingCoordinator.restorePurchases() }
                 )
             }
         }
+        billingCoordinator = PlayBillingCoordinator(billingGateway, billingStateSink)
+        initBilling()
     }
 
     override fun onResume() {
@@ -105,6 +148,12 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         super.onStop()
         vm.onAppBackgrounded()
+    }
+
+    override fun onDestroy() {
+        billingClient?.endConnection()
+        billingClient = null
+        super.onDestroy()
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent?): Boolean {
@@ -220,6 +269,117 @@ class MainActivity : FragmentActivity() {
     private fun disableBiometric() {
         biometricStore.clear()
         vm.disableBiometric()
+    }
+
+    private val billingStateSink = object : PlayBillingStateSink {
+        override fun setBillingReady(ready: Boolean) = vm.setBillingReady(ready)
+        override fun updateBillingPrice(productId: String, price: String) = vm.updateBillingPrice(productId, price)
+        override fun showError(message: String) = vm.showError(message)
+        override fun grantLifetimeRemoveAds() = vm.grantLifetimeRemoveAds()
+        override fun grantLifetimeProFeatures() = vm.grantLifetimeProFeatures()
+        override fun refreshAdFreeState() = vm.refreshAdFreeState()
+    }
+
+    private val billingGateway = object : PlayBillingGateway {
+        override fun queryProductDetails(callback: (ok: Boolean, products: List<BillingProductInfo>) -> Unit) {
+            val client = billingClient ?: run {
+                callback(false, emptyList())
+                return
+            }
+            val params = QueryProductDetailsParams.newBuilder()
+                .setProductList(PlayBillingProducts.asQueryProducts())
+                .build()
+            client.queryProductDetailsAsync(params) { billingResult, productDetailsResult ->
+                if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                    callback(false, emptyList())
+                    return@queryProductDetailsAsync
+                }
+                productDetailsById.clear()
+                val mapped = productDetailsResult.productDetailsList.map { details ->
+                    productDetailsById[details.productId] = details
+                    BillingProductInfo(
+                        productId = details.productId,
+                        formattedPrice = details.oneTimePurchaseOfferDetails?.formattedPrice ?: "Unavailable",
+                        offerToken = details.oneTimePurchaseOfferDetails?.offerToken
+                    )
+                }
+                callback(true, mapped)
+            }
+        }
+
+        override fun queryPurchases(callback: (ok: Boolean, purchases: List<BillingPurchaseInfo>) -> Unit) {
+            val client = billingClient ?: run {
+                callback(false, emptyList())
+                return
+            }
+            val params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.INAPP)
+                .build()
+            client.queryPurchasesAsync(params) { billingResult, purchases ->
+                if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                    callback(false, emptyList())
+                    return@queryPurchasesAsync
+                }
+                callback(true, purchases.map { it.toPurchaseInfo() })
+            }
+        }
+
+        override fun launchPurchase(productId: String, offerToken: String): Pair<Boolean, String> {
+            val client = billingClient ?: return false to "Google Play Billing is not ready"
+            val details = productDetailsById[productId] ?: return false to "Missing product details"
+            val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
+                .setProductDetails(details)
+                .setOfferToken(offerToken)
+                .build()
+            val flowParams = BillingFlowParams.newBuilder()
+                .setProductDetailsParamsList(listOf(productParams))
+                .build()
+            val result = client.launchBillingFlow(this@MainActivity, flowParams)
+            return (result.responseCode == BillingClient.BillingResponseCode.OK) to result.debugMessage
+        }
+
+        override fun acknowledgePurchase(purchaseToken: String, callback: (ok: Boolean) -> Unit) {
+            val client = billingClient ?: run {
+                callback(false)
+                return
+            }
+            val acknowledgeParams = AcknowledgePurchaseParams.newBuilder()
+                .setPurchaseToken(purchaseToken)
+                .build()
+            client.acknowledgePurchase(acknowledgeParams) { ackResult ->
+                callback(ackResult.responseCode == BillingClient.BillingResponseCode.OK)
+            }
+        }
+    }
+
+    private fun initBilling() {
+        billingClient = PlayBillingFactory.createClient(this, purchasesListener).also { client ->
+            client.startConnection(object : BillingClientStateListener {
+                override fun onBillingServiceDisconnected() {
+                    billingCoordinator.onBillingDisconnected()
+                }
+
+                override fun onBillingSetupFinished(billingResult: BillingResult) {
+                    billingCoordinator.onBillingSetupFinished(
+                        billingResult.responseCode == BillingClient.BillingResponseCode.OK
+                    )
+                }
+            })
+        }
+    }
+
+    private fun Purchase.toPurchaseInfo(): BillingPurchaseInfo {
+        val state = when (purchaseState) {
+            Purchase.PurchaseState.PURCHASED -> BillingPurchaseState.PURCHASED
+            Purchase.PurchaseState.PENDING -> BillingPurchaseState.PENDING
+            else -> BillingPurchaseState.UNSPECIFIED
+        }
+        return BillingPurchaseInfo(
+            products = products,
+            state = state,
+            isAcknowledged = isAcknowledged,
+            purchaseToken = purchaseToken
+        )
     }
 }
 

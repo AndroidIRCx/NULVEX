@@ -123,6 +123,11 @@ val jacocoDebugExec = layout.buildDirectory.file("jacoco/testDebugUnitTest.exec"
 val jacocoDebugAltExec = layout.buildDirectory.file(
     "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"
 )
+val jacocoAndroidTestEcTree = layout.buildDirectory.dir("outputs/code_coverage").map { dir ->
+    fileTree(dir) {
+        include("**/*.ec")
+    }
+}
 val debugKotlinClassesDir = layout.buildDirectory.dir(
     "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"
 )
@@ -195,6 +200,45 @@ tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerificat
             }
         }
     }
+}
+
+tasks.register<JacocoReport>("jacocoDebugCombinedReport") {
+    // Run both unit tests and instrumented tests before building merged report.
+    // Requires a connected emulator/device for connectedDebugAndroidTest.
+    dependsOn("testDebugUnitTest")
+    dependsOn("connectedDebugAndroidTest")
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+
+    val excludes = listOf(
+        "**/R.class",
+        "**/R$*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*",
+        "**/*Test*.*",
+        "android/**/*.*",
+        "**/*\$Lambda$*.*",
+        "**/*Companion*.*"
+    )
+
+    classDirectories.setFrom(
+        files(
+            fileTree(debugKotlinClassesDir) { exclude(excludes) },
+            fileTree(debugJavaClassesDir) { exclude(excludes) }
+        )
+    )
+    sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
+    executionData.setFrom(
+        files(
+            jacocoDebugExec,
+            jacocoDebugAltExec,
+            jacocoAndroidTestEcTree
+        )
+    )
 }
 
 tasks.named("check") {

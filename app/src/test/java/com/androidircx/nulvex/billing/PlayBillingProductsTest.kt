@@ -7,6 +7,12 @@ import org.junit.Test
 class PlayBillingProductsTest {
 
     @Test
+    fun productIds_usePlayConsoleDashFormat() {
+        assertEquals("remove-ads-lifetime", PlayBillingProducts.REMOVE_ADS_ONE_TIME)
+        assertEquals("pro-features-lifetime", PlayBillingProducts.PRO_FEATURES_ONE_TIME)
+    }
+
+    @Test
     fun oneTimeProducts_containsExpectedIds() {
         assertEquals(
             listOf(

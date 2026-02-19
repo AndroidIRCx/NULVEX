@@ -41,7 +41,11 @@ data class UiState(
     /** Epoch millis when the ad-free window expires (0 = not active). */
     val adFreeUntil: Long = 0L,
     /** Accumulated share credits earned by watching rewarded ads. */
-    val shareCredits: Int = 0
+    val shareCredits: Int = 0,
+    val hasProFeatures: Boolean = false,
+    val billingReady: Boolean = false,
+    val removeAdsPrice: String = "Unavailable",
+    val proFeaturesPrice: String = "Unavailable"
 )
 
 sealed class Screen {
@@ -52,6 +56,7 @@ sealed class Screen {
     data object NewNote : Screen()
     data object NoteDetail : Screen()
     data object Settings : Screen()
+    data object Purchases : Screen()
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -80,7 +85,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             lockoutUntil = appPreferences.getLockoutUntil(),
             isAdFree = adPreferences.isAdFree(),
             adFreeUntil = adPreferences.getAdFreeUntil(),
-            shareCredits = adPreferences.getShareCredits()
+            shareCredits = adPreferences.getShareCredits(),
+            hasProFeatures = adPreferences.hasProFeaturesLifetime()
         )
     )
         private set
@@ -97,7 +103,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         uiState.value = uiState.value.copy(
             isAdFree = adPreferences.isAdFree(),
             adFreeUntil = adPreferences.getAdFreeUntil(),
-            shareCredits = adPreferences.getShareCredits()
+            shareCredits = adPreferences.getShareCredits(),
+            hasProFeatures = adPreferences.hasProFeaturesLifetime()
         )
     }
 
@@ -119,10 +126,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * [rewardAmount] comes from AdMob (1 unit per view = 1 share credit).
      */
     fun grantShareCredits(rewardAmount: Int) {
+        if (adPreferences.hasUnlimitedShares()) {
+            uiState.value = uiState.value.copy(hasProFeatures = true)
+            return
+        }
         adPreferences.addShareCredits(rewardAmount)
         uiState.value = uiState.value.copy(
             shareCredits = adPreferences.getShareCredits()
         )
+    }
+
+    fun openPurchases() {
+        uiState.value = uiState.value.copy(screen = Screen.Purchases, error = null)
+        resetInactivityTimer()
+    }
+
+    fun closePurchases() {
+        uiState.value = uiState.value.copy(screen = Screen.Settings, error = null)
+        resetInactivityTimer()
+    }
+
+    fun setBillingReady(ready: Boolean) {
+        uiState.value = uiState.value.copy(billingReady = ready)
+    }
+
+    fun updateBillingPrice(productId: String, price: String) {
+        uiState.value = when (productId) {
+            com.androidircx.nulvex.billing.PlayBillingProducts.REMOVE_ADS_ONE_TIME ->
+                uiState.value.copy(removeAdsPrice = price)
+            com.androidircx.nulvex.billing.PlayBillingProducts.PRO_FEATURES_ONE_TIME ->
+                uiState.value.copy(proFeaturesPrice = price)
+            else -> uiState.value
+        }
+    }
+
+    fun grantLifetimeRemoveAds() {
+        adPreferences.enableRemoveAdsLifetime()
+        uiState.value = uiState.value.copy(
+            isAdFree = true,
+            adFreeUntil = adPreferences.getAdFreeUntil()
+        )
+    }
+
+    fun grantLifetimeProFeatures() {
+        adPreferences.enableProFeaturesLifetime()
+        uiState.value = uiState.value.copy(hasProFeatures = true)
     }
 
     fun setupPins(realPin: String, decoyPin: String?, onComplete: (() -> Unit)? = null) {
@@ -678,7 +726,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun shouldAutoLock(): Boolean {
         return when (uiState.value.screen) {
             Screen.Vault, Screen.NewNote, Screen.NoteDetail -> true
-            Screen.Onboarding, Screen.Setup, Screen.Unlock, Screen.Settings -> false
+            Screen.Onboarding, Screen.Setup, Screen.Unlock, Screen.Settings, Screen.Purchases -> false
         }
     }
 

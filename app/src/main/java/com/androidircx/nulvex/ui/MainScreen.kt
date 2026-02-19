@@ -181,7 +181,12 @@ fun MainScreen(
     onRemoveAttachment: (String, String) -> Unit,
     onClearError: () -> Unit,
     onWatchAdToRemoveAds: () -> Unit = {},
-    onWatchAdForShares: () -> Unit = {}
+    onWatchAdForShares: () -> Unit = {},
+    onOpenPurchases: () -> Unit = {},
+    onClosePurchases: () -> Unit = {},
+    onBuyRemoveAds: () -> Unit = {},
+    onBuyProFeatures: () -> Unit = {},
+    onRestorePurchases: () -> Unit = {}
 ) {
     var showPanicConfirm by remember { mutableStateOf(false) }
     var showLabelMenu by remember { mutableStateOf(false) }
@@ -217,7 +222,7 @@ fun MainScreen(
                     onLock = onLock,
                     onPanicClick = { showPanicConfirm = true },
                     onOpenSettings = onOpenSettings,
-                    onCloseSettings = onCloseSettings,
+                    onCloseSettings = if (state.screen == Screen.Purchases) onClosePurchases else onCloseSettings,
                     onToggleLabels = { showLabelMenu = !showLabelMenu }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -250,7 +255,15 @@ fun MainScreen(
                             onUpdateThemeMode = onUpdateThemeMode,
                             onClose = onCloseSettings,
                             onWatchAdToRemoveAds = onWatchAdToRemoveAds,
-                            onWatchAdForShares = onWatchAdForShares
+                            onWatchAdForShares = onWatchAdForShares,
+                            onOpenPurchases = onOpenPurchases
+                        )
+                        Screen.Purchases -> PurchaseScreen(
+                            state = state,
+                            onBack = onClosePurchases,
+                            onBuyRemoveAds = onBuyRemoveAds,
+                            onBuyProFeatures = onBuyProFeatures,
+                            onRestorePurchases = onRestorePurchases
                         )
                         Screen.NewNote -> NewNoteScreen(
                             state = state,
@@ -496,7 +509,7 @@ private fun TopHeader(
                     )
                 }
             }
-        } else if (state.screen == Screen.Settings) {
+        } else if (state.screen == Screen.Settings || state.screen == Screen.Purchases) {
             IconButton(onClick = onCloseSettings) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -1122,7 +1135,8 @@ private fun SettingsScreen(
     onUpdateThemeMode: (ThemeMode) -> Unit,
     onClose: () -> Unit,
     onWatchAdToRemoveAds: () -> Unit = {},
-    onWatchAdForShares: () -> Unit = {}
+    onWatchAdForShares: () -> Unit = {},
+    onOpenPurchases: () -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     var decoyPin by remember { mutableStateOf("") }
@@ -1161,7 +1175,9 @@ private fun SettingsScreen(
         "share credits",
         "watch ad",
         "remove ads",
-        "ad-free time"
+        "ad-free time",
+        "purchase",
+        "pro"
     )
     val showDisplay = matchesSection("display", "theme", "appearance", "dark", "light", "system")
     val showVaultDefaults = matchesSection(
@@ -1287,13 +1303,19 @@ private fun SettingsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = onWatchAdToRemoveAds,
+                        enabled = !state.isAdFree,
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (adFreeActive) "EXTEND BY 10 MIN" else "WATCH AD - 10 MIN NO ADS")
+                        Text(
+                            if (state.isAdFree) "ADS REMOVED"
+                            else if (adFreeActive) "EXTEND BY 10 MIN"
+                            else "WATCH AD - 10 MIN NO ADS"
+                        )
                     }
                     Text(
-                        "Stacks - watch multiple times to bank more ad-free minutes.",
+                        if (state.isAdFree) "Lifetime remove-ads purchase is active."
+                        else "Stacks - watch multiple times to bank more ad-free minutes.",
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.5f)
                     )
@@ -1326,7 +1348,7 @@ private fun SettingsScreen(
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                "${state.shareCredits}",
+                                if (state.hasProFeatures) "UNLIMITED" else "${state.shareCredits}",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Brass
@@ -1334,18 +1356,40 @@ private fun SettingsScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
+                    if (state.hasProFeatures) {
+                        Text(
+                            "Pro Features lifetime purchase is active. You have unlimited shares.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Moss
+                        )
+                    } else {
+                        Button(
+                            onClick = onWatchAdForShares,
+                            colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("WATCH AD - EARN 1 SHARE CREDIT")
+                        }
+                        Text(
+                            "Credits accumulate - watch 3 ads to earn 3 shares.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "One-time purchases: remove ads lifetime and Pro features lifetime.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     Button(
-                        onClick = onWatchAdForShares,
-                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        onClick = onOpenPurchases,
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("WATCH AD - EARN 1 SHARE CREDIT")
+                        Text("OPEN PURCHASE OPTIONS")
                     }
-                    Text(
-                        "Credits accumulate - watch 3 ads to earn 3 shares.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = onSurface.copy(alpha = 0.5f)
-                    )
                 }
             }
 
@@ -1728,6 +1772,119 @@ private fun SettingsScreen(
             Spacer(modifier = Modifier.height(20.dp))
             TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
                 Text("BACK TO VAULT", color = Brass)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PurchaseScreen(
+    state: UiState,
+    onBack: () -> Unit,
+    onBuyRemoveAds: () -> Unit,
+    onBuyProFeatures: () -> Unit,
+    onRestorePurchases: () -> Unit
+) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+        ) {
+            Text("Purchase options", style = MaterialTheme.typography.titleLarge, color = onSurface)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "One-time products from Google Play.",
+                style = MaterialTheme.typography.bodySmall,
+                color = onSurface.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Remove Ads (Lifetime)", style = MaterialTheme.typography.titleMedium, color = onSurface)
+                    Text(
+                        "Permanently removes banner and rewarded ad prompts.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        if (state.isAdFree) "Owned" else state.removeAdsPrice,
+                        color = if (state.isAdFree) Moss else Brass,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onBuyRemoveAds,
+                        enabled = state.billingReady && !state.isAdFree,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (state.isAdFree) "OWNED" else "BUY REMOVE ADS")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.45f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Pro Features (Lifetime)", style = MaterialTheme.typography.titleMedium, color = onSurface)
+                    Text(
+                        "Unlocks unlimited share credits. Does not remove ads. Backup and more are coming soon.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        if (state.hasProFeatures) "Owned" else state.proFeaturesPrice,
+                        color = if (state.hasProFeatures) Moss else Brass,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onBuyProFeatures,
+                        enabled = state.billingReady && !state.hasProFeatures,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (state.hasProFeatures) "OWNED" else "BUY PRO FEATURES")
+                    }
+                }
+            }
+
+            if (!state.billingReady) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Google Play Billing is not ready yet. Please wait a moment and try again.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Ember
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            TextButton(onClick = onRestorePurchases, modifier = Modifier.fillMaxWidth()) {
+                Text("RESTORE PURCHASES", color = Brass)
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                Text("BACK TO SETTINGS", color = Brass)
             }
         }
     }
