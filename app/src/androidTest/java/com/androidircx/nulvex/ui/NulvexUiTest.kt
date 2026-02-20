@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextClearance
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.data.Note
+import com.androidircx.nulvex.pro.BackupRecord
 import com.androidircx.nulvex.ui.theme.NULVEXTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -44,6 +46,9 @@ class NulvexUiTest {
         onOpenNew: () -> Unit = {},
         onOpenNote: (String) -> Unit = {},
         onDelete: (String) -> Unit = {},
+        onDeleteSharedKey: (String) -> Unit = {},
+        onDeleteSavedBackup: (String) -> Unit = {},
+        onRestoreBackup: (String, String, Boolean, String?, Long?) -> Unit = { _, _, _, _, _ -> },
         onOpenPurchases: () -> Unit = {},
         onRestorePurchases: () -> Unit = {}
     ) {
@@ -88,7 +93,10 @@ class NulvexUiTest {
                     onRemoveAttachment = { _, _ -> },
                     onClearError = {},
                     onOpenPurchases = onOpenPurchases,
-                    onRestorePurchases = onRestorePurchases
+                    onRestorePurchases = onRestorePurchases,
+                    onDeleteSharedKey = onDeleteSharedKey,
+                    onDeleteSavedBackup = onDeleteSavedBackup,
+                    onRestoreBackup = onRestoreBackup
                 )
             }
         }
@@ -510,4 +518,54 @@ class NulvexUiTest {
         rule.onNodeWithText("Search settings").performTextInput("zzzzzzz")
         rule.onNodeWithText("No settings match your search.").assertIsDisplayed()
     }
+
+
+    @Test
+    fun settings_deleteSavedBackup_yesDeletes() {
+        var deletedRecordId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Settings,
+                backupRecords = listOf(
+                    BackupRecord(
+                        id = "rec-1",
+                        mediaId = "media-1",
+                        downloadPathId = "download-1",
+                        keyId = "key-1",
+                        downloadToken = null,
+                        downloadExpires = null,
+                        sizeBytes = 10,
+                        sha256 = "abc",
+                        createdAt = 1L
+                    )
+                )
+            ),
+            onDeleteSavedBackup = { deletedRecordId = it }
+        )
+
+        rule.onNodeWithText("Search settings").performTextInput("backup")
+        rule.onNodeWithText("Backup").performClick()
+        rule.onNodeWithText("DELETE").performClick()
+        rule.onNodeWithText("Delete backup record?").assertIsDisplayed()
+        rule.onNodeWithText("YES").performClick()
+        rule.waitForIdle()
+
+        assertEquals("rec-1", deletedRecordId)
+    }
+
+    @Test
+    fun settings_generatedStatus_showsSuccessDialog() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Settings,
+                backupStatus = "XChaCha key generated"
+            )
+        )
+
+        rule.onNodeWithText("Success").assertIsDisplayed()
+        rule.onNodeWithText("Key created successfully.").assertIsDisplayed()
+    }
+
 }

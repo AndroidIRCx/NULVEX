@@ -89,6 +89,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -101,6 +102,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Palette
@@ -127,8 +129,12 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.window.Dialog
+import com.androidircx.nulvex.i18n.tx
+import com.androidircx.nulvex.R
 import com.androidircx.nulvex.ui.theme.Brass
 import com.androidircx.nulvex.ui.theme.Coal
 import com.androidircx.nulvex.ui.theme.Ember
@@ -139,6 +145,15 @@ import com.androidircx.nulvex.ui.theme.ThemeMode
 import kotlin.math.max
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.graphics.Bitmap
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
+import com.google.zxing.common.BitMatrix
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -161,11 +176,13 @@ fun MainScreen(
     onDisableBiometric: () -> Unit,
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
+    onUpdateLanguage: (String) -> Unit = {},
     onOpenNew: () -> Unit,
     onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean) -> Unit,
     onOpenNote: (String) -> Unit,
     onCloseNote: () -> Unit,
     onUpdateNoteText: (String, String) -> Unit,
+    onShareNote: (String) -> Unit = {},
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
     onToggleChecklistItem: (String, String) -> Unit,
@@ -186,7 +203,22 @@ fun MainScreen(
     onClosePurchases: () -> Unit = {},
     onBuyRemoveAds: () -> Unit = {},
     onBuyProFeatures: () -> Unit = {},
-    onRestorePurchases: () -> Unit = {}
+    onRestorePurchases: () -> Unit = {},
+    onImportSharedKey: (String, String, String) -> Unit = { _, _, _ -> },
+    onDeleteSharedKey: (String) -> Unit = {},
+    onUploadBackup: (String) -> Unit = {},
+    onRestoreBackup: (String, String, Boolean, String?, Long?) -> Unit = { _, _, _, _, _ -> },
+    onRestoreSavedBackup: (String, Boolean) -> Unit = { _, _ -> },
+    onDeleteSavedBackup: (String) -> Unit = {},
+    onScanQrKey: () -> Unit = {},
+    onExportLocalBackup: (String) -> Unit = {},
+    onImportLocalBackup: (String, Boolean) -> Unit = { _, _ -> },
+    onExportKeyManager: (Boolean, String?) -> Unit = { _, _ -> },
+    onImportKeyManager: (String?) -> Unit = {},
+    onGenerateXChaChaKey: (String) -> Unit = {},
+    onGeneratePgpKey: (String) -> Unit = {},
+    onBuildKeyTransferPayload: (String) -> String? = { null },
+    onStartNfcKeyShare: (String) -> Unit = {}
 ) {
     var showPanicConfirm by remember { mutableStateOf(false) }
     var showLabelMenu by remember { mutableStateOf(false) }
@@ -231,7 +263,11 @@ fun MainScreen(
                     enter = fadeIn(animationSpec = tween(350)) + slideInVertically(animationSpec = tween(350)) { 40 }
                 ) {
                     when (state.screen) {
-                        Screen.Onboarding -> OnboardingScreen(onComplete = onCompleteOnboarding)
+                        Screen.Onboarding -> OnboardingScreen(
+                            languageTag = state.languageTag,
+                            onSelectLanguage = onUpdateLanguage,
+                            onComplete = onCompleteOnboarding
+                        )
                         Screen.Setup -> SetupScreen(state, onSetup)
                         Screen.Unlock -> UnlockScreen(state, onUnlock, onRequestBiometricUnlock)
                         Screen.Vault -> VaultScreen(
@@ -253,10 +289,26 @@ fun MainScreen(
                             onRequestBiometricEnroll = onRequestBiometricEnroll,
                             onChangeRealPin = onChangeRealPin,
                             onUpdateThemeMode = onUpdateThemeMode,
+                            onUpdateLanguage = onUpdateLanguage,
                             onClose = onCloseSettings,
                             onWatchAdToRemoveAds = onWatchAdToRemoveAds,
                             onWatchAdForShares = onWatchAdForShares,
-                            onOpenPurchases = onOpenPurchases
+                            onOpenPurchases = onOpenPurchases,
+                            onImportSharedKey = onImportSharedKey,
+                            onDeleteSharedKey = onDeleteSharedKey,
+                            onUploadBackup = onUploadBackup,
+                            onRestoreBackup = onRestoreBackup,
+                            onRestoreSavedBackup = onRestoreSavedBackup,
+                            onDeleteSavedBackup = onDeleteSavedBackup,
+                            onScanQrKey = onScanQrKey,
+                            onExportLocalBackup = onExportLocalBackup,
+                            onImportLocalBackup = onImportLocalBackup,
+                            onExportKeyManager = onExportKeyManager,
+                            onImportKeyManager = onImportKeyManager,
+                            onGenerateXChaChaKey = onGenerateXChaChaKey,
+                            onGeneratePgpKey = onGeneratePgpKey,
+                            onBuildKeyTransferPayload = onBuildKeyTransferPayload,
+                            onStartNfcKeyShare = onStartNfcKeyShare
                         )
                         Screen.Purchases -> PurchaseScreen(
                             state = state,
@@ -268,6 +320,7 @@ fun MainScreen(
                         Screen.NewNote -> NewNoteScreen(
                             state = state,
                             onCreate = onCreate,
+                            onCancel = onCloseNote,
                             defaultExpiry = state.defaultExpiry,
                             defaultReadOnce = state.defaultReadOnce
                         )
@@ -275,6 +328,7 @@ fun MainScreen(
                             state,
                             onCloseNote,
                             onUpdateNoteText,
+                            onShareNote,
                             onDelete,
                             onTogglePinned,
                             onToggleChecklistItem,
@@ -330,15 +384,13 @@ fun MainScreen(
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            "PANIC WIPE",
+                        Text(tx("PANIC WIPE"),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Ember
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "All vault data will be permanently destroyed. This cannot be undone.",
+                        Text(tx("All vault data will be permanently destroyed. This cannot be undone."),
                             color = Sand.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center
                         )
@@ -366,7 +418,7 @@ fun MainScreen(
                                     .background(Ember.copy(alpha = 0.7f))
                             )
                             Text(
-                                text = if (holdProgress > 0.01f) "WIPING..." else "HOLD TO WIPE",
+                                text = if (holdProgress > 0.01f) tx("WIPING...") else tx("HOLD TO WIPE"),
                                 color = Sand,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.align(Alignment.Center)
@@ -377,12 +429,23 @@ fun MainScreen(
                             onClick = { showPanicConfirm = false },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("CANCEL", color = Sand.copy(alpha = 0.7f))
+                            Text(tx("CANCEL"), color = Sand.copy(alpha = 0.7f))
                         }
                     }
                 }
             }
         }
+    }
+}
+
+internal fun resolveRemoteMediaIdInput(rawInput: String): String {
+    val trimmed = rawInput.trim()
+    if (trimmed.isBlank()) return ""
+    val marker = "/api/media/download/"
+    return if (trimmed.contains(marker)) {
+        trimmed.substringAfter(marker).substringBefore("?").substringBefore("#").trim().trim('/')
+    } else {
+        trimmed
     }
 }
 
@@ -412,7 +475,7 @@ private fun AppBackground(content: @Composable () -> Unit) {
 }
 
 /**
- * Full-width banner ad row with a small "Remove ads (10 min)" text button below it.
+ * Full-width banner ad row with a localized remove-ads text button below it.
  * Only rendered when [state.isAdFree] is false.
  */
 @Composable
@@ -441,7 +504,7 @@ private fun BannerAdSection(adUnitId: String, onRemoveAds: () -> Unit) {
         ) {
             TextButton(onClick = onRemoveAds) {
                 Text(
-                    text = "Remove ads (10 min)",
+                    text = tx("Remove ads (10 min)"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
@@ -468,12 +531,12 @@ private fun TopHeader(
     ) {
         Column {
             Text(
-                text = "NULVEX",
+                text = tx("NULVEX"),
                 style = MaterialTheme.typography.displayLarge,
                 color = onBackground
             )
             Text(
-                text = "Offline secure vault",
+                text = tx("Offline secure vault"),
                 style = MaterialTheme.typography.labelLarge,
                 color = onBackground.copy(alpha = 0.7f)
             )
@@ -483,28 +546,28 @@ private fun TopHeader(
                 IconButton(onClick = onToggleLabels) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Label,
-                        contentDescription = "Labels",
+                        contentDescription = tx("Labels"),
                         tint = onBackground.copy(alpha = 0.7f)
                     )
                 }
                 IconButton(onClick = onOpenSettings) {
                     Icon(
                         imageVector = Icons.Filled.Settings,
-                        contentDescription = "Settings",
+                        contentDescription = tx("Settings"),
                         tint = onBackground.copy(alpha = 0.7f)
                     )
                 }
                 IconButton(onClick = onPanicClick) {
                     Icon(
                         imageVector = Icons.Filled.Warning,
-                        contentDescription = "Panic wipe",
+                        contentDescription = tx("Panic wipe"),
                         tint = Ember
                     )
                 }
                 IconButton(onClick = onLock) {
                     Icon(
                         imageVector = Icons.Filled.Lock,
-                        contentDescription = "Lock",
+                        contentDescription = tx("Lock"),
                         tint = Brass
                     )
                 }
@@ -513,7 +576,7 @@ private fun TopHeader(
             IconButton(onClick = onCloseSettings) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
+                    contentDescription = tx("Back"),
                     tint = Brass
                 )
             }
@@ -622,6 +685,7 @@ private fun SetupScreen(
     var pin by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var decoyEnabled by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var decoyPin by remember { mutableStateOf("") }
     var enableBiometric by remember { mutableStateOf(false) }
 
@@ -636,12 +700,12 @@ private fun SetupScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
         ) {
-            Text("Create your vault", style = MaterialTheme.typography.titleLarge, color = onSurface)
+            Text(tx("Create your vault"), style = MaterialTheme.typography.titleLarge, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
                 value = pin,
                 onValueChange = { pin = it },
-                label = { Text("Primary PIN") },
+                label = { Text(tx("Primary PIN")) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
@@ -654,7 +718,7 @@ private fun SetupScreen(
             OutlinedTextField(
                 value = confirm,
                 onValueChange = { confirm = it },
-                label = { Text("Confirm PIN") },
+                label = { Text(tx("Confirm PIN")) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
@@ -666,14 +730,14 @@ private fun SetupScreen(
             Spacer(modifier = Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = decoyEnabled, onCheckedChange = { decoyEnabled = it })
-                Text("Enable decoy vault", color = onSurface)
+                Text(tx("Enable decoy vault"), color = onSurface)
             }
             if (decoyEnabled) {
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = decoyPin,
                     onValueChange = { decoyPin = it },
-                    label = { Text("Decoy PIN") },
+                    label = { Text(tx("Decoy PIN")) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -686,12 +750,12 @@ private fun SetupScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = enableBiometric, onCheckedChange = { enableBiometric = it })
-                Text("Enable fingerprint unlock", color = onSurface)
+                Text(tx("Enable fingerprint unlock"), color = onSurface)
             }
             Spacer(modifier = Modifier.height(16.dp))
             val pinMismatch = pin.isNotEmpty() && confirm.isNotEmpty() && pin != confirm
             if (pinMismatch) {
-                Text("PINs do not match", color = Ember, style = MaterialTheme.typography.labelLarge)
+                Text(tx("PINs do not match"), color = Ember, style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(8.dp))
             }
             Button(
@@ -701,7 +765,7 @@ private fun SetupScreen(
                 enabled = !state.isBusy && pin.isNotBlank() && !pinMismatch,
                 colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
             ) {
-                Text("CREATE VAULT")
+                Text(tx("CREATE VAULT"))
             }
         }
     }
@@ -737,11 +801,11 @@ private fun UnlockScreen(
                 .padding(bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Unlock", style = MaterialTheme.typography.titleLarge, color = Sand)
+            Text(tx("Unlock"), style = MaterialTheme.typography.titleLarge, color = Sand)
             Spacer(modifier = Modifier.height(28.dp))
             SecurePinPad(
                 pin = pin,
-                label = "Enter PIN",
+                label = tx("Enter PIN"),
                 onPinChange = { if (!isLockedOut) pin = it }
             )
             Spacer(modifier = Modifier.height(20.dp))
@@ -753,8 +817,9 @@ private fun UnlockScreen(
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
+                    val lockoutTemplate = tx("Too many attempts. Try again in {seconds}s")
                     Text(
-                        text = "Too many attempts. Try again in ${lockoutRemainingSecs}s",
+                        text = lockoutTemplate.replace("{seconds}", lockoutRemainingSecs.toString()),
                         color = Ember,
                         style = MaterialTheme.typography.labelLarge,
                         textAlign = TextAlign.Center
@@ -767,7 +832,7 @@ private fun UnlockScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                 ) {
-                    Text("UNLOCK")
+                    Text(tx("UNLOCK"))
                 }
             }
             if (state.biometricEnabled && !isLockedOut) {
@@ -777,7 +842,7 @@ private fun UnlockScreen(
                     enabled = !state.isBusy,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("UNLOCK WITH FINGERPRINT", color = Sand.copy(alpha = 0.7f))
+                    Text(tx("UNLOCK WITH FINGERPRINT"), color = Sand.copy(alpha = 0.7f))
                 }
             }
         }
@@ -804,6 +869,11 @@ private fun VaultScreen(
     var pendingDelete by remember { mutableStateOf<Note?>(null) }
     var sortMode by remember { mutableStateOf(SortMode.NEWEST) }
     var showSortMenu by remember { mutableStateOf(false) }
+    val sortLabels = mapOf(
+        SortMode.NEWEST to tx("Newest"),
+        SortMode.OLDEST to tx("Oldest"),
+        SortMode.EXPIRING to tx("Expiring soon")
+    )
 
     BoxWithConstraints {
         val compact = maxWidth < 360.dp
@@ -848,12 +918,13 @@ private fun VaultScreen(
             ) {
                 // Badges
                 Row(horizontalArrangement = Arrangement.spacedBy(badgeSpacing)) {
-                    VaultBadge(text = "${filteredNotes.size} notes", tint = Sand)
+                    val notesBadge = tx("{count} notes").replace("{count}", filteredNotes.size.toString())
+                    VaultBadge(text = notesBadge, tint = Sand)
                     if (readOnceCount > 0) {
-                        VaultBadge(text = "$readOnceCount burn", tint = Brass)
+                        VaultBadge(text = "$readOnceCount ${tx("burn")}", tint = Brass)
                     }
                     if (expiringCount > 0) {
-                        VaultBadge(text = "$expiringCount expiring", tint = Ember)
+                        VaultBadge(text = "$expiringCount ${tx("expiring")}", tint = Ember)
                     }
                 }
 
@@ -867,13 +938,13 @@ private fun VaultScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Sort,
-                            contentDescription = "Sort",
+                            contentDescription = tx("Sort"),
                             tint = onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.height(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            sortMode.label,
+                            sortLabels[sortMode] ?: tx(sortMode.label),
                             style = MaterialTheme.typography.labelMedium,
                             color = onSurface.copy(alpha = 0.7f)
                         )
@@ -886,7 +957,7 @@ private fun VaultScreen(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        mode.label,
+                                        sortLabels[mode] ?: tx(mode.label),
                                         color = if (mode == sortMode) Brass else onSurface
                                     )
                                 },
@@ -946,7 +1017,7 @@ private fun VaultScreen(
                 }
                 if (otherNotes.isNotEmpty()) {
                     item(key = "others_header") {
-                        SectionLabel(if (pinnedNotes.isEmpty()) "Notes" else "Others")
+                        SectionLabel(if (pinnedNotes.isEmpty()) tx("Notes") else tx("Others"))
                     }
                 }
                 items(otherNotes, key = { it.id }) { note ->
@@ -986,15 +1057,13 @@ private fun VaultScreen(
                         modifier = Modifier.size(48.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "BURN NOTE",
+                    Text(tx("BURN NOTE"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Brass
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "This note is set to read-once. It will be permanently destroyed after you close it.",
+                    Text(tx("This note is set to read-once. It will be permanently destroyed after you close it."),
                         color = Sand.copy(alpha = 0.8f),
                         textAlign = TextAlign.Center
                     )
@@ -1008,14 +1077,14 @@ private fun VaultScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
-                        Text("OPEN & BURN", fontWeight = FontWeight.Bold)
+                        Text(tx("OPEN & BURN"), fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(
                         onClick = { pendingReadOnce = null },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("CANCEL", color = Sand.copy(alpha = 0.7f))
+                        Text(tx("CANCEL"), color = Sand.copy(alpha = 0.7f))
                     }
                 }
             }
@@ -1026,10 +1095,9 @@ private fun VaultScreen(
     if (pendingDelete != null) {
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete note?", color = MaterialTheme.colorScheme.onSurface) },
+            title = { Text(tx("Delete note?"), color = MaterialTheme.colorScheme.onSurface) },
             text = {
-                Text(
-                    "This action cannot be undone.",
+                Text(tx("This action cannot be undone."),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
             },
@@ -1042,12 +1110,12 @@ private fun VaultScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = Sand)
                 ) {
-                    Text("DELETE")
+                    Text(tx("DELETE"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
-                    Text("CANCEL", color = MaterialTheme.colorScheme.onSurface)
+                    Text(tx("CANCEL"), color = MaterialTheme.colorScheme.onSurface)
                 }
             },
             containerColor = MaterialTheme.colorScheme.surface
@@ -1133,12 +1201,29 @@ private fun SettingsScreen(
     onRequestBiometricEnroll: (String) -> Unit,
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
+    onUpdateLanguage: (String) -> Unit,
     onClose: () -> Unit,
     onWatchAdToRemoveAds: () -> Unit = {},
     onWatchAdForShares: () -> Unit = {},
-    onOpenPurchases: () -> Unit = {}
+    onOpenPurchases: () -> Unit = {},
+    onImportSharedKey: (String, String, String) -> Unit = { _, _, _ -> },
+    onDeleteSharedKey: (String) -> Unit = {},
+    onUploadBackup: (String) -> Unit = {},
+    onRestoreBackup: (String, String, Boolean, String?, Long?) -> Unit = { _, _, _, _, _ -> },
+    onRestoreSavedBackup: (String, Boolean) -> Unit = { _, _ -> },
+    onDeleteSavedBackup: (String) -> Unit = {},
+    onScanQrKey: () -> Unit = {},
+    onExportLocalBackup: (String) -> Unit = {},
+    onImportLocalBackup: (String, Boolean) -> Unit = { _, _ -> },
+    onExportKeyManager: (Boolean, String?) -> Unit = { _, _ -> },
+    onImportKeyManager: (String?) -> Unit = {},
+    onGenerateXChaChaKey: (String) -> Unit = {},
+    onGeneratePgpKey: (String) -> Unit = {},
+    onBuildKeyTransferPayload: (String) -> String? = { null },
+    onStartNfcKeyShare: (String) -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
+    val clipboard = LocalClipboardManager.current
     var decoyPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     val pinMismatch = decoyPin.isNotEmpty() && confirmPin.isNotEmpty() && decoyPin != confirmPin
@@ -1149,6 +1234,25 @@ private fun SettingsScreen(
     val realPinMismatch = newPin.isNotEmpty() && confirmNewPin.isNotEmpty() && newPin != confirmNewPin
     var settingsSearch by remember { mutableStateOf("") }
     var expandedSections by remember { mutableStateOf(setOf<String>()) }
+    var keyLabel by remember { mutableStateOf("") }
+    var keyInput by remember { mutableStateOf("") }
+    var selectedKeyId by remember { mutableStateOf("") }
+    var restoreMediaId by remember { mutableStateOf(state.lastBackupMediaId) }
+    var selectedBackupRecordId by remember { mutableStateOf("") }
+    var restoreMerge by remember { mutableStateOf(true) }
+    var keyManagerExportEncrypted by remember { mutableStateOf(true) }
+    var keyManagerPassword by remember { mutableStateOf("") }
+    var keyManagerImportPassword by remember { mutableStateOf("") }
+    var keyShareDialog by remember { mutableStateOf(false) }
+    var keyQrPayload by remember { mutableStateOf<String?>(null) }
+    var keyQrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var infoDialogText by remember { mutableStateOf<String?>(null) }
+    var generationSuccessDialog by remember { mutableStateOf<String?>(null) }
+    var confirmDeleteKeyId by remember { mutableStateOf<String?>(null) }
+    var confirmDeleteBackupId by remember { mutableStateOf<String?>(null) }
+    var lastHandledStatus by remember { mutableStateOf("") }
+    val settingsScroll = rememberScrollState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val normalizedQuery = settingsSearch.trim().lowercase()
 
     fun matchesSection(vararg terms: String): Boolean {
@@ -1204,8 +1308,23 @@ private fun SettingsScreen(
         "coercion",
         "plausible deniability"
     )
+    val showKeys = matchesSection(
+        "keys",
+        "pgp",
+        "xchacha",
+        "nfc",
+        "qr",
+        "key manager"
+    )
+    val showBackup = matchesSection(
+        "backup",
+        "restore",
+        "encrypted backup",
+        "local backup",
+        "remote backup"
+    )
     val showAbout = matchesSection("about", "version", "nulvex", "offline", "xchacha20", "kyber768")
-    val hasVisibleSections = showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showAbout
+    val hasVisibleSections = showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys || showBackup || showAbout
 
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -1217,6 +1336,15 @@ private fun SettingsScreen(
 
     val remainingMs = maxOf(0L, state.adFreeUntil - nowMs)
     val adFreeActive = remainingMs > 0L
+
+    LaunchedEffect(state.backupStatus) {
+        val status = state.backupStatus
+        if (status.isBlank() || status == lastHandledStatus) return@LaunchedEffect
+        if (status == "XChaCha key generated" || status == "OpenPGP key generated") {
+            generationSuccessDialog = "Key created successfully."
+            lastHandledStatus = status
+        }
+    }
 
     fun formatRemaining(ms: Long): String {
         val totalSecs = ms / 1000L
@@ -1233,15 +1361,15 @@ private fun SettingsScreen(
         Column(
             modifier = Modifier
                 .padding(20.dp)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(settingsScroll)
                 .imePadding()
         ) {
-            Text("Settings", style = MaterialTheme.typography.titleLarge, color = onSurface)
+            Text(tx("Settings"), style = MaterialTheme.typography.titleLarge, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
                 value = settingsSearch,
                 onValueChange = { settingsSearch = it },
-                label = { Text("Search settings") },
+                label = { Text(tx("Search settings")) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Search,
@@ -1253,7 +1381,7 @@ private fun SettingsScreen(
                         IconButton(onClick = { settingsSearch = "" }) {
                             Icon(
                                 imageVector = Icons.Filled.Close,
-                                contentDescription = "Clear search"
+                                contentDescription = tx("Clear search")
                             )
                         }
                     }
@@ -1267,8 +1395,8 @@ private fun SettingsScreen(
             if (showAds) {
                 SettingsSection(
                     icon = Icons.Filled.Star,
-                    title = "Rewards & Ads",
-                    description = "Remove ads and earn share credits",
+                    title = tx("Rewards & Ads"),
+                    description = tx("Remove ads and earn share credits"),
                     expanded = isExpanded("ads"),
                     onToggle = { toggleSection("ads") }
                 ) {
@@ -1283,9 +1411,9 @@ private fun SettingsScreen(
                             modifier = Modifier.padding(end = 12.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Ad-free time", color = onSurface)
+                            Text(tx("Ad-free time"), color = onSurface)
                             Text(
-                                if (adFreeActive) "${formatRemaining(remainingMs)} remaining" else "Ads are active",
+                                if (adFreeActive) "${formatRemaining(remainingMs)} ${tx("remaining")}" else tx("Ads are active"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (adFreeActive) Moss else onSurface.copy(alpha = 0.6f)
                             )
@@ -1296,7 +1424,7 @@ private fun SettingsScreen(
                                     .background(Moss.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Text("ACTIVE", style = MaterialTheme.typography.labelSmall, color = Moss)
+                                Text(tx("ACTIVE"), style = MaterialTheme.typography.labelSmall, color = Moss)
                             }
                         }
                     }
@@ -1308,14 +1436,14 @@ private fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            if (state.isAdFree) "ADS REMOVED"
-                            else if (adFreeActive) "EXTEND BY 10 MIN"
-                            else "WATCH AD - 10 MIN NO ADS"
+                            if (state.isAdFree) tx("ADS REMOVED")
+                            else if (adFreeActive) tx("EXTEND BY 10 MIN")
+                            else tx("WATCH AD - 10 MIN NO ADS")
                         )
                     }
                     Text(
-                        if (state.isAdFree) "Lifetime remove-ads purchase is active."
-                        else "Stacks - watch multiple times to bank more ad-free minutes.",
+                        if (state.isAdFree) tx("Lifetime remove-ads purchase is active.")
+                        else tx("Stacks - watch multiple times to bank more ad-free minutes."),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.5f)
                     )
@@ -1335,9 +1463,8 @@ private fun SettingsScreen(
                             modifier = Modifier.padding(end = 12.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Share credits", color = onSurface)
-                            Text(
-                                "Used to share notes via the secure API",
+                            Text(tx("Share credits"), color = onSurface)
+                            Text(tx("Used to share notes via the secure API"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = onSurface.copy(alpha = 0.6f)
                             )
@@ -1348,7 +1475,7 @@ private fun SettingsScreen(
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                if (state.hasProFeatures) "UNLIMITED" else "${state.shareCredits}",
+                                if (state.hasProFeatures) tx("UNLIMITED") else "${state.shareCredits}",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Brass
@@ -1357,8 +1484,7 @@ private fun SettingsScreen(
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     if (state.hasProFeatures) {
-                        Text(
-                            "Pro Features lifetime purchase is active. You have unlimited shares.",
+                        Text(tx("Pro Features lifetime purchase is active. You have unlimited shares."),
                             style = MaterialTheme.typography.bodySmall,
                             color = Moss
                         )
@@ -1368,17 +1494,15 @@ private fun SettingsScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("WATCH AD - EARN 1 SHARE CREDIT")
+                            Text(tx("WATCH AD - EARN 1 SHARE CREDIT"))
                         }
-                        Text(
-                            "Credits accumulate - watch 3 ads to earn 3 shares.",
+                        Text(tx("Credits accumulate - watch 3 ads to earn 3 shares."),
                             style = MaterialTheme.typography.bodySmall,
                             color = onSurface.copy(alpha = 0.5f)
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "One-time purchases: remove ads lifetime and Pro features lifetime.",
+                    Text(tx("One-time purchases: remove ads lifetime and Pro features lifetime."),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.6f)
                     )
@@ -1388,7 +1512,7 @@ private fun SettingsScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("OPEN PURCHASE OPTIONS")
+                        Text(tx("OPEN PURCHASE OPTIONS"))
                     }
                 }
             }
@@ -1397,17 +1521,25 @@ private fun SettingsScreen(
                 if (showAds) SettingsDivider()
                 SettingsSection(
                     icon = Icons.Filled.Palette,
-                    title = "Display",
-                    description = "Appearance and theme",
+                    title = tx("Display"),
+                    description = tx("Appearance and theme"),
                     expanded = isExpanded("display"),
                     onToggle = { toggleSection("display") }
                 ) {
-                    Text("Theme", style = MaterialTheme.typography.labelLarge, color = onSurface)
+                    Text(tx("Theme"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Chip("System", state.themeMode == ThemeMode.SYSTEM) { onUpdateThemeMode(ThemeMode.SYSTEM) }
-                        Chip("Dark", state.themeMode == ThemeMode.DARK) { onUpdateThemeMode(ThemeMode.DARK) }
-                        Chip("Light", state.themeMode == ThemeMode.LIGHT) { onUpdateThemeMode(ThemeMode.LIGHT) }
+                        Chip(tx("System"), state.themeMode == ThemeMode.SYSTEM) { onUpdateThemeMode(ThemeMode.SYSTEM) }
+                        Chip(tx("Dark"), state.themeMode == ThemeMode.DARK) { onUpdateThemeMode(ThemeMode.DARK) }
+                        Chip(tx("Light"), state.themeMode == ThemeMode.LIGHT) { onUpdateThemeMode(ThemeMode.LIGHT) }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.settings_language_title), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip(stringResource(R.string.settings_language_system), state.languageTag == "system") { onUpdateLanguage("system") }
+                        Chip(tx("English"), state.languageTag == "en") { onUpdateLanguage("en") }
+                        Chip(tx("Serbian"), state.languageTag == "sr") { onUpdateLanguage("sr") }
                     }
                 }
             }
@@ -1417,12 +1549,12 @@ private fun SettingsScreen(
             // === VAULT DEFAULTS SECTION ===
             if (showVaultDefaults) SettingsSection(
                 icon = Icons.Filled.Timer,
-                title = "Vault defaults",
-                description = "Auto-lock and note behavior",
+                title = tx("Vault defaults"),
+                description = tx("Auto-lock and note behavior"),
                 expanded = isExpanded("vault_defaults"),
                 onToggle = { toggleSection("vault_defaults") }
             ) {
-                Text("Auto-lock timeout", style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Text(tx("Auto-lock timeout"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
                 val timeoutOptions = listOf(
                     "Off" to 0L,
@@ -1437,14 +1569,13 @@ private fun SettingsScreen(
                     modifier = Modifier.horizontalScroll(timeoutScroll)
                 ) {
                     timeoutOptions.forEach { (label, value) ->
-                        Chip(label, state.lockTimeoutMs == value) { onUpdateLockTimeout(value) }
+                        Chip(tx(label), state.lockTimeoutMs == value) { onUpdateLockTimeout(value) }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Default self-destruct", style = MaterialTheme.typography.labelLarge, color = onSurface)
-                Text(
-                    "New notes will use this expiry setting",
+                Text(tx("Default self-destruct"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Text(tx("New notes will use this expiry setting"),
                     style = MaterialTheme.typography.bodySmall,
                     color = onSurface.copy(alpha = 0.6f)
                 )
@@ -1454,10 +1585,10 @@ private fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.horizontalScroll(expiryScroll)
                 ) {
-                    Chip("None", state.defaultExpiry == "none") { onUpdateDefaultExpiry("none") }
-                    Chip("1h", state.defaultExpiry == "1h") { onUpdateDefaultExpiry("1h") }
-                    Chip("24h", state.defaultExpiry == "24h") { onUpdateDefaultExpiry("24h") }
-                    Chip("7d", state.defaultExpiry == "7d") { onUpdateDefaultExpiry("7d") }
+                    Chip(tx("None"), state.defaultExpiry == "none") { onUpdateDefaultExpiry("none") }
+                    Chip(tx("1h"), state.defaultExpiry == "1h") { onUpdateDefaultExpiry("1h") }
+                    Chip(tx("24h"), state.defaultExpiry == "24h") { onUpdateDefaultExpiry("24h") }
+                    Chip(tx("7d"), state.defaultExpiry == "7d") { onUpdateDefaultExpiry("7d") }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1467,9 +1598,8 @@ private fun SettingsScreen(
                         onCheckedChange = onUpdateDefaultReadOnce
                     )
                     Column {
-                        Text("Read-once by default", color = onSurface)
-                        Text(
-                            "Notes are deleted after first read",
+                        Text(tx("Read-once by default"), color = onSurface)
+                        Text(tx("Notes are deleted after first read"),
                             style = MaterialTheme.typography.bodySmall,
                             color = onSurface.copy(alpha = 0.6f)
                         )
@@ -1482,8 +1612,8 @@ private fun SettingsScreen(
             // === SECURITY SECTION ===
             if (showSecurity) SettingsSection(
                 icon = Icons.Filled.Security,
-                title = "Security",
-                description = "Authentication and encryption",
+                title = tx("Security"),
+                description = tx("Authentication and encryption"),
                 expanded = isExpanded("security"),
                 onToggle = { toggleSection("security") }
             ) {
@@ -1499,9 +1629,9 @@ private fun SettingsScreen(
                         modifier = Modifier.padding(end = 12.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Fingerprint unlock", color = onSurface)
+                        Text(tx("Fingerprint unlock"), color = onSurface)
                         Text(
-                            if (state.biometricEnabled) "Enabled" else "Disabled",
+                            if (state.biometricEnabled) tx("Enabled") else tx("Disabled"),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (state.biometricEnabled) Moss else onSurface.copy(alpha = 0.6f)
                         )
@@ -1511,14 +1641,14 @@ private fun SettingsScreen(
                 if (state.biometricEnabled) {
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(onClick = onDisableBiometric, enabled = !state.isBusy) {
-                        Text("DISABLE FINGERPRINT", color = Ember)
+                        Text(tx("DISABLE FINGERPRINT"), color = Ember)
                     }
                 } else {
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = biometricPin,
                         onValueChange = { biometricPin = it },
-                        label = { Text("Current PIN to enable") },
+                        label = { Text(tx("Current PIN to enable")) },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(
@@ -1537,7 +1667,7 @@ private fun SettingsScreen(
                         enabled = !state.isBusy && biometricPin.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
-                        Text("ENABLE FINGERPRINT")
+                        Text(tx("ENABLE FINGERPRINT"))
                     }
                 }
 
@@ -1554,9 +1684,8 @@ private fun SettingsScreen(
                         modifier = Modifier.padding(end = 12.dp)
                     )
                     Column {
-                        Text("Change primary PIN", color = onSurface)
-                        Text(
-                            "Re-encrypts your entire vault",
+                        Text(tx("Change primary PIN"), color = onSurface)
+                        Text(tx("Re-encrypts your entire vault"),
                             style = MaterialTheme.typography.bodySmall,
                             color = onSurface.copy(alpha = 0.6f)
                         )
@@ -1567,7 +1696,7 @@ private fun SettingsScreen(
                 OutlinedTextField(
                     value = currentPin,
                     onValueChange = { currentPin = it },
-                    label = { Text("Current PIN") },
+                    label = { Text(tx("Current PIN")) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -1581,7 +1710,7 @@ private fun SettingsScreen(
                 OutlinedTextField(
                     value = newPin,
                     onValueChange = { newPin = it },
-                    label = { Text("New PIN") },
+                    label = { Text(tx("New PIN")) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -1595,7 +1724,7 @@ private fun SettingsScreen(
                 OutlinedTextField(
                     value = confirmNewPin,
                     onValueChange = { confirmNewPin = it },
-                    label = { Text("Confirm new PIN") },
+                    label = { Text(tx("Confirm new PIN")) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -1607,7 +1736,7 @@ private fun SettingsScreen(
                 )
                 if (realPinMismatch) {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("PINs do not match", color = Ember, style = MaterialTheme.typography.labelMedium)
+                    Text(tx("PINs do not match"), color = Ember, style = MaterialTheme.typography.labelMedium)
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
@@ -1620,11 +1749,11 @@ private fun SettingsScreen(
                     enabled = !state.isBusy && currentPin.isNotBlank() && newPin.isNotBlank() && !realPinMismatch,
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                 ) {
-                    Text("CHANGE PIN")
+                    Text(tx("CHANGE PIN"))
                 }
                 if (state.isBusy) {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("Rekeying vault...", color = Brass, style = MaterialTheme.typography.labelMedium)
+                    Text(tx("Rekeying vault..."), color = Brass, style = MaterialTheme.typography.labelMedium)
                 }
             }
 
@@ -1633,17 +1762,17 @@ private fun SettingsScreen(
             // === DANGER ZONE SECTION ===
             if (showDanger) SettingsSection(
                 icon = Icons.Filled.VisibilityOff,
-                title = "Danger zone",
-                description = "Decoy vault and destructive actions",
+                title = tx("Danger zone"),
+                description = tx("Decoy vault and destructive actions"),
                 accentColor = Ember,
                 expanded = isExpanded("danger"),
                 onToggle = { toggleSection("danger") }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Decoy vault", color = onSurface)
+                        Text(tx("Decoy vault"), color = onSurface)
                         Text(
-                            if (state.isDecoyEnabled) "Active - separate fake vault" else "Disabled",
+                            if (state.isDecoyEnabled) tx("Active - separate fake vault") else tx("Disabled"),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (state.isDecoyEnabled) Brass else onSurface.copy(alpha = 0.6f)
                         )
@@ -1654,15 +1783,15 @@ private fun SettingsScreen(
                                 .background(Brass.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("ENABLED", style = MaterialTheme.typography.labelSmall, color = Brass)
+                            Text(tx("ENABLED"), style = MaterialTheme.typography.labelSmall, color = Brass)
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "A decoy vault opens when you enter a different PIN. " +
-                        "Use it for plausible deniability under coercion.",
+                    tx("A decoy vault opens when you enter a different PIN.") + " " +
+                        tx("Use it for plausible deniability under coercion."),
                     style = MaterialTheme.typography.bodySmall,
                     color = onSurface.copy(alpha = 0.6f)
                 )
@@ -1671,7 +1800,7 @@ private fun SettingsScreen(
                 OutlinedTextField(
                     value = decoyPin,
                     onValueChange = { decoyPin = it },
-                    label = { Text(if (state.isDecoyEnabled) "New decoy PIN" else "Set decoy PIN") },
+                    label = { Text(if (state.isDecoyEnabled) tx("New decoy PIN") else tx("Set decoy PIN")) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -1685,7 +1814,7 @@ private fun SettingsScreen(
                 OutlinedTextField(
                     value = confirmPin,
                     onValueChange = { confirmPin = it },
-                    label = { Text("Confirm decoy PIN") },
+                    label = { Text(tx("Confirm decoy PIN")) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -1697,7 +1826,7 @@ private fun SettingsScreen(
                 )
                 if (pinMismatch) {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("PINs do not match", color = Ember, style = MaterialTheme.typography.labelMedium)
+                    Text(tx("PINs do not match"), color = Ember, style = MaterialTheme.typography.labelMedium)
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1710,60 +1839,410 @@ private fun SettingsScreen(
                         enabled = !state.isBusy && decoyPin.isNotBlank() && !pinMismatch,
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
-                        Text(if (state.isDecoyEnabled) "CHANGE" else "ENABLE")
+                        Text(if (state.isDecoyEnabled) tx("CHANGE") else tx("ENABLE"))
                     }
                     if (state.isDecoyEnabled) {
                         TextButton(onClick = onDisableDecoy, enabled = !state.isBusy) {
-                            Text("DISABLE", color = Ember)
+                            Text(tx("DISABLE"), color = Ember)
                         }
                     }
                 }
 
                 if (state.isDecoyEnabled) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Changing the decoy PIN wipes the old decoy vault.",
+                    Text(tx("Changing the decoy PIN wipes the old decoy vault."),
                         style = MaterialTheme.typography.bodySmall,
                         color = Ember.copy(alpha = 0.8f)
                     )
                 }
             }
 
-            if (showAbout && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger)) {
+            if (showKeys && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger)) SettingsDivider()
+
+            if (showKeys) SettingsSection(
+                icon = Icons.Filled.Shield,
+                title = tx("Keys Manager"),
+                description = tx("OpenPGP + XChaCha key storage"),
+                expanded = isExpanded("keys"),
+                onToggle = { toggleSection("keys") }
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(tx("What is this?"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(onClick = {
+                        infoDialogText = "info_keys_manager_overview"
+                    }) {
+                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("What is Keys Manager?"), tint = Brass)
+                    }
+                }
+                OutlinedTextField(
+                    value = keyLabel,
+                    onValueChange = { keyLabel = it },
+                    label = { Text(tx("Key label")) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = keyInput,
+                    onValueChange = { keyInput = it },
+                    label = { Text(tx("Manual import (OpenPGP armored or XChaCha key)")) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(tx("Manual key format help"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(onClick = {
+                        infoDialogText = "info_manual_import"
+                    }) {
+                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("Manual format help"), tint = Moss)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        onImportSharedKey(keyLabel, "manual", keyInput)
+                        keyInput = ""
+                    },
+                    enabled = !state.isBusy && keyInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(tx("IMPORT KEY"))
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { onGenerateXChaChaKey(keyLabel.ifBlank { "XChaCha key" }) },
+                        enabled = !state.isBusy,
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                    ) { Text(tx("GENERATE XCHACHA")) }
+                    Button(
+                        onClick = { onGeneratePgpKey(keyLabel.ifBlank { "OpenPGP key" }) },
+                        enabled = !state.isBusy,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
+                    ) { Text(tx("GENERATE PGP")) }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(tx("Generate help"), style = MaterialTheme.typography.bodySmall, color = onSurface.copy(alpha = 0.7f))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(onClick = {
+                        infoDialogText = "info_generate_help"
+                    }) {
+                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("Generate help"), tint = Moss)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onScanQrKey,
+                    enabled = !state.isBusy,
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(tx("SCAN QR KEY"))
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(tx("NFC import: tap an NFC tag while the app is open."),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.6f)
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(tx("QR/NFC exchange help"), style = MaterialTheme.typography.bodySmall, color = onSurface.copy(alpha = 0.7f))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(onClick = {
+                        infoDialogText = "info_qr_nfc_exchange"
+                    }) {
+                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("QR/NFC help"), tint = Moss)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = keyManagerExportEncrypted,
+                        onCheckedChange = { keyManagerExportEncrypted = it }
+                    )
+                    Text(tx("Encrypt key manager export with password"), color = onSurface)
+                }
+                if (keyManagerExportEncrypted) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = keyManagerPassword,
+                        onValueChange = { keyManagerPassword = it },
+                        label = { Text(tx("Export password")) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        onExportKeyManager(keyManagerExportEncrypted, keyManagerPassword.ifBlank { null })
+                    },
+                    enabled = !state.isBusy && (!keyManagerExportEncrypted || keyManagerPassword.isNotBlank()),
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(tx("EXPORT KEY MANAGER")) }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = keyManagerImportPassword,
+                    onValueChange = { keyManagerImportPassword = it },
+                    label = { Text(tx("Import password (if file encrypted)")) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onImportKeyManager(keyManagerImportPassword.ifBlank { null }) },
+                    enabled = !state.isBusy,
+                    colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(tx("IMPORT KEY MANAGER")) }
+
+                if (state.sharedKeys.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(tx("Imported keys"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    state.sharedKeys.forEach { key ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(key.label, color = onSurface)
+                                val sourceLabel = when (key.source.lowercase()) {
+                                    "generated" -> tx("generated")
+                                    "manual" -> tx("manual")
+                                    "qr" -> tx("qr")
+                                    "nfc" -> tx("nfc")
+                                    else -> key.source
+                                }
+                                Text("${tx("via")} $sourceLabel - ${key.format} - ${key.fingerprint}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = onSurface.copy(alpha = 0.6f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            TextButton(onClick = { selectedKeyId = key.id }) {
+                                Text(if (selectedKeyId == key.id) tx("SELECTED") else tx("SELECT"), color = Brass)
+                            }
+                            TextButton(onClick = { confirmDeleteKeyId = key.id }) { Text(tx("DELETE"), color = Ember) }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+                    if (selectedKeyId.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { keyShareDialog = true },
+                            enabled = !state.isBusy,
+                            colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(tx("SHARE SELECTED KEY")) }
+                    }
+                }
+                if (state.backupStatus.isNotBlank()) {
+                    val localizedStatus = when (state.backupStatus) {
+                        "Encrypted note file ready for share" -> tx("Encrypted note file ready for share")
+                        else -> tx(state.backupStatus)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        localizedStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Moss
+                    )
+                }
+            }
+
+            if (showBackup && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys)) SettingsDivider()
+
+            if (showBackup) SettingsSection(
+                icon = Icons.Filled.Timer,
+                title = tx("Backup"),
+                description = tx("Local encrypted backup + optional Pro remote"),
+                expanded = isExpanded("backup"),
+                onToggle = { toggleSection("backup") }
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        tx("Local backup exports") +
+                            " ${com.androidircx.nulvex.pro.NulvexFileTypes.BACKUP_EXT}. " +
+                            tx("Remote backup uploads encrypted blobs (Pro)."),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.7f),
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = {
+                        infoDialogText = "info_backup_modes"
+                    }) {
+                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("Backup help"), tint = Brass)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                if (selectedKeyId.isNotBlank()) {
+                    Button(
+                        onClick = { onExportLocalBackup(selectedKeyId) },
+                        enabled = !state.isBusy,
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(tx("EXPORT ENCRYPTED BACKUP FILE")) }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { onImportLocalBackup(selectedKeyId, restoreMerge) },
+                        enabled = !state.isBusy,
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(tx("IMPORT LOCAL BACKUP FILE")) }
+                } else {
+                    Text(tx("Select a key in Keys Manager first."), color = Ember, style = MaterialTheme.typography.bodySmall)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = restoreMerge, onCheckedChange = { restoreMerge = it })
+                    Column {
+                        Text(tx("Merge with existing notes"), color = onSurface)
+                        Text(tx("Disable to replace current vault notes"), style = MaterialTheme.typography.bodySmall, color = onSurface.copy(alpha = 0.6f))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    if (state.hasProFeatures) tx("Pro remote backup is active") else tx("Remote media backup requires Pro"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (state.hasProFeatures) Moss else Ember
+                )
+                if (selectedKeyId.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { onUploadBackup(selectedKeyId) },
+                        enabled = !state.isBusy && state.hasProFeatures,
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(tx("UPLOAD TO REMOTE MEDIA SERVER")) }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = restoreMediaId,
+                    onValueChange = { restoreMediaId = it },
+                    label = { Text(tx("Download link or media ID")) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val resolvedMediaId = resolveRemoteMediaIdInput(restoreMediaId)
+                        onRestoreBackup(resolvedMediaId, selectedKeyId, restoreMerge, null, null)
+                    },
+                    enabled = !state.isBusy &&
+                        state.hasProFeatures &&
+                        resolveRemoteMediaIdInput(restoreMediaId).isNotBlank() &&
+                        selectedKeyId.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(tx("RESTORE FROM REMOTE")) }
+
+                if (state.backupRecords.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(tx("Saved remote backups"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    state.backupRecords.forEach { backup ->
+                        val selected = selectedBackupRecordId == backup.id
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(backup.mediaId, color = onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    "key=${backup.keyId.take(8)}... token=${if (backup.downloadToken.isNullOrBlank()) "none" else "saved"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = onSurface.copy(alpha = 0.6f)
+                                )
+                                Text(
+                                    "https://androidircx.com/api/media/download/${backup.downloadPathId}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Moss.copy(alpha = 0.85f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            TextButton(onClick = { selectedBackupRecordId = backup.id }) {
+                                Text(if (selected) tx("SELECTED") else tx("SELECT"), color = Brass)
+                            }
+                            TextButton(onClick = {
+                                clipboard.setText(AnnotatedString("https://androidircx.com/api/media/download/${backup.downloadPathId}"))
+                            }) { Text(tx("COPY"), color = Moss) }
+                            TextButton(onClick = { confirmDeleteBackupId = backup.id }) { Text(tx("DELETE"), color = Ember) }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    Button(
+                        onClick = { onRestoreSavedBackup(selectedBackupRecordId, restoreMerge) },
+                        enabled = !state.isBusy && state.hasProFeatures && selectedBackupRecordId.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(tx("RESTORE SELECTED SAVED BACKUP")) }
+                }
+                if (state.backupStatus.isNotBlank()) {
+                    val localizedStatus = when (state.backupStatus) {
+                        "Encrypted note file ready for share" -> tx("Encrypted note file ready for share")
+                        else -> tx(state.backupStatus)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(localizedStatus, style = MaterialTheme.typography.bodySmall, color = Moss)
+                }
+            }
+
+            if (showAbout && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys || showBackup)) {
                 SettingsDivider()
             }
 
             // === ABOUT SECTION ===
             if (showAbout) SettingsSection(
                 icon = Icons.Filled.Info,
-                title = "About",
-                description = "App information",
+                title = tx("About"),
+                description = tx("App information"),
                 expanded = isExpanded("about"),
                 onToggle = { toggleSection("about") }
             ) {
-                Text("Nulvex", style = MaterialTheme.typography.titleMedium, color = onSurface)
-                Text(
-                    "Offline-first secure vault",
+                Text(tx("Nulvex"), style = MaterialTheme.typography.titleMedium, color = onSurface)
+                Text(tx("Offline-first secure vault"),
                     style = MaterialTheme.typography.bodySmall,
                     color = onSurface.copy(alpha = 0.6f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Version ${BuildConfig.VERSION_NAME}",
+                    Text(tx("Version ${BuildConfig.VERSION_NAME}"),
                         style = MaterialTheme.typography.labelMedium,
                         color = onSurface.copy(alpha = 0.5f)
                     )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "XChaCha20-Poly1305 + Kyber768",
+                Text(tx("XChaCha20-Poly1305 + ML-KEM-768"),
                     style = MaterialTheme.typography.labelSmall,
                     color = Moss.copy(alpha = 0.8f)
                 )
             }
 
             if (!hasVisibleSections) {
-                Text(
-                    "No settings match your search.",
+                Text(tx("No settings match your search."),
                     style = MaterialTheme.typography.bodyMedium,
                     color = onSurface.copy(alpha = 0.7f)
                 )
@@ -1771,9 +2250,118 @@ private fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
             TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
-                Text("BACK TO VAULT", color = Brass)
+                Text(tx("BACK TO VAULT"), color = Brass)
             }
         }
+    }
+    if (keyShareDialog) {
+        AlertDialog(
+            onDismissRequest = { keyShareDialog = false },
+            title = { Text(tx("Share key")) },
+            text = { Text(tx("Choose transfer method: NFC or QR code.")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val payload = onBuildKeyTransferPayload(selectedKeyId)
+                    if (payload != null) {
+                        keyQrPayload = payload
+                        keyQrBitmap = generateQrBitmap(payload, size = 900)
+                        keyShareDialog = false
+                    }
+                }) { Text(tx("QR CODE")) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val payload = onBuildKeyTransferPayload(selectedKeyId)
+                    if (payload != null) {
+                        onStartNfcKeyShare(payload)
+                    }
+                    keyShareDialog = false
+                }) { Text(tx("NFC")) }
+            }
+        )
+    }
+    if (keyQrPayload != null && keyQrBitmap != null) {
+        AlertDialog(
+            onDismissRequest = { keyQrPayload = null; keyQrBitmap = null },
+            title = { Text(tx("QR key transfer")) },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = keyQrBitmap!!.asImageBitmap(),
+                        contentDescription = tx("Key QR"),
+                        modifier = Modifier.size(280.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { keyQrPayload = null; keyQrBitmap = null }) { Text(tx("CLOSE")) }
+            }
+        )
+    }
+    if (infoDialogText != null) {
+        AlertDialog(
+            onDismissRequest = { infoDialogText = null },
+            title = { Text(tx("Info")) },
+            text = { Text(resolveInfoDialogText(infoDialogText ?: "")) },
+            confirmButton = {
+                TextButton(onClick = { infoDialogText = null }) { Text(tx("OK")) }
+            }
+        )
+    }
+    if (generationSuccessDialog != null) {
+        val keyCreatedFallback = tx("Key created successfully.")
+        AlertDialog(
+            onDismissRequest = { generationSuccessDialog = null },
+            title = { Text(tx("Success")) },
+            text = { Text(generationSuccessDialog?.let { tx(it) } ?: keyCreatedFallback) },
+            confirmButton = {
+                TextButton(onClick = {
+                    generationSuccessDialog = null
+                    scope.launch { settingsScroll.animateScrollTo(settingsScroll.maxValue) }
+                }) { Text(tx("OK")) }
+            }
+        )
+    }
+    if (confirmDeleteKeyId != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteKeyId = null },
+            title = { Text(tx("Delete key?")) },
+            text = { Text(tx("Are you sure you want to delete this key? This action cannot be undone.")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val keyId = confirmDeleteKeyId
+                    confirmDeleteKeyId = null
+                    if (keyId != null) onDeleteSharedKey(keyId)
+                }) { Text(tx("YES"), color = Ember) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteKeyId = null }) { Text(tx("NO")) }
+            }
+        )
+    }
+    if (confirmDeleteBackupId != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteBackupId = null },
+            title = { Text(tx("Delete backup record?")) },
+            text = { Text(tx("Are you sure you want to delete this saved backup record? This action cannot be undone.")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val backupId = confirmDeleteBackupId
+                    confirmDeleteBackupId = null
+                    if (backupId != null) onDeleteSavedBackup(backupId)
+                }) { Text(tx("YES"), color = Ember) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteBackupId = null }) { Text(tx("NO")) }
+            }
+        )
     }
 }
 
@@ -1797,10 +2385,9 @@ private fun PurchaseScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
         ) {
-            Text("Purchase options", style = MaterialTheme.typography.titleLarge, color = onSurface)
+            Text(tx("Purchase options"), style = MaterialTheme.typography.titleLarge, color = onSurface)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "One-time products from Google Play.",
+            Text(tx("One-time products from Google Play."),
                 style = MaterialTheme.typography.bodySmall,
                 color = onSurface.copy(alpha = 0.6f)
             )
@@ -1812,9 +2399,8 @@ private fun PurchaseScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Remove Ads (Lifetime)", style = MaterialTheme.typography.titleMedium, color = onSurface)
-                    Text(
-                        "Permanently removes banner and rewarded ad prompts.",
+                    Text(tx("Remove Ads (Lifetime)"), style = MaterialTheme.typography.titleMedium, color = onSurface)
+                    Text(tx("Permanently removes banner and rewarded ad prompts."),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.6f)
                     )
@@ -1844,9 +2430,8 @@ private fun PurchaseScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Pro Features (Lifetime)", style = MaterialTheme.typography.titleMedium, color = onSurface)
-                    Text(
-                        "Unlocks unlimited share credits. Does not remove ads. Backup and more are coming soon.",
+                    Text(tx("Pro Features (Lifetime)"), style = MaterialTheme.typography.titleMedium, color = onSurface)
+                    Text(tx("Unlocks unlimited share credits. Does not remove ads. Backup and more are coming soon."),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.6f)
                     )
@@ -1870,8 +2455,7 @@ private fun PurchaseScreen(
 
             if (!state.billingReady) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    "Google Play Billing is not ready yet. Please wait a moment and try again.",
+                Text(tx("Google Play Billing is not ready yet. Please wait a moment and try again."),
                     style = MaterialTheme.typography.bodySmall,
                     color = Ember
                 )
@@ -1879,12 +2463,12 @@ private fun PurchaseScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
             TextButton(onClick = onRestorePurchases, modifier = Modifier.fillMaxWidth()) {
-                Text("RESTORE PURCHASES", color = Brass)
+                Text(tx("RESTORE PURCHASES"), color = Brass)
             }
 
             Spacer(modifier = Modifier.height(20.dp))
             TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text("BACK TO SETTINGS", color = Brass)
+                Text(tx("BACK TO SETTINGS"), color = Brass)
             }
         }
     }
@@ -1955,33 +2539,37 @@ private data class OnboardingPage(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun OnboardingScreen(onComplete: () -> Unit) {
+private fun OnboardingScreen(
+    languageTag: String,
+    onSelectLanguage: (String) -> Unit,
+    onComplete: () -> Unit
+) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val pages = listOf(
         OnboardingPage(
             icon = Icons.Filled.Shield,
-            title = "Welcome to Nulvex",
-            description = "Your offline-first secure vault. No cloud, no tracking, no compromise."
+            title = tx("Welcome to Nulvex"),
+            description = tx("Your offline-first secure vault. No cloud, no tracking, no compromise.")
         ),
         OnboardingPage(
             icon = Icons.Filled.Security,
-            title = "Military-grade encryption",
-            description = "Your notes are encrypted with XChaCha20-Poly1305 and post-quantum ready key exchange."
+            title = tx("Military-grade encryption"),
+            description = tx("Your notes are encrypted with XChaCha20-Poly1305 and post-quantum ready key exchange.")
         ),
         OnboardingPage(
             icon = Icons.Filled.Schedule,
-            title = "Self-destruct notes",
-            description = "Set notes to auto-delete after 1 hour, 24 hours, or 7 days. Or make them read-once."
+            title = tx("Self-destruct notes"),
+            description = tx("Set notes to auto-delete after 1 hour, 24 hours, or 7 days. Or make them read-once.")
         ),
         OnboardingPage(
             icon = Icons.Filled.Warning,
-            title = "Panic button",
-            description = "Instantly wipe everything if needed. Optional decoy vault for plausible deniability."
+            title = tx("Panic button"),
+            description = tx("Instantly wipe everything if needed. Optional decoy vault for plausible deniability.")
         ),
         OnboardingPage(
             icon = Icons.Filled.Fingerprint,
-            title = "Biometric unlock",
-            description = "Use your fingerprint to unlock quickly. Your PIN remains the master key."
+            title = tx("Biometric unlock"),
+            description = tx("Use your fingerprint to unlock quickly. Your PIN remains the master key.")
         )
     )
     val pagerState = rememberPagerState(pageCount = { pages.size })
@@ -1996,6 +2584,18 @@ private fun OnboardingScreen(onComplete: () -> Unit) {
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text(
+                text = tx("Choose language"),
+                style = MaterialTheme.typography.labelLarge,
+                color = onSurface.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip(tx("System"), languageTag == "system") { onSelectLanguage("system") }
+                Chip(tx("English"), languageTag == "en") { onSelectLanguage("en") }
+                Chip(tx("Serbian"), languageTag == "sr") { onSelectLanguage("sr") }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f)
@@ -2065,7 +2665,7 @@ private fun OnboardingScreen(onComplete: () -> Unit) {
                             pagerState.animateScrollToPage(pagerState.currentPage - 1)
                         }
                     }) {
-                        Text("BACK", color = onSurface.copy(alpha = 0.7f))
+                        Text(tx("BACK"), color = onSurface.copy(alpha = 0.7f))
                     }
                 } else {
                     Spacer(modifier = Modifier.width(1.dp))
@@ -2080,14 +2680,14 @@ private fun OnboardingScreen(onComplete: () -> Unit) {
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
-                        Text("NEXT")
+                        Text(tx("NEXT"))
                     }
                 } else {
                     Button(
                         onClick = onComplete,
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
-                        Text("GET STARTED")
+                        Text(tx("GET STARTED"))
                     }
                 }
             }
@@ -2096,7 +2696,7 @@ private fun OnboardingScreen(onComplete: () -> Unit) {
 
             if (pagerState.currentPage < pages.size - 1) {
                 TextButton(onClick = onComplete) {
-                    Text("SKIP", color = onSurface.copy(alpha = 0.5f))
+                    Text(tx("SKIP"), color = onSurface.copy(alpha = 0.5f))
                 }
             }
         }
@@ -2114,16 +2714,17 @@ private fun VaultBadge(text: String, tint: Color) {
     }
 }
 
+@Composable
 private fun formatExpiryBadge(expiresAt: Long): String {
     val remaining = expiresAt - System.currentTimeMillis()
-    if (remaining <= 0L) return "Next expiry: overdue"
+    if (remaining <= 0L) return "${tx("Next expiry:")} ${tx("overdue")}"
     val minutes = max(1, remaining / 60_000L)
     val hours = remaining / 3_600_000L
     val days = remaining / 86_400_000L
     return when {
-        days >= 1 -> "Next expiry: ${days}d"
-        hours >= 1 -> "Next expiry: ${hours}h"
-        else -> "Next expiry: ${minutes}m"
+        days >= 1 -> "${tx("Next expiry:")} ${days}d"
+        hours >= 1 -> "${tx("Next expiry:")} ${hours}h"
+        else -> "${tx("Next expiry:")} ${minutes}m"
     }
 }
 
@@ -2143,14 +2744,14 @@ private fun SearchBar(
     ) {
         Icon(
             imageVector = Icons.Filled.Search,
-            contentDescription = "Search",
+            contentDescription = tx("Search"),
             tint = onSurface.copy(alpha = 0.7f)
         )
         Spacer(modifier = Modifier.width(8.dp))
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            placeholder = { Text("Search notes", color = onSurface.copy(alpha = 0.6f)) },
+            placeholder = { Text(tx("Search notes"), color = onSurface.copy(alpha = 0.6f)) },
             singleLine = true,
             modifier = Modifier.weight(1f),
             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -2163,7 +2764,7 @@ private fun SearchBar(
         IconButton(onClick = onCreate) {
             Icon(
                 imageVector = Icons.Filled.Add,
-                contentDescription = "New note",
+                contentDescription = tx("New note"),
                 tint = onSurface
             )
         }
@@ -2181,7 +2782,7 @@ private fun LabelFilters(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.horizontalScroll(scroll)
     ) {
-        Chip("All", activeLabel == null) { onSelectLabel(null) }
+        Chip(tx("All"), activeLabel == null) { onSelectLabel(null) }
         labels.forEach { label ->
             Chip(label, activeLabel == label) { onSelectLabel(label) }
         }
@@ -2213,9 +2814,9 @@ private fun NoteCard(note: Note, onTogglePinned: (String) -> Unit, onOpen: () ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val previewText = when {
                     preview.isNotBlank() -> preview
-                    checklistPreview.isNotEmpty() -> "Checklist note"
-                    note.attachments.isNotEmpty() -> "Image note"
-                    else -> "Empty note"
+                    checklistPreview.isNotEmpty() -> tx("Checklist note")
+                    note.attachments.isNotEmpty() -> tx("Image note")
+                    else -> tx("Empty note")
                 }
                 Text(
                     text = previewText,
@@ -2272,7 +2873,7 @@ private fun NoteCard(note: Note, onTogglePinned: (String) -> Unit, onOpen: () ->
                 }
                 if (note.expiresAt != null) {
                     Text(
-                        text = "EXPIRING",
+                        text = tx("EXPIRING"),
                         style = MaterialTheme.typography.labelLarge,
                         color = Ember
                     )
@@ -2303,7 +2904,7 @@ private fun RemovableLabelPill(text: String, onRemove: () -> Unit) {
     ) {
         Text(text = text, color = Moss, style = MaterialTheme.typography.labelLarge)
         IconButton(onClick = onRemove, modifier = Modifier.height(20.dp)) {
-            Text("X", color = Moss, style = MaterialTheme.typography.labelLarge)
+            Text(tx("X"), color = Moss, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -2317,7 +2918,7 @@ private fun EmptySearchState() {
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
-                text = "No matches",
+                text = tx("No matches"),
                 color = onSurface,
                 style = MaterialTheme.typography.titleMedium
             )
@@ -2342,6 +2943,21 @@ private fun resolveDisplayName(context: android.content.Context, uri: Uri): Stri
     }
     return null
 }
+
+private fun generateQrBitmap(content: String, size: Int): Bitmap? {
+    return try {
+        val matrix: BitMatrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bmp.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bmp
+    } catch (_: Exception) {
+        null
+    }
+}
 @Composable
 private fun EmptyVaultState(onOpenNew: () -> Unit) {
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -2361,14 +2977,14 @@ private fun EmptyVaultState(onOpenNew: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Your vault is ready",
+                text = tx("Your vault is ready"),
                 color = onSurface,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Create your first encrypted note",
+                text = tx("Create your first encrypted note"),
                 color = onSurface.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.bodyLarge
             )
@@ -2384,15 +3000,15 @@ private fun EmptyVaultState(onOpenNew: () -> Unit) {
             ) {
                 FeatureHint(
                     icon = Icons.Filled.Schedule,
-                    text = "Set notes to self-destruct after 1h, 24h, or 7 days"
+                    text = tx("Set notes to self-destruct after 1h, 24h, or 7 days")
                 )
                 FeatureHint(
                     icon = Icons.Filled.Security,
-                    text = "Read-once notes are deleted after viewing"
+                    text = tx("Read-once notes are deleted after viewing")
                 )
                 FeatureHint(
                     icon = Icons.Filled.Star,
-                    text = "Swipe right to pin, swipe left to delete"
+                    text = tx("Swipe right to pin, swipe left to delete")
                 )
             }
 
@@ -2407,7 +3023,7 @@ private fun EmptyVaultState(onOpenNew: () -> Unit) {
                     contentDescription = null,
                     modifier = Modifier.padding(end = 8.dp)
                 )
-                Text("CREATE FIRST NOTE")
+                Text(tx("CREATE FIRST NOTE"))
             }
         }
     }
@@ -2436,6 +3052,7 @@ private fun FeatureHint(icon: ImageVector, text: String) {
 private fun NewNoteScreen(
     state: UiState,
     onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean) -> Unit,
+    onCancel: () -> Unit,
     defaultExpiry: String,
     defaultReadOnce: Boolean
 ) {
@@ -2443,6 +3060,7 @@ private fun NewNoteScreen(
     var content by remember { mutableStateOf("") }
     var readOnce by remember(defaultReadOnce) { mutableStateOf(defaultReadOnce) }
     var expiryChoice by remember(defaultExpiry) { mutableStateOf(defaultExpiry) }
+    var customExpiresAt by remember { mutableStateOf<Long?>(null) }
     var pinned by remember { mutableStateOf(false) }
     var showChecklist by remember { mutableStateOf(false) }
     var showAttachments by remember { mutableStateOf(false) }
@@ -2459,8 +3077,41 @@ private fun NewNoteScreen(
             attachments = attachments + uri
         }
     }
+    val dateTimeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+
+    fun openDateTimePicker() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val cal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, day)
+                            set(Calendar.HOUR_OF_DAY, hour)
+                            set(Calendar.MINUTE, minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        customExpiresAt = cal.timeInMillis
+                        expiryChoice = "custom"
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
 
     Surface(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
     ) {
@@ -2470,35 +3121,40 @@ private fun NewNoteScreen(
                 .verticalScroll(rememberScrollState())
                 .imePadding()
         ) {
-            Text("New note", style = MaterialTheme.typography.titleLarge, color = onSurface)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(tx("New note"), style = MaterialTheme.typography.titleLarge, color = onSurface, modifier = Modifier.weight(1f))
+                IconButton(onClick = onCancel) {
+                    Icon(Icons.Filled.Close, contentDescription = tx("Cancel"), tint = onSurface.copy(alpha = 0.7f))
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { showAddMenu = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                 ) {
-                    Text("ADD")
+                    Text(tx("ADD"))
                 }
                 DropdownMenu(
                     expanded = showAddMenu,
                     onDismissRequest = { showAddMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Checklist") },
+                        text = { Text(tx("Checklist")) },
                         onClick = {
                             showChecklist = true
                             showAddMenu = false
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Image") },
+                        text = { Text(tx("Image")) },
                         onClick = {
                             showAttachments = true
                             showAddMenu = false
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Labels") },
+                        text = { Text(tx("Labels")) },
                         onClick = {
                             showLabels = true
                             showAddMenu = false
@@ -2508,13 +3164,13 @@ private fun NewNoteScreen(
                 Spacer(modifier = Modifier.width(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (showChecklist) {
-                        Text("Checklist", color = Moss.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
+                        Text(tx("Checklist"), color = Moss.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
                     }
                     if (showAttachments) {
-                        Text("Images", color = Moss.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
+                        Text(tx("Images"), color = Moss.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
                     }
                     if (showLabels || labels.isNotEmpty()) {
-                        Text("Labels", color = Moss.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
+                        Text(tx("Labels"), color = Moss.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -2522,23 +3178,27 @@ private fun NewNoteScreen(
             OutlinedTextField(
                 value = content,
                 onValueChange = { content = it },
-                label = { Text("Write safely...") },
-                minLines = 6
+                label = { Text(tx("Write safely...")) },
+                minLines = 10,
+                maxLines = Int.MAX_VALUE,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 260.dp)
             )
             Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = pinned, onCheckedChange = { pinned = it })
-                Text("Pin to top", color = onSurface)
+                Text(tx("Pin to top"), color = onSurface)
             }
             Spacer(modifier = Modifier.height(10.dp))
             if (showChecklist) {
-                Text("Checklist", style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Text(tx("Checklist"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newChecklistItem,
                         onValueChange = { newChecklistItem = it },
-                        label = { Text("Add item") },
+                        label = { Text(tx("Add item")) },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
@@ -2558,7 +3218,7 @@ private fun NewNoteScreen(
                         enabled = newChecklistItem.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
-                        Text("ADD")
+                        Text(tx("ADD"))
                     }
                 }
                 if (checklistItems.isNotEmpty()) {
@@ -2577,7 +3237,7 @@ private fun NewNoteScreen(
                             TextButton(onClick = {
                                 checklistItems = checklistItems.filterNot { it.id == item.id }
                             }) {
-                                Text("REMOVE", color = Ember)
+                                Text(tx("REMOVE"), color = Ember)
                             }
                         }
                     }
@@ -2585,18 +3245,18 @@ private fun NewNoteScreen(
                 Spacer(modifier = Modifier.height(10.dp))
             }
             if (showAttachments) {
-                Text("Attachments", style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Text(tx("Attachments"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(
                         onClick = { imagePicker.launch("image/*") },
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
-                        Text("ADD IMAGE")
+                        Text(tx("ADD IMAGE"))
                     }
                     if (attachments.isNotEmpty()) {
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("${attachments.size} attached", color = onSurface.copy(alpha = 0.7f))
+                        Text(tx("${attachments.size} attached"), color = onSurface.copy(alpha = 0.7f))
                     }
                 }
                 if (attachments.isNotEmpty()) {
@@ -2608,7 +3268,7 @@ private fun NewNoteScreen(
                             TextButton(onClick = {
                                 attachments = attachments.filterNot { it == uri }
                             }) {
-                                Text("REMOVE", color = Ember)
+                                Text(tx("REMOVE"), color = Ember)
                             }
                         }
                     }
@@ -2616,13 +3276,13 @@ private fun NewNoteScreen(
                 Spacer(modifier = Modifier.height(10.dp))
             }
             if (showLabels || labels.isNotEmpty()) {
-                Text("Labels", style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Text(tx("Labels"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newLabel,
                         onValueChange = { newLabel = it },
-                        label = { Text("Add label") },
+                        label = { Text(tx("Add label")) },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
@@ -2638,7 +3298,7 @@ private fun NewNoteScreen(
                         enabled = newLabel.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
-                        Text("ADD")
+                        Text(tx("ADD"))
                     }
                 }
                 if (labels.isNotEmpty()) {
@@ -2661,7 +3321,7 @@ private fun NewNoteScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Delete,
-                                        contentDescription = "Remove",
+                                        contentDescription = tx("Remove"),
                                         tint = Ember,
                                         modifier = Modifier.height(16.dp)
                                     )
@@ -2675,30 +3335,51 @@ private fun NewNoteScreen(
             Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = readOnce, onCheckedChange = { readOnce = it })
-                Text("Read once", color = onSurface)
+                Text(tx("Read once"), color = onSurface)
             }
             Spacer(modifier = Modifier.height(10.dp))
-            Text("Expiry", style = MaterialTheme.typography.labelLarge, color = onSurface)
+            Text(tx("Expiry"), style = MaterialTheme.typography.labelLarge, color = onSurface)
             Spacer(modifier = Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip("None", expiryChoice == "none") { expiryChoice = "none" }
-                Chip("1h", expiryChoice == "1h") { expiryChoice = "1h" }
-                Chip("24h", expiryChoice == "24h") { expiryChoice = "24h" }
-                Chip("7d", expiryChoice == "7d") { expiryChoice = "7d" }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                Chip(tx("None"), expiryChoice == "none") { expiryChoice = "none" }
+                Chip(tx("1h"), expiryChoice == "1h") { expiryChoice = "1h" }
+                Chip(tx("24h"), expiryChoice == "24h") { expiryChoice = "24h" }
+                Chip(tx("7d"), expiryChoice == "7d") { expiryChoice = "7d" }
+                Chip(tx("Custom"), expiryChoice == "custom") { openDateTimePicker() }
+            }
+            if (customExpiresAt != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    tx("Selected expiry:") + " " + dateTimeFormatter.format(java.util.Date(customExpiresAt!!)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.7f)
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
             val expiresAt = when (expiryChoice) {
                 "1h" -> System.currentTimeMillis() + 3_600_000L
                 "24h" -> System.currentTimeMillis() + 86_400_000L
                 "7d" -> System.currentTimeMillis() + 604_800_000L
+                "custom" -> customExpiresAt
                 else -> null
             }
-            Button(
-                onClick = { onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce) },
-                enabled = !state.isBusy,
-                colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
-            ) {
-                Text("SAVE NOTE")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onCancel,
+                    enabled = !state.isBusy,
+                    colors = ButtonDefaults.buttonColors(containerColor = Coal, contentColor = Sand),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(tx("CANCEL"))
+                }
+                Button(
+                    onClick = { onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce) },
+                    enabled = !state.isBusy,
+                    colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(tx("SAVE NOTE"))
+                }
             }
         }
     }
@@ -2709,6 +3390,7 @@ private fun NoteDetailScreen(
     state: UiState,
     onClose: () -> Unit,
     onUpdateNoteText: (String, String) -> Unit,
+    onShareNote: (String) -> Unit,
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
     onToggleChecklistItem: (String, String) -> Unit,
@@ -2722,7 +3404,7 @@ private fun NoteDetailScreen(
     val onSurface = MaterialTheme.colorScheme.onSurface
     val note = state.selectedNote
     if (note == null) {
-        Text("Note unavailable", color = onSurface)
+        Text(tx("Note unavailable"), color = onSurface)
         return
     }
     var isEditing by remember { mutableStateOf(false) }
@@ -2742,8 +3424,7 @@ private fun NoteDetailScreen(
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Note",
+                Text(tx("Note"),
                     style = MaterialTheme.typography.titleLarge,
                     color = onSurface,
                     modifier = Modifier.weight(1f)
@@ -2769,6 +3450,9 @@ private fun NoteDetailScreen(
                         tint = if (note.pinned) Brass else onSurface.copy(alpha = 0.6f)
                     )
                 }
+                TextButton(onClick = { onShareNote(note.id) }) {
+                    Text(tx("SHARE LINK"), color = Moss)
+                }
             }
             Spacer(modifier = Modifier.height(10.dp))
             if (isEditing) {
@@ -2788,7 +3472,7 @@ private fun NoteDetailScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (note.checklist.isNotEmpty()) {
-                Text("Checklist", color = onSurface, style = MaterialTheme.typography.labelLarge)
+                Text(tx("Checklist"), color = onSurface, style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(6.dp))
                 note.checklist.forEach { item ->
                     val isDragging = draggingChecklistId == item.id
@@ -2828,7 +3512,7 @@ private fun NoteDetailScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.DragHandle,
-                            contentDescription = "Hold to reorder",
+                            contentDescription = tx("Hold to reorder"),
                             tint = if (isDragging) Brass else onSurface.copy(alpha = 0.6f),
                             modifier = Modifier
                                 .padding(start = 2.dp, end = 6.dp)
@@ -2892,14 +3576,14 @@ private fun NoteDetailScreen(
                             }) {
                                 Icon(
                                     imageVector = Icons.Filled.Edit,
-                                    contentDescription = "Save item",
+                                    contentDescription = tx("Save item"),
                                     tint = Brass
                                 )
                             }
                             IconButton(onClick = { editingChecklistId = null }) {
                                 Icon(
                                     imageVector = Icons.Filled.Delete,
-                                    contentDescription = "Cancel edit",
+                                    contentDescription = tx("Cancel edit"),
                                     tint = Sand
                                 )
                             }
@@ -2911,7 +3595,7 @@ private fun NoteDetailScreen(
                             }) {
                                 Icon(
                                     imageVector = Icons.Filled.Edit,
-                                    contentDescription = "Edit item",
+                                    contentDescription = tx("Edit item"),
                                     tint = Brass
                                 )
                             }
@@ -2919,7 +3603,7 @@ private fun NoteDetailScreen(
                         IconButton(onClick = { onRemoveChecklistItem(note.id, item.id) }) {
                             Icon(
                                 imageVector = Icons.Filled.Delete,
-                                contentDescription = "Remove item",
+                                contentDescription = tx("Remove item"),
                                 tint = Ember
                             )
                         }
@@ -2927,14 +3611,14 @@ private fun NoteDetailScreen(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             } else {
-                Text("Checklist", color = onSurface, style = MaterialTheme.typography.labelLarge)
+                Text(tx("Checklist"), color = onSurface, style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(6.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = checklistInput,
                     onValueChange = { checklistInput = it },
-                    label = { Text("Add item") },
+                    label = { Text(tx("Add item")) },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -2947,13 +3631,13 @@ private fun NoteDetailScreen(
                     enabled = checklistInput.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                 ) {
-                    Text("ADD")
+                    Text(tx("ADD"))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
             if (note.attachments.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Attachments", color = onSurface, style = MaterialTheme.typography.labelLarge)
+                Text(tx("Attachments"), color = onSurface, style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(6.dp))
                 note.attachments.forEach { attachment ->
                     val preview = state.attachmentPreviews[attachment.id]
@@ -2965,7 +3649,7 @@ private fun NoteDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(attachment.name, color = onSurface, modifier = Modifier.weight(1f))
                         TextButton(onClick = { onRemoveAttachment(note.id, attachment.id) }) {
-                            Text("REMOVE", color = Ember)
+                            Text(tx("REMOVE"), color = Ember)
                         }
                     }
                     if (preview != null) {
@@ -2998,20 +3682,20 @@ private fun NoteDetailScreen(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
-                        Text("SAVE")
+                        Text(tx("SAVE"))
                     }
                     TextButton(onClick = { isEditing = false; editText = note.text }) {
-                        Text("CANCEL", color = onSurface.copy(alpha = 0.7f))
+                        Text(tx("CANCEL"), color = onSurface.copy(alpha = 0.7f))
                     }
                 } else {
                     Button(
                         onClick = { onDelete(note.id) },
                         colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = Sand)
                     ) {
-                        Text("DELETE")
+                        Text(tx("DELETE"))
                     }
                     TextButton(onClick = onClose) {
-                        Text("BACK", color = Brass)
+                        Text(tx("BACK"), color = Brass)
                     }
                 }
             }
@@ -3036,6 +3720,7 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ErrorBar(state: UiState, onClear: () -> Unit) {
     val msg = state.error ?: return
+    val localizedMsg = localizeRuntimeMessage(msg)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -3045,12 +3730,48 @@ private fun ErrorBar(state: UiState, onClear: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(msg, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            Text(localizedMsg, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = onClear) {
-                Text("OK", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                Text(tx("OK"), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+@Composable
+private fun localizeRuntimeMessage(msg: String): String {
+    val lockoutMatch = Regex("^Too many attempts\\. Try again in (\\d+)s$").matchEntire(msg)
+    if (lockoutMatch != null) {
+        val seconds = lockoutMatch.groupValues[1]
+        return tx("Too many attempts. Try again in {seconds}s").replace("{seconds}", seconds)
+    }
+    return tx(msg)
+}
+
+@Composable
+private fun resolveInfoDialogText(key: String): String {
+    return when (key) {
+        "info_keys_manager_overview" -> tx("Keys Manager stores keys used for encrypted note sharing and backups.") + "\n\n" +
+            tx("- OpenPGP key: generated/imported PGP key material.") + "\n" +
+            tx("- XChaCha key: 32-byte symmetric key used for fast encrypted payload exchange.") + "\n\n" +
+            tx("Sources (manual/qr/nfc) are auto-tagged based on how key was imported.")
+        "info_manual_import" -> tx("Manual import accepts:") + "\n\n" +
+            tx("1) OpenPGP armored key blocks (BEGIN PGP ... END PGP)") + "\n" +
+            tx("2) XChaCha key as:") + "\n" +
+            tx("- base64 string decoding to exactly 32 bytes, or") + "\n" +
+            tx("- 64-char hex string (32 bytes).")
+        "info_generate_help" -> tx("Generate XChaCha creates a new random 32-byte symmetric key.") + "\n\n" +
+            tx("Generate PGP creates a new OpenPGP key pair stored in the app key vault.")
+        "info_qr_nfc_exchange" -> tx("SHARE SELECTED KEY lets you transfer a selected key to another Nulvex user.") + "\n\n" +
+            tx("- QR: show code on screen for scan.") + "\n" +
+            tx("- NFC: writes key payload to NFC tag.") + "\n\n" +
+            tx("Receiver imports it via QR scanner or NFC read.")
+        "info_backup_modes" -> tx("Backup modes:") + "\n\n" +
+            tx("- Local backup: exports encrypted file to your phone storage.") + "\n" +
+            tx("- Remote backup (Pro): uploads encrypted blob to your media server.") + "\n\n" +
+            tx("In both cases, decrypt requires the correct key.")
+        else -> tx(key)
     }
 }
 
@@ -3078,14 +3799,14 @@ private fun LabelsMenu(
                 .verticalScroll(rememberScrollState())
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Labels", style = MaterialTheme.typography.titleMedium, color = onSurface)
+                Text(tx("Labels"), style = MaterialTheme.typography.titleMedium, color = onSurface)
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = onClose) {
-                    Text("HIDE", color = Brass)
+                    Text(tx("HIDE"), color = Brass)
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Chip("All", state.activeLabel == null) { onSelectLabel(null) }
+            Chip(tx("All"), state.activeLabel == null) { onSelectLabel(null) }
             Spacer(modifier = Modifier.height(8.dp))
             labels.forEach { label ->
                 val isActive = state.activeLabel == label
@@ -3117,13 +3838,13 @@ private fun LabelsMenu(
             }
             if (selectedNote != null) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Assign label", style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Text(tx("Assign label"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = labelInput,
                         onValueChange = { labelInput = it },
-                        label = { Text("New label") },
+                        label = { Text(tx("New label")) },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
@@ -3136,10 +3857,11 @@ private fun LabelsMenu(
                         enabled = labelInput.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
-                        Text("ADD")
+                        Text(tx("ADD"))
                     }
                 }
             }
         }
     }
 }
+

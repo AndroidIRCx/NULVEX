@@ -3,6 +3,7 @@ import java.io.FileOutputStream
 import java.math.BigDecimal
 import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
 import org.gradle.testing.jacoco.tasks.JacocoReport
+import org.gradle.internal.os.OperatingSystem
 import java.util.Properties
 
 plugins {
@@ -245,6 +246,48 @@ tasks.named("check") {
     dependsOn("jacocoDebugUnitTestCoverageVerification")
 }
 
+val txPullOnBuild = (findProperty("txPullOnBuild") as String?)?.toBoolean() ?: false
+
+tasks.register<Exec>("transifexPushSources") {
+    group = "localization"
+    description = "Pushes source strings.xml to Transifex."
+    if (OperatingSystem.current().isWindows) {
+        commandLine(
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "${rootProject.projectDir}/scripts/transifex/push_sources.ps1"
+        )
+    } else {
+        commandLine("bash", "${rootProject.projectDir}/scripts/transifex/push_sources.sh")
+    }
+}
+
+tasks.register<Exec>("transifexPullTranslations") {
+    group = "localization"
+    description = "Pulls translated strings.xml files from Transifex."
+    if (OperatingSystem.current().isWindows) {
+        commandLine(
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "${rootProject.projectDir}/scripts/transifex/pull_translations.ps1"
+        )
+    } else {
+        commandLine("bash", "${rootProject.projectDir}/scripts/transifex/pull_translations.sh")
+    }
+}
+
+if (txPullOnBuild) {
+    tasks.named("preBuild") {
+        dependsOn("transifexPullTranslations")
+    }
+}
+
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
     implementation("com.google.firebase:firebase-analytics")
@@ -268,8 +311,13 @@ dependencies {
     implementation(libs.tink.android)
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.appcompat)
     implementation(libs.play.services.ads)
+    implementation(libs.play.services.code.scanner)
     implementation(libs.billing.ktx)
+    implementation(libs.bouncycastle.bcprov)
+    implementation(libs.bouncycastle.bcpg)
+    implementation(libs.zxing.core)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -31,6 +31,7 @@ Built for secure local notes with strong encryption, clean UX, and optional clou
 - **Pinned notes** — pin important notes to the top of the list
 - **Checklists** — toggle, reorder, add and remove checklist items
 - **Labels** — tag and filter notes by label
+- **Encrypted note share links** — export note as encrypted `.nulvex` package and share remote link
 
 ### UX
 - **Secure PIN pad** — custom circular numpad, no system keyboard; dot indicator, haptic feedback
@@ -38,6 +39,24 @@ Built for secure local notes with strong encryption, clean UX, and optional clou
 - **Settings search** — section/options search with clear button
 - **Collapsible settings sections** — cleaner navigation as settings grow
 - **Rewards & Ads first** — monetization section moved to top of Settings
+
+### Keys, Backup & Share
+- **Keys Manager (not Pro-gated)** — manage imported OpenPGP and XChaCha keys
+- **Key import channels** — manual text, QR scan, NFC tag
+- **Key Manager export/import** — full keys storage export as plaintext or password-encrypted package
+- **Local encrypted backup** — export/import vault backup file (`.nulvxbk`) directly on device
+- **Remote media backup (Pro)** — upload encrypted backup blobs to media server and restore via saved link/token
+
+File types:
+- `.nulvex` — encrypted note-share package
+- `.nulvxbk` — encrypted vault backup package
+- `.nulvxkeys` — key-manager storage package
+
+| Extension | MIME | Purpose | Example |
+|---|---|---|---|
+| `.nulvex` | `application/x-nulvex-note` | Encrypted single-note share package | `note_1739982000000.nulvex` |
+| `.nulvxbk` | `application/x-nulvex-backup` | Encrypted full-vault backup package | `nulvex_backup_1739982000000.nulvxbk` |
+| `.nulvxkeys` | `application/x-nulvex-keys` | Key Manager export/import package | `nulvex_keys_1739982000000.nulvxkeys` |
 
 ---
 
@@ -76,7 +95,7 @@ Troubleshooting:
 | Note encryption | XChaCha20-Poly1305 (via Google Tink) |
 | Keystore wrapping | AES-256-GCM (Android Keystore / StrongBox) |
 | Biometric wrapping | AES-256-GCM cipher-based BiometricPrompt |
-| Hybrid KEM (planned) | X25519 + ML-KEM-768 for future sync |
+| Hybrid KEM | X25519 + ML-KEM-768 |
 
 Key hierarchy:
 
@@ -85,7 +104,7 @@ PIN / password
     └─ Argon2id ──► Master Seed
                         └─ HKDF ──► DB key (SQLCipher)
                                     Note encryption key(s)
-                                    Sync envelope key(s) [planned]
+                                    Sync envelope key(s)
 ```
 
 Biometrics authenticate the user but do not derive cryptographic keys — the master key is stored encrypted by a Keystore-backed AES cipher locked to biometric authentication.
@@ -127,6 +146,40 @@ keyPassword=your_key_password
 ```
 
 Without it the build compiles but produces an unsigned AAB.
+
+---
+
+## Transifex (File-Based)
+
+Set credentials in `secrets/transifex.env`:
+
+```env
+TRANSIFEX_API_TOKEN=...
+TRANSIFEX_TOKEN=... # optional, fallback auth
+TRANSIFEX_PROJECT_NAME=NULVEX
+TRANSIFEX_ORG_SLUG=androidircx # optional; auto-resolved if omitted
+TRANSIFEX_RESOURCE_SLUG=android-strings
+```
+
+Windows:
+
+```powershell
+./gradlew :app:transifexPushSources
+./gradlew :app:transifexPullTranslations
+```
+
+Linux / WSL:
+
+```bash
+./scripts/transifex/push_sources.sh
+./scripts/transifex/pull_translations.sh
+```
+
+Optional build-time pull:
+
+```bash
+./gradlew assembleDebug -PtxPullOnBuild=true
+```
 
 ---
 
@@ -181,6 +234,7 @@ app/src/main/java/com/androidircx/nulvex/
 ├── security/
 │   ├── Argon2idKdf.kt        # PIN → master seed
 │   ├── VaultKeyManager.kt    # Key derivation + Keystore wrapping
+│   ├── HybridKemService.kt   # X25519 + ML-KEM-768 hybrid key exchange
 │   ├── VaultAuthService.kt   # PIN verify, decoy, attempt limiting
 │   ├── PanicWipeService.kt   # Full wipe + decoy-only wipe
 │   ├── BiometricKeyStore.kt  # Encrypt/decrypt master key via BiometricPrompt
@@ -189,6 +243,12 @@ app/src/main/java/com/androidircx/nulvex/
 │   ├── MainScreen.kt         # All Compose screens
 │   ├── MainViewModel.kt      # Single UiState, all app logic
 │   └── theme/
+├── pro/
+│   ├── SharedKeyStore.kt         # Key manager storage + Keystore protection
+│   ├── OpenPgpSupport.kt         # OpenPGP armored key parsing
+│   ├── EncryptedBackupService.kt # Local/remote encrypted backup + note-share upload
+│   ├── BackupRegistryStore.kt    # Saved remote backup metadata and links
+│   └── KeyManagerBackupCodec.kt  # Password-encrypted key-manager export/import
 └── work/
     └── SelfDestructWorker.kt # WorkManager: sweep expired notes
 ```
@@ -200,7 +260,7 @@ app/src/main/java/com/androidircx/nulvex/
 **Protected against:**
 - Physical access to device at rest
 - Full filesystem access (rooted / adb backup)
-- Network observer during sync (planned zero-knowledge backend)
+- Network observer during sync (zero-knowledge model)
 - Coercion / forced unlock (decoy vault + panic wipe)
 - Device theft without unlock credentials
 
@@ -259,7 +319,9 @@ CI workflow (`.github/workflows/android-unit-tests.yml`) runs JVM tests only (`.
 - [ ] Device matrix test (StrongBox / no StrongBox, API 26 / 30 / 33 / 34+)
 - [ ] Zero-knowledge sync backend (Pro)
 - [ ] Remote panic wipe — cross-device trigger (Pro)
-- [ ] Encrypted export / backup (Pro)
+- [x] Encrypted export / backup (local + remote foundation)
+- [x] Keys Manager with OpenPGP + XChaCha import/export
+- [ ] Translations workflow (Transifex + multi-language resources)
 
 ---
 

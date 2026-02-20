@@ -10,6 +10,8 @@ import com.androidircx.nulvex.VaultServiceLocator
 import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
+import com.androidircx.nulvex.pro.BackupRecord
+import com.androidircx.nulvex.pro.SharedKeyInfo
 import com.androidircx.nulvex.security.VaultProfile
 import com.androidircx.nulvex.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +47,12 @@ data class UiState(
     val hasProFeatures: Boolean = false,
     val billingReady: Boolean = false,
     val removeAdsPrice: String = "Unavailable",
-    val proFeaturesPrice: String = "Unavailable"
+    val proFeaturesPrice: String = "Unavailable",
+    val sharedKeys: List<SharedKeyInfo> = emptyList(),
+    val backupRecords: List<BackupRecord> = emptyList(),
+    val lastBackupMediaId: String = "",
+    val backupStatus: String = "",
+    val languageTag: String = "system"
 )
 
 sealed class Screen {
@@ -65,6 +72,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val panicWipeService = VaultServiceLocator.panicWipeService()
     private val appPreferences = VaultServiceLocator.appPreferences()
     private val adPreferences = VaultServiceLocator.adPreferences()
+    private val sharedKeyStore = VaultServiceLocator.sharedKeyStore()
+    private val encryptedBackupService = VaultServiceLocator.encryptedBackupService()
     private var inactivityJob: Job? = null
 
     var uiState = androidx.compose.runtime.mutableStateOf(
@@ -86,7 +95,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             isAdFree = adPreferences.isAdFree(),
             adFreeUntil = adPreferences.getAdFreeUntil(),
             shareCredits = adPreferences.getShareCredits(),
-            hasProFeatures = adPreferences.hasProFeaturesLifetime()
+            hasProFeatures = adPreferences.hasProFeaturesLifetime(),
+            sharedKeys = sharedKeyStore.listKeys(),
+            backupRecords = encryptedBackupService.listBackupRecords(),
+            languageTag = appPreferences.getLanguageTag()
         )
     )
         private set
@@ -171,6 +183,236 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun grantLifetimeProFeatures() {
         adPreferences.enableProFeaturesLifetime()
         uiState.value = uiState.value.copy(hasProFeatures = true)
+    }
+
+    fun refreshSharedKeys() {
+        uiState.value = uiState.value.copy(
+            sharedKeys = sharedKeyStore.listKeys(),
+            backupRecords = encryptedBackupService.listBackupRecords()
+        )
+    }
+
+    fun importSharedKey(label: String, source: String, rawKey: String) {
+        if (rawKey.isBlank()) {
+            uiState.value = uiState.value.copy(error = "Key input is empty")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                sharedKeyStore.importKey(label, source, rawKey)
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = null,
+                        backupStatus = "Key imported",
+                        sharedKeys = sharedKeyStore.listKeys(),
+                        backupRecords = encryptedBackupService.listBackupRecords()
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Failed to import key: ${e.message ?: "unknown error"}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteSharedKey(keyId: String) {
+        sharedKeyStore.deleteKey(keyId)
+        uiState.value = uiState.value.copy(
+            sharedKeys = sharedKeyStore.listKeys(),
+            backupRecords = encryptedBackupService.listBackupRecords()
+        )
+    }
+
+    fun uploadEncryptedBackup(keyId: String) {
+        if (!uiState.value.hasProFeatures) {
+            uiState.value = uiState.value.copy(error = "Pro Features required")
+            return
+        }
+        if (keyId.isBlank()) {
+            uiState.value = uiState.value.copy(error = "Choose a key first")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = encryptedBackupService.uploadEncryptedBackup(keyId)
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = null,
+                        backupStatus = "Backup uploaded (${result.sizeBytes} bytes)",
+                        lastBackupMediaId = result.mediaId,
+                        backupRecords = encryptedBackupService.listBackupRecords()
+                    )
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Backup upload failed"
+                    )
+                }
+            }
+        }
+    }
+
+    fun restoreEncryptedBackup(
+        mediaId: String,
+        keyId: String,
+        merge: Boolean,
+        downloadToken: String? = null,
+        downloadExpires: Long? = null
+    ) {
+        if (!uiState.value.hasProFeatures) {
+            uiState.value = uiState.value.copy(error = "Pro Features required")
+            return
+        }
+        if (mediaId.isBlank() || keyId.isBlank()) {
+            uiState.value = uiState.value.copy(error = "Backup ID and key are required")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val imported = encryptedBackupService.restoreFromRemote(
+                    mediaId = mediaId,
+                    keyId = keyId,
+                    merge = merge,
+                    downloadToken = downloadToken,
+                    downloadExpires = downloadExpires
+                )
+                val notes = vaultService.listNotes()
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        notes = notes,
+                        error = null,
+                        backupStatus = "Restore complete ($imported notes)"
+                    )
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Backup restore failed"
+                    )
+                }
+            }
+        }
+    }
+
+    fun restoreEncryptedBackupRecord(recordId: String, merge: Boolean) {
+        if (!uiState.value.hasProFeatures) {
+            uiState.value = uiState.value.copy(error = "Pro Features required")
+            return
+        }
+        if (recordId.isBlank()) {
+            uiState.value = uiState.value.copy(error = "Choose saved backup")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val imported = encryptedBackupService.restoreFromStoredRecord(recordId, merge)
+                val notes = vaultService.listNotes()
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        notes = notes,
+                        error = null,
+                        backupStatus = "Restore complete ($imported notes)"
+                    )
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Backup restore failed"
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteBackupRecord(recordId: String) {
+        encryptedBackupService.deleteBackupRecord(recordId)
+        uiState.value = uiState.value.copy(backupRecords = encryptedBackupService.listBackupRecords())
+    }
+
+    suspend fun buildLocalEncryptedBackupPayload(keyId: String): ByteArray {
+        return encryptedBackupService.buildEncryptedBackupWrapper(keyId)
+    }
+
+    suspend fun restoreLocalEncryptedBackupPayload(payload: ByteArray, keyId: String, merge: Boolean): Int {
+        val imported = encryptedBackupService.restoreFromEncryptedBytes(payload, keyId, merge)
+        val notes = vaultService.listNotes()
+        withContext(Dispatchers.Main) {
+            uiState.value = uiState.value.copy(
+                notes = notes,
+                backupStatus = "Restore complete ($imported notes)"
+            )
+        }
+        return imported
+    }
+
+    suspend fun buildLocalEncryptedNoteSharePayload(noteId: String, keyId: String): ByteArray {
+        val keyMaterial = sharedKeyStore.getKeyMaterial(keyId) ?: throw IllegalStateException("Key not found")
+        keyMaterial.fill(0)
+        return encryptedBackupService.buildEncryptedNoteShareWrapper(noteId, keyId)
+    }
+
+    fun exportKeyManagerStorage(encrypted: Boolean, password: String?): ByteArray {
+        return sharedKeyStore.exportManagerBackup(encrypted, password?.toCharArray())
+    }
+
+    fun importKeyManagerStorage(payload: ByteArray, password: String?): Int {
+        val imported = sharedKeyStore.importManagerBackup(payload, password?.toCharArray())
+        uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys())
+        return imported
+    }
+
+    fun generateXChaChaKey(label: String) {
+        try {
+            sharedKeyStore.generateXChaChaKey(label.ifBlank { "XChaCha key" })
+            uiState.value = uiState.value.copy(backupStatus = "")
+            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = "XChaCha key generated")
+        } catch (e: Exception) {
+            uiState.value = uiState.value.copy(error = "Failed to generate XChaCha key: ${e.message ?: "unknown error"}")
+        }
+    }
+
+    fun generatePgpKey(label: String) {
+        try {
+            sharedKeyStore.generatePgpKey(label.ifBlank { "OpenPGP key" })
+            uiState.value = uiState.value.copy(backupStatus = "")
+            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = "OpenPGP key generated")
+        } catch (e: Exception) {
+            uiState.value = uiState.value.copy(error = "Failed to generate OpenPGP key: ${e.message ?: "unknown error"}")
+        }
+    }
+
+    fun buildKeyTransferPayload(keyId: String): String? {
+        return try {
+            sharedKeyStore.buildTransferPayload(keyId)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun importSharedKeyPayload(payload: String, source: String): Boolean {
+        return try {
+            sharedKeyStore.importTransferPayload(payload, source)
+            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = "Key imported via $source")
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun setupPins(realPin: String, decoyPin: String?, onComplete: (() -> Unit)? = null) {
@@ -364,6 +606,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun updateThemeMode(mode: ThemeMode) {
         appPreferences.setThemeMode(mode.id)
         uiState.value = uiState.value.copy(themeMode = mode)
+    }
+
+    fun updateLanguage(languageTag: String) {
+        appPreferences.setLanguageTag(languageTag)
+        uiState.value = uiState.value.copy(languageTag = languageTag)
     }
 
     fun enableBiometric() {
@@ -639,6 +886,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun showError(message: String) {
         uiState.value = uiState.value.copy(error = message, isBusy = false)
+    }
+
+    fun setBackupStatus(message: String) {
+        uiState.value = uiState.value.copy(backupStatus = message)
     }
 
     fun panicWipe() {
