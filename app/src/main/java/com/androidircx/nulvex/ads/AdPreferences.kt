@@ -22,6 +22,8 @@ class AdPreferences(context: Context) {
 
     /** Returns true if the current time is before the stored ad-free expiry. */
     fun isAdFree(): Boolean {
+        if (hasRemoveAdsLifetime()) return true
+
         val now = System.currentTimeMillis()
         val lastKnown = prefs.getLong(KEY_LAST_KNOWN_TIME, 0L)
 
@@ -64,12 +66,27 @@ class AdPreferences(context: Context) {
         prefs.edit().remove(KEY_AD_FREE_UNTIL).apply()
     }
 
+    /** Enables permanent ad removal entitlement. */
+    fun enableRemoveAdsLifetime() {
+        prefs.edit().putBoolean(KEY_REMOVE_ADS_LIFETIME, true).apply()
+    }
+
+    fun hasRemoveAdsLifetime(): Boolean = prefs.getBoolean(KEY_REMOVE_ADS_LIFETIME, false)
+
     // -------------------------------------------------------------------------
     // Share credits
     // -------------------------------------------------------------------------
 
     /** Returns the current share credit balance. */
     fun getShareCredits(): Int = prefs.getInt(KEY_SHARE_CREDITS, 0)
+
+    fun enableProFeaturesLifetime() {
+        prefs.edit().putBoolean(KEY_PRO_FEATURES_LIFETIME, true).apply()
+    }
+
+    fun hasProFeaturesLifetime(): Boolean = prefs.getBoolean(KEY_PRO_FEATURES_LIFETIME, false)
+
+    fun hasUnlimitedShares(): Boolean = hasProFeaturesLifetime()
 
     /** Adds [amount] share credits to the balance. */
     fun addShareCredits(amount: Int) {
@@ -82,6 +99,7 @@ class AdPreferences(context: Context) {
      * false if not enough credits (balance unchanged).
      */
     fun consumeShareCredits(amount: Int): Boolean {
+        if (hasUnlimitedShares()) return true
         val current = prefs.getInt(KEY_SHARE_CREDITS, 0)
         if (current < amount) return false
         prefs.edit().putInt(KEY_SHARE_CREDITS, current - amount).apply()
@@ -91,8 +109,10 @@ class AdPreferences(context: Context) {
     companion object {
         private const val PREFS_NAME = "nulvex_ad_prefs"
         private const val KEY_AD_FREE_UNTIL = "ad_free_until"
+        private const val KEY_REMOVE_ADS_LIFETIME = "remove_ads_lifetime"
         private const val KEY_LAST_KNOWN_TIME = "last_known_time"
         private const val KEY_SHARE_CREDITS = "share_credits"
+        private const val KEY_PRO_FEATURES_LIFETIME = "pro_features_lifetime"
 
         /** Allow up to 5 seconds of natural clock drift between checks. */
         private const val CLOCK_SKEW_TOLERANCE_MS = 5_000L

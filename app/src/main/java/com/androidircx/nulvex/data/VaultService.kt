@@ -2,11 +2,14 @@ package com.androidircx.nulvex.data
 
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Base64
 import com.androidircx.nulvex.crypto.NoteCrypto
 import com.androidircx.nulvex.crypto.XChaCha20Poly1305NoteCrypto
 import com.androidircx.nulvex.security.VaultKeyManager
 import com.androidircx.nulvex.security.VaultProfile
 import com.androidircx.nulvex.security.wipe
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
 
 class VaultService(
@@ -126,6 +129,212 @@ class VaultService(
             attachmentStore.deleteAttachment(profileId, noteId, attachmentId)
         }
         return ok
+    }
+
+    suspend fun exportBackupJsonBytes(): ByteArray {
+        val notes = listNotes()
+        val root = JSONObject().apply {
+            put("v", 1)
+            put("exportedAt", System.currentTimeMillis())
+            put("profileId", sessionManager.getActiveProfile()?.id ?: VaultProfile.REAL.id)
+        }
+        val notesArray = JSONArray()
+        for (note in notes) {
+            val noteObj = JSONObject().apply {
+                put("id", note.id)
+                put("text", note.text)
+                put("pinned", note.pinned)
+                put("createdAt", note.createdAt)
+                put("expiresAt", note.expiresAt ?: JSONObject.NULL)
+                put("readOnce", note.readOnce)
+            }
+
+            val checklistArray = JSONArray()
+            note.checklist.forEach { item ->
+                checklistArray.put(
+                    JSONObject().apply {
+                        put("id", item.id)
+                        put("text", item.text)
+                        put("checked", item.checked)
+                    }
+                )
+            }
+            noteObj.put("checklist", checklistArray)
+
+            val labelsArray = JSONArray()
+            note.labels.forEach { label -> labelsArray.put(label) }
+            noteObj.put("labels", labelsArray)
+
+            val attachmentArray = JSONArray()
+            note.attachments.forEach { attachment ->
+                val bytes = loadAttachment(note.id, attachment.id)
+                val b64 = if (bytes != null) {
+                    Base64.encodeToString(bytes, Base64.NO_WRAP).also { bytes.fill(0) }
+                } else {
+                    ""
+                }
+                attachmentArray.put(
+                    JSONObject().apply {
+                        put("id", attachment.id)
+                        put("name", attachment.name)
+                        put("mimeType", attachment.mimeType)
+                        put("byteCount", attachment.byteCount)
+                        put("data", b64)
+                    }
+                )
+            }
+            noteObj.put("attachments", attachmentArray)
+            notesArray.put(noteObj)
+        }
+        root.put("notes", notesArray)
+        return root.toString().toByteArray(Charsets.UTF_8)
+    }
+
+    suspend fun exportSingleNoteShareJsonBytes(noteId: String): ByteArray {
+        val note = readNote(noteId) ?: throw IllegalArgumentException("Note not found")
+        val root = JSONObject().apply {
+            put("v", 1)
+            put("type", "note-share")
+            put("exportedAt", System.currentTimeMillis())
+        }
+        val noteObj = JSONObject().apply {
+            put("id", note.id)
+            put("text", note.text)
+            put("pinned", note.pinned)
+            put("createdAt", note.createdAt)
+            put("expiresAt", note.expiresAt ?: JSONObject.NULL)
+            put("readOnce", note.readOnce)
+        }
+        val checklistArray = JSONArray()
+        note.checklist.forEach { item ->
+            checklistArray.put(
+                JSONObject().apply {
+                    put("id", item.id)
+                    put("text", item.text)
+                    put("checked", item.checked)
+                }
+            )
+        }
+        noteObj.put("checklist", checklistArray)
+        val labelsArray = JSONArray()
+        note.labels.forEach { label -> labelsArray.put(label) }
+        noteObj.put("labels", labelsArray)
+        val attachmentArray = JSONArray()
+        note.attachments.forEach { attachment ->
+            val bytes = loadAttachment(note.id, attachment.id)
+            val b64 = if (bytes != null) {
+                Base64.encodeToString(bytes, Base64.NO_WRAP).also { bytes.fill(0) }
+            } else {
+                ""
+            }
+            attachmentArray.put(
+                JSONObject().apply {
+                    put("id", attachment.id)
+                    put("name", attachment.name)
+                    put("mimeType", attachment.mimeType)
+                    put("byteCount", attachment.byteCount)
+                    put("data", b64)
+                }
+            )
+        }
+        noteObj.put("attachments", attachmentArray)
+        root.put("note", noteObj)
+        return root.toString().toByteArray(Charsets.UTF_8)
+    }
+
+    suspend fun importBackupJsonBytes(raw: ByteArray, merge: Boolean): Int {
+        val session = requireSession()
+        val root = JSONObject(raw.toString(Charsets.UTF_8))
+        val notesArray = root.optJSONArray("notes") ?: JSONArray()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+
+        if (!merge) {
+            val existing = repo.listNotes(session.noteKey)
+            existing.forEach { note -> deleteNoteInternal(note, session) }
+        }
+
+        var imported = 0
+        val profileId = sessionManager.getActiveProfile()?.id ?: VaultProfile.REAL.id
+        for (i in 0 until notesArray.length()) {
+            val noteObj = notesArray.optJSONObject(i) ?: continue
+            val noteId = noteObj.optString("id", "").ifBlank { UUID.randomUUID().toString() }
+            val text = noteObj.optString("text", "")
+            val pinned = noteObj.optBoolean("pinned", false)
+            val createdAt = noteObj.optLong("createdAt", System.currentTimeMillis())
+            val expiresAt = noteObj.optLong("expiresAt").takeIf { noteObj.has("expiresAt") && !noteObj.isNull("expiresAt") }
+            val readOnce = noteObj.optBoolean("readOnce", false)
+
+            val checklist = mutableListOf<ChecklistItem>()
+            val checklistArray = noteObj.optJSONArray("checklist") ?: JSONArray()
+            for (j in 0 until checklistArray.length()) {
+                val item = checklistArray.optJSONObject(j) ?: continue
+                val id = item.optString("id", "")
+                if (id.isBlank()) continue
+                checklist.add(
+                    ChecklistItem(
+                        id = id,
+                        text = item.optString("text", ""),
+                        checked = item.optBoolean("checked", false)
+                    )
+                )
+            }
+
+            val labels = mutableListOf<String>()
+            val labelsArray = noteObj.optJSONArray("labels") ?: JSONArray()
+            for (j in 0 until labelsArray.length()) {
+                val label = labelsArray.optString(j, "").trim()
+                if (label.isNotBlank()) labels.add(label)
+            }
+
+            val attachments = mutableListOf<NoteAttachment>()
+            val attachmentArray = noteObj.optJSONArray("attachments") ?: JSONArray()
+            for (j in 0 until attachmentArray.length()) {
+                val att = attachmentArray.optJSONObject(j) ?: continue
+                val attId = att.optString("id", "")
+                if (attId.isBlank()) continue
+
+                val dataB64 = att.optString("data", "")
+                if (dataB64.isNotBlank()) {
+                    val plaintext = Base64.decode(dataB64, Base64.DEFAULT)
+                    val ciphertext = noteCrypto.encrypt(plaintext, session.noteKey)
+                    plaintext.fill(0)
+                    attachmentStore.writeEncrypted(profileId, noteId, attId, ciphertext)
+                }
+
+                attachments.add(
+                    NoteAttachment(
+                        id = attId,
+                        name = att.optString("name", "file"),
+                        mimeType = att.optString("mimeType", "application/octet-stream"),
+                        byteCount = att.optLong("byteCount", 0L)
+                    )
+                )
+            }
+
+            val payload = NotePayload(
+                text = text,
+                checklist = checklist,
+                labels = labels,
+                attachments = attachments,
+                pinned = pinned
+            )
+            val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
+            val ciphertext = noteCrypto.encrypt(plaintext, session.noteKey)
+            plaintext.fill(0)
+
+            session.database.noteDao().upsert(
+                NoteEntity(
+                    id = noteId,
+                    ciphertext = ciphertext,
+                    createdAt = createdAt,
+                    expiresAt = expiresAt,
+                    readOnce = readOnce,
+                    deleted = false
+                )
+            )
+            imported++
+        }
+        return imported
     }
 
     private suspend fun deleteNoteInternal(note: Note, session: VaultSession) {

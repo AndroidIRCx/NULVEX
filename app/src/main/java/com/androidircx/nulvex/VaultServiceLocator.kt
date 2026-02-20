@@ -5,6 +5,9 @@ import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.ads.AdPreferences
 import com.androidircx.nulvex.data.VaultService
 import com.androidircx.nulvex.data.VaultSessionManager
+import com.androidircx.nulvex.pro.EncryptedBackupService
+import com.androidircx.nulvex.pro.BackupRegistryStore
+import com.androidircx.nulvex.pro.SharedKeyStore
 import com.androidircx.nulvex.security.VaultAuthController
 import com.androidircx.nulvex.security.VaultAuthService
 import com.androidircx.nulvex.security.PanicWipeService
@@ -19,6 +22,9 @@ object VaultServiceLocator {
     private lateinit var appPreferences: AppPreferences
     private lateinit var adPreferences: AdPreferences
     private lateinit var adManager: AdManager
+    private lateinit var sharedKeyStore: SharedKeyStore
+    private lateinit var backupRegistryStore: BackupRegistryStore
+    private lateinit var encryptedBackupService: EncryptedBackupService
 
     fun init(context: Context) {
         val appContext = context.applicationContext
@@ -30,6 +36,9 @@ object VaultServiceLocator {
         appPreferences = AppPreferences(appContext)
         adPreferences = AdPreferences(appContext)
         adManager = AdManager(adPreferences)
+        sharedKeyStore = SharedKeyStore(appContext)
+        backupRegistryStore = BackupRegistryStore(appContext)
+        encryptedBackupService = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore)
     }
 
     fun sessionManager(): VaultSessionManager = sessionManager
@@ -40,4 +49,7 @@ object VaultServiceLocator {
     fun appPreferences(): AppPreferences = appPreferences
     fun adPreferences(): AdPreferences = adPreferences
     fun adManager(): AdManager = adManager
+    fun sharedKeyStore(): SharedKeyStore = sharedKeyStore
+    fun backupRegistryStore(): BackupRegistryStore = backupRegistryStore
+    fun encryptedBackupService(): EncryptedBackupService = encryptedBackupService
 }

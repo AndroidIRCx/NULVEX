@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">NULVEX</string>
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_system">System</string>
 </resources>

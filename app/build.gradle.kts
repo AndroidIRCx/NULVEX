@@ -3,6 +3,7 @@ import java.io.FileOutputStream
 import java.math.BigDecimal
 import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
 import org.gradle.testing.jacoco.tasks.JacocoReport
+import org.gradle.internal.os.OperatingSystem
 import java.util.Properties
 
 plugins {
@@ -123,6 +124,11 @@ val jacocoDebugExec = layout.buildDirectory.file("jacoco/testDebugUnitTest.exec"
 val jacocoDebugAltExec = layout.buildDirectory.file(
     "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"
 )
+val jacocoAndroidTestEcTree = layout.buildDirectory.dir("outputs/code_coverage").map { dir ->
+    fileTree(dir) {
+        include("**/*.ec")
+    }
+}
 val debugKotlinClassesDir = layout.buildDirectory.dir(
     "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"
 )
@@ -197,8 +203,89 @@ tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerificat
     }
 }
 
+tasks.register<JacocoReport>("jacocoDebugCombinedReport") {
+    // Run both unit tests and instrumented tests before building merged report.
+    // Requires a connected emulator/device for connectedDebugAndroidTest.
+    dependsOn("testDebugUnitTest")
+    dependsOn("connectedDebugAndroidTest")
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+
+    val excludes = listOf(
+        "**/R.class",
+        "**/R$*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*",
+        "**/*Test*.*",
+        "android/**/*.*",
+        "**/*\$Lambda$*.*",
+        "**/*Companion*.*"
+    )
+
+    classDirectories.setFrom(
+        files(
+            fileTree(debugKotlinClassesDir) { exclude(excludes) },
+            fileTree(debugJavaClassesDir) { exclude(excludes) }
+        )
+    )
+    sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
+    executionData.setFrom(
+        files(
+            jacocoDebugExec,
+            jacocoDebugAltExec,
+            jacocoAndroidTestEcTree
+        )
+    )
+}
+
 tasks.named("check") {
     dependsOn("jacocoDebugUnitTestCoverageVerification")
+}
+
+val txPullOnBuild = (findProperty("txPullOnBuild") as String?)?.toBoolean() ?: false
+
+tasks.register<Exec>("transifexPushSources") {
+    group = "localization"
+    description = "Pushes source strings.xml to Transifex."
+    if (OperatingSystem.current().isWindows) {
+        commandLine(
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "${rootProject.projectDir}/scripts/transifex/push_sources.ps1"
+        )
+    } else {
+        commandLine("bash", "${rootProject.projectDir}/scripts/transifex/push_sources.sh")
+    }
+}
+
+tasks.register<Exec>("transifexPullTranslations") {
+    group = "localization"
+    description = "Pulls translated strings.xml files from Transifex."
+    if (OperatingSystem.current().isWindows) {
+        commandLine(
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "${rootProject.projectDir}/scripts/transifex/pull_translations.ps1"
+        )
+    } else {
+        commandLine("bash", "${rootProject.projectDir}/scripts/transifex/pull_translations.sh")
+    }
+}
+
+if (txPullOnBuild) {
+    tasks.named("preBuild") {
+        dependsOn("transifexPullTranslations")
+    }
 }
 
 dependencies {
@@ -224,8 +311,13 @@ dependencies {
     implementation(libs.tink.android)
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.appcompat)
     implementation(libs.play.services.ads)
+    implementation(libs.play.services.code.scanner)
     implementation(libs.billing.ktx)
+    implementation(libs.bouncycastle.bcprov)
+    implementation(libs.bouncycastle.bcpg)
+    implementation(libs.zxing.core)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)

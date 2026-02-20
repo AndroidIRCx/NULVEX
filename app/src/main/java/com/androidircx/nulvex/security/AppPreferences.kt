@@ -52,4 +52,10 @@ class AppPreferences(context: Context) {
     fun setLockoutUntil(value: Long) {
         prefs.edit().putLong("lockout_until", value).apply()
     }
+
+    fun getLanguageTag(): String = prefs.getString("language_tag", "system") ?: "system"
+
+    fun setLanguageTag(value: String) {
+        prefs.edit().putString("language_tag", value).apply()
+    }
 }

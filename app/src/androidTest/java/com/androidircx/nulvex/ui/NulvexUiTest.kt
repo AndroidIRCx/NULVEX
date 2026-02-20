@@ -9,12 +9,15 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.data.Note
+import com.androidircx.nulvex.pro.BackupRecord
 import com.androidircx.nulvex.ui.theme.NULVEXTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -42,7 +45,12 @@ class NulvexUiTest {
         onPanic: () -> Unit = {},
         onOpenNew: () -> Unit = {},
         onOpenNote: (String) -> Unit = {},
-        onDelete: (String) -> Unit = {}
+        onDelete: (String) -> Unit = {},
+        onDeleteSharedKey: (String) -> Unit = {},
+        onDeleteSavedBackup: (String) -> Unit = {},
+        onRestoreBackup: (String, String, Boolean, String?, Long?) -> Unit = { _, _, _, _, _ -> },
+        onOpenPurchases: () -> Unit = {},
+        onRestorePurchases: () -> Unit = {}
     ) {
         rule.setContent {
             NULVEXTheme {
@@ -83,7 +91,12 @@ class NulvexUiTest {
                     onSelectLabel = {},
                     onLoadAttachmentPreview = { _, _ -> },
                     onRemoveAttachment = { _, _ -> },
-                    onClearError = {}
+                    onClearError = {},
+                    onOpenPurchases = onOpenPurchases,
+                    onRestorePurchases = onRestorePurchases,
+                    onDeleteSharedKey = onDeleteSharedKey,
+                    onDeleteSavedBackup = onDeleteSavedBackup,
+                    onRestoreBackup = onRestoreBackup
                 )
             }
         }
@@ -397,4 +410,162 @@ class NulvexUiTest {
         show(state = UiState(isSetup = true, screen = Screen.Vault, error = null))
         rule.onNodeWithText("Something went wrong").assertDoesNotExist()
     }
+
+    // ---- Purchases ------------------------------------------------------------
+
+    @Test
+    fun settings_openPurchaseOptionsCallsCallback() {
+        var called = false
+        show(
+            state = UiState(isSetup = true, screen = Screen.Settings),
+            onOpenPurchases = { called = true }
+        )
+
+        rule.onNodeWithText("Rewards & Ads").performClick()
+        rule.onNodeWithText("OPEN PURCHASE OPTIONS").performClick()
+        rule.waitForIdle()
+
+        assertTrue(called)
+    }
+
+    @Test
+    fun purchases_screenShowsProductsAndRestoreButton() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Purchases,
+                billingReady = true,
+                removeAdsPrice = "$1.99",
+                proFeaturesPrice = "$4.99"
+            )
+        )
+
+        rule.onNodeWithText("Purchase options").assertIsDisplayed()
+        rule.onNodeWithText("Remove Ads (Lifetime)").assertIsDisplayed()
+        rule.onNodeWithText("Pro Features (Lifetime)").assertIsDisplayed()
+        rule.onNodeWithText("RESTORE PURCHASES").assertIsDisplayed()
+        rule.onNodeWithText("Does not remove ads", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun purchases_restoreButtonCallsCallback() {
+        var called = false
+        show(
+            state = UiState(isSetup = true, screen = Screen.Purchases),
+            onRestorePurchases = { called = true }
+        )
+
+        rule.onNodeWithText("RESTORE PURCHASES").performClick()
+        rule.waitForIdle()
+
+        assertTrue(called)
+    }
+
+    @Test
+    fun settings_proFeaturesShowsUnlimitedAndHidesShareAdButton() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Settings,
+                hasProFeatures = true,
+                shareCredits = 3
+            )
+        )
+
+        rule.onNodeWithText("Rewards & Ads").performClick()
+        rule.onNodeWithText("UNLIMITED").assertIsDisplayed()
+        rule.onNodeWithText("WATCH AD - EARN 1 SHARE CREDIT").assertDoesNotExist()
+    }
+
+    @Test
+    fun settings_removeAdsLifetimeDisablesWatchAdButton() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Settings,
+                isAdFree = true
+            )
+        )
+
+        rule.onNodeWithText("Rewards & Ads").performClick()
+        rule.onNodeWithText("ADS REMOVED").assertIsNotEnabled()
+    }
+
+    @Test
+    fun settings_sectionsAreCollapsedUntilHeaderClick() {
+        show(state = UiState(isSetup = true, screen = Screen.Settings))
+
+        rule.onNodeWithText("WATCH AD - 10 MIN NO ADS").assertDoesNotExist()
+        rule.onNodeWithText("Rewards & Ads").performClick()
+        rule.onNodeWithText("WATCH AD - 10 MIN NO ADS").assertIsDisplayed()
+    }
+
+    @Test
+    fun settings_searchClearButtonAppearsAndClearsInput() {
+        show(state = UiState(isSetup = true, screen = Screen.Settings))
+
+        rule.onNodeWithText("Search settings").performTextInput("ads")
+        rule.onNodeWithContentDescription("Clear search").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Clear search").performClick()
+        rule.onNodeWithText("Search settings").performTextInput("security")
+        rule.onNodeWithText("Search settings").performTextClearance()
+    }
+
+    @Test
+    fun settings_searchNoMatchShowsEmptyState() {
+        show(state = UiState(isSetup = true, screen = Screen.Settings))
+
+        rule.onNodeWithText("Search settings").performTextInput("zzzzzzz")
+        rule.onNodeWithText("No settings match your search.").assertIsDisplayed()
+    }
+
+
+    @Test
+    fun settings_deleteSavedBackup_yesDeletes() {
+        var deletedRecordId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Settings,
+                backupRecords = listOf(
+                    BackupRecord(
+                        id = "rec-1",
+                        mediaId = "media-1",
+                        downloadPathId = "download-1",
+                        keyId = "key-1",
+                        downloadToken = null,
+                        downloadExpires = null,
+                        sizeBytes = 10,
+                        sha256 = "abc",
+                        createdAt = 1L
+                    )
+                )
+            ),
+            onDeleteSavedBackup = { deletedRecordId = it }
+        )
+
+        rule.onNodeWithText("Search settings").performTextInput("backup")
+        rule.onNodeWithText("Backup").performClick()
+        rule.onNodeWithText("DELETE").performClick()
+        rule.onNodeWithText("Delete backup record?").assertIsDisplayed()
+        rule.onNodeWithText("YES").performClick()
+        rule.waitForIdle()
+
+        assertEquals("rec-1", deletedRecordId)
+    }
+
+    @Test
+    fun settings_generatedStatus_showsSuccessDialog() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Settings,
+                backupStatus = "XChaCha key generated"
+            )
+        )
+
+        rule.onNodeWithText("Success").assertIsDisplayed()
+        rule.onNodeWithText("Key created successfully.").assertIsDisplayed()
+    }
+
 }
