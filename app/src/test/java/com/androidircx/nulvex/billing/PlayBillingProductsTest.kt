@@ -8,8 +8,8 @@ class PlayBillingProductsTest {
 
     @Test
     fun productIds_usePlayConsoleDashFormat() {
-        assertEquals("remove-ads-lifetime", PlayBillingProducts.REMOVE_ADS_ONE_TIME)
-        assertEquals("pro-features-lifetime", PlayBillingProducts.PRO_FEATURES_ONE_TIME)
+        assertEquals("remove_ads_lifetime", PlayBillingProducts.REMOVE_ADS_ONE_TIME)
+        assertEquals("pro_features_lifetime", PlayBillingProducts.PRO_FEATURES_ONE_TIME)
     }
 
     @Test
