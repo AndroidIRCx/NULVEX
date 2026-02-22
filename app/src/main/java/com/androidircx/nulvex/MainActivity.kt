@@ -29,6 +29,7 @@ import com.androidircx.nulvex.ui.MainViewModel
 import com.androidircx.nulvex.ui.theme.NULVEXTheme
 import com.androidircx.nulvex.security.BiometricKeyStore
 import com.androidircx.nulvex.security.VaultKeyManager
+import com.androidircx.nulvex.security.VaultProfile
 import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.VaultServiceLocator
 import com.android.billingclient.api.AcknowledgePurchaseParams
