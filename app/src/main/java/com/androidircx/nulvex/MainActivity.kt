@@ -62,6 +62,9 @@ import java.io.File
 class MainActivity : AppCompatActivity() {
     private val vm: MainViewModel by viewModels()
     private val biometricStore by lazy { BiometricKeyStore(applicationContext) }
+    private val decoyBiometricStore by lazy {
+        BiometricKeyStore(applicationContext, "nulvex_biometric_decoy", "nulvex_biometric_decoy_key")
+    }
     private val adManager by lazy { VaultServiceLocator.adManager() }
     private var billingClient: BillingClient? = null
     private var nfcAdapter: NfcAdapter? = null
@@ -185,6 +188,9 @@ class MainActivity : AppCompatActivity() {
                     onRequestBiometricEnroll = ::startBiometricEnrollment,
                     onRequestBiometricUnlock = ::startBiometricUnlock,
                     onDisableBiometric = ::disableBiometric,
+                    onRequestDecoyBiometricEnroll = ::startDecoyBiometricEnrollment,
+                    onRequestDecoyBiometricUnlock = ::startDecoyBiometricUnlock,
+                    onDisableDecoyBiometric = ::disableDecoyBiometric,
                     onChangeRealPin = vm::changeRealPin,
                     onUpdateThemeMode = vm::updateThemeMode,
                     onUpdateLanguage = ::updateLanguage,
@@ -238,12 +244,20 @@ class MainActivity : AppCompatActivity() {
                     onGenerateXChaChaKey = vm::generateXChaChaKey,
                     onGeneratePgpKey = vm::generatePgpKey,
                     onBuildKeyTransferPayload = vm::buildKeyTransferPayload,
-                    onStartNfcKeyShare = ::startNfcKeyShare
+                    onStartNfcKeyShare = ::startNfcKeyShare,
+                    onNoteEditDraftChanged = vm::notifyNoteEditDraft,
+                    onClearNoteEditDraft = vm::clearNoteEditDraft,
+                    onNewNoteDraftChanged = vm::notifyNewNoteDraft,
+                    onImportIncomingFile = vm::importIncomingFile,
+                    onImportIncomingKeyManager = vm::importIncomingKeyManager,
+                    onImportIncomingRemote = vm::importIncomingRemote,
+                    onClearPendingImport = vm::clearPendingImport
                 )
             }
         }
         billingCoordinator = PlayBillingCoordinator(billingGateway, billingStateSink)
         initBilling()
+        handleIncomingIntent(intent)
     }
 
     override fun onResume() {
@@ -277,6 +291,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleNfcIntent(intent)
+        handleIncomingIntent(intent)
     }
 
     private fun startBiometricEnrollment(pin: String) {
@@ -389,6 +404,115 @@ class MainActivity : AppCompatActivity() {
         vm.disableBiometric()
     }
 
+    private fun startDecoyBiometricEnrollment(decoyPin: String) {
+        if (decoyPin.isBlank()) {
+            vm.showError("Enter your decoy PIN first")
+            return
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val profile = VaultServiceLocator.vaultAuthService().resolveProfile(decoyPin.toCharArray())
+            withContext(Dispatchers.Main) {
+                if (profile != VaultProfile.DECOY) {
+                    vm.showError("Incorrect decoy PIN")
+                    return@withContext
+                }
+                val canAuth = BiometricManager.from(this@MainActivity).canAuthenticate(
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                )
+                if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
+                    vm.showError("Fingerprint or device credential is not available")
+                    return@withContext
+                }
+                val cipher = try {
+                    decoyBiometricStore.getEncryptCipher()
+                } catch (_: Exception) {
+                    vm.showError("Unable to initialize fingerprint for decoy")
+                    return@withContext
+                }
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(tx("Enable decoy fingerprint"))
+                    .setSubtitle(tx("Authenticate to enable biometric unlock for decoy vault"))
+                    .setAllowedAuthenticators(
+                        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    )
+                    .build()
+                val executor = ContextCompat.getMainExecutor(this@MainActivity)
+                val prompt = BiometricPrompt(
+                    this@MainActivity,
+                    executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            val authCipher = result.cryptoObject?.cipher ?: run {
+                                vm.showError("Decoy fingerprint setup failed")
+                                return
+                            }
+                            val masterKey = VaultKeyManager(applicationContext, VaultProfile.DECOY)
+                                .deriveMasterKey(decoyPin.toCharArray())
+                            decoyBiometricStore.storeEncryptedMasterKey(authCipher, masterKey)
+                            masterKey.fill(0)
+                            vm.enableDecoyBiometric()
+                        }
+
+                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                            vm.showError(errString.toString())
+                        }
+                    }
+                )
+                prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
+            }
+        }
+    }
+
+    private fun startDecoyBiometricUnlock() {
+        if (!decoyBiometricStore.hasEncryptedKey()) {
+            vm.showError("Decoy fingerprint is not set up")
+            return
+        }
+        val pair = decoyBiometricStore.getEncryptedMasterKey()
+        if (pair == null) {
+            vm.showError("Decoy fingerprint data is missing")
+            return
+        }
+        val (iv, ct) = pair
+        val cipher = try {
+            decoyBiometricStore.getDecryptCipher(iv)
+        } catch (_: Exception) {
+            vm.showError("Decoy fingerprint data is invalid")
+            return
+        }
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(tx("Unlock"))
+            .setSubtitle(tx("Authenticate to unlock your vault"))
+            .setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+            .build()
+        val executor = ContextCompat.getMainExecutor(this)
+        val prompt = BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                val authCipher = result.cryptoObject?.cipher ?: run {
+                    vm.showError("Decoy fingerprint unlock failed")
+                    return
+                }
+                val masterKey = authCipher.doFinal(ct)
+                vm.unlockWithDecoyMasterKey(masterKey)
+            }
+
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                vm.showError(errString.toString())
+            }
+        })
+        prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
+    }
+
+    private fun disableDecoyBiometric() {
+        decoyBiometricStore.clear()
+        vm.disableDecoyBiometric()
+    }
+
     private fun updateLanguage(languageTag: String) {
         vm.updateLanguage(languageTag)
         val locales = if (languageTag == "system") {
@@ -476,6 +600,46 @@ class MainActivity : AppCompatActivity() {
     private fun startNfcKeyShare(payload: String) {
         pendingNfcSharePayload = payload
         vm.setBackupStatus("NFC share armed. Touch another NFC tag to write the key.")
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val data = intent.data ?: return
+        val scheme = data.scheme ?: return
+        when {
+            scheme == "https" && data.host == "androidircx.com" -> {
+                val path = data.path ?: return
+                val mediaId = path.substringAfterLast("/").takeIf { it.isNotBlank() } ?: return
+                vm.setPendingImport(com.androidircx.nulvex.ui.PendingImport.RemoteMedia(mediaId))
+            }
+            scheme == "content" || scheme == "file" -> {
+                val mimeType = intent.type?.takeIf { it.isNotBlank() }
+                    ?: contentResolver.getType(data)?.takeIf { it.isNotBlank() }
+                    ?: determineMimeFromUri(data)
+                    ?: return
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val bytes = contentResolver.openInputStream(data)?.use { it.readBytes() }
+                            ?: return@launch
+                        withContext(Dispatchers.Main) {
+                            vm.setPendingImport(com.androidircx.nulvex.ui.PendingImport.LocalFile(bytes, mimeType))
+                        }
+                    } catch (_: Exception) {
+                        withContext(Dispatchers.Main) { vm.showError("Failed to read incoming file") }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun determineMimeFromUri(uri: android.net.Uri): String? {
+        val path = uri.lastPathSegment ?: uri.path ?: return null
+        return when {
+            path.endsWith(".nulvex", ignoreCase = true) -> com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME
+            path.endsWith(".nulvxbk", ignoreCase = true) -> com.androidircx.nulvex.pro.NulvexFileTypes.BACKUP_MIME
+            path.endsWith(".nulvxkeys", ignoreCase = true) -> com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+            else -> null
+        }
     }
 
     private fun enableNfcForegroundDispatch() {
@@ -616,10 +780,14 @@ class MainActivity : AppCompatActivity() {
                 productDetailsById.clear()
                 val mapped = productDetailsResult.productDetailsList.map { details ->
                     productDetailsById[details.productId] = details
+                    // oneTimePurchaseOfferDetailsList (plural) is required for billing library 7+
+                    // one-time products with purchase options. The singular oneTimePurchaseOfferDetails
+                    // is deprecated and returns null for products created with the new purchase options model.
+                    val offer = details.oneTimePurchaseOfferDetailsList?.firstOrNull()
                     BillingProductInfo(
                         productId = details.productId,
-                        formattedPrice = details.oneTimePurchaseOfferDetails?.formattedPrice ?: "Unavailable",
-                        offerToken = details.oneTimePurchaseOfferDetails?.offerToken
+                        formattedPrice = offer?.formattedPrice ?: "Unavailable",
+                        offerToken = offer?.offerToken
                     )
                 }
                 callback(true, mapped)
@@ -646,12 +814,15 @@ class MainActivity : AppCompatActivity() {
         override fun launchPurchase(productId: String, offerToken: String): Pair<Boolean, String> {
             val client = billingClient ?: return false to "Google Play Billing is not ready"
             val details = productDetailsById[productId] ?: return false to "Missing product details"
-            val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
+            val productParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
                 .setProductDetails(details)
-                .setOfferToken(offerToken)
-                .build()
+            // setOfferToken is required for INAPP products with purchase options (billing library 7+)
+            // and for subscriptions. Skip only for legacy INAPP products that have no offer token.
+            if (offerToken.isNotBlank()) {
+                productParamsBuilder.setOfferToken(offerToken)
+            }
             val flowParams = BillingFlowParams.newBuilder()
-                .setProductDetailsParamsList(listOf(productParams))
+                .setProductDetailsParamsList(listOf(productParamsBuilder.build()))
                 .build()
             val result = client.launchBillingFlow(this@MainActivity, flowParams)
             return (result.responseCode == BillingClient.BillingResponseCode.OK) to result.debugMessage

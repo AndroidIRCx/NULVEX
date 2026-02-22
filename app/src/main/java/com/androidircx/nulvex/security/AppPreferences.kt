@@ -29,6 +29,12 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean("biometric_enabled", value).apply()
     }
 
+    fun isDecoyBiometricEnabled(): Boolean = prefs.getBoolean("decoy_biometric_enabled", false)
+
+    fun setDecoyBiometricEnabled(value: Boolean) {
+        prefs.edit().putBoolean("decoy_biometric_enabled", value).apply()
+    }
+
     fun getThemeMode(): String = prefs.getString("theme_mode", "system") ?: "system"
 
     fun setThemeMode(value: String) {

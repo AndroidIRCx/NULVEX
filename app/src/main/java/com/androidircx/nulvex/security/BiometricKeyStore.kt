@@ -12,9 +12,12 @@ import javax.crypto.spec.GCMParameterSpec
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 
-class BiometricKeyStore(context: Context) {
-    private val prefs = context.getSharedPreferences("nulvex_biometric", Context.MODE_PRIVATE)
-    private val alias = "nulvex_biometric_key"
+class BiometricKeyStore(
+    context: Context,
+    prefsName: String = "nulvex_biometric",
+    private val alias: String = "nulvex_biometric_key"
+) {
+    private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
     private val keyIv = "biometric_iv"
     private val keyCt = "biometric_ct"
 
