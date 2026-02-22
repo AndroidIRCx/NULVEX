@@ -191,6 +191,7 @@ fun MainScreen(
     onOpenNote: (String) -> Unit,
     onCloseNote: () -> Unit,
     onUpdateNoteText: (String, String, Long?) -> Unit,
+    onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit = { _, _, _, _, _ -> },
     onShareNote: (String) -> Unit = {},
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
@@ -372,6 +373,7 @@ fun MainScreen(
                             state,
                             onCloseNote,
                             onUpdateNoteText,
+                            onSaveEditedNote,
                             onShareNote,
                             onDelete,
                             onTogglePinned,
@@ -3634,6 +3636,7 @@ private fun NoteDetailScreen(
     state: UiState,
     onClose: () -> Unit,
     onUpdateNoteText: (String, String, Long?) -> Unit,
+    onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit,
     onShareNote: (String) -> Unit,
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
@@ -3655,6 +3658,9 @@ private fun NoteDetailScreen(
     }
     var isEditing by remember { mutableStateOf(false) }
     var editText by remember(note.id) { mutableStateOf(note.text) }
+    var editLabels by remember(note.id) { mutableStateOf(note.labels) }
+    var newLabel by remember { mutableStateOf("") }
+    var newAttachments by remember { mutableStateOf(listOf<Uri>()) }
     var expiryChoice by remember(note.id) {
         mutableStateOf(if (note.expiresAt == null) "none" else "custom")
     }
@@ -3672,6 +3678,9 @@ private fun NoteDetailScreen(
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
     val dateTimeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) newAttachments = newAttachments + uri
+    }
 
     fun openDateTimePicker() {
         val now = Calendar.getInstance()
@@ -3737,6 +3746,9 @@ private fun NoteDetailScreen(
                     if (isEditing) {
                         isEditing = false
                         editText = note.text
+                        editLabels = note.labels
+                        newLabel = ""
+                        newAttachments = emptyList()
                         customExpiresAt = note.expiresAt
                         expiryChoice = if (note.expiresAt == null) "none" else "custom"
                         onClearNoteEditDraft()
@@ -3792,6 +3804,90 @@ private fun NoteDetailScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.7f)
                     )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Labels"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newLabel,
+                        onValueChange = { newLabel = it },
+                        label = { Text(tx("Add label")) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val trimmed = newLabel.trim()
+                            if (trimmed.isNotBlank() && !editLabels.contains(trimmed)) {
+                                editLabels = editLabels + trimmed
+                                newLabel = ""
+                            }
+                        },
+                        enabled = newLabel.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                    ) {
+                        Text(tx("ADD"))
+                    }
+                }
+                if (editLabels.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        editLabels.forEach { label ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(Moss.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+                            ) {
+                                Text(label, color = Moss, style = MaterialTheme.typography.labelLarge)
+                                IconButton(
+                                    onClick = { editLabels = editLabels.filterNot { it == label } },
+                                    modifier = Modifier.height(24.dp).width(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = tx("Remove"),
+                                        tint = Ember,
+                                        modifier = Modifier.height(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Add images"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = { imagePicker.launch("image/*") },
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                    ) {
+                        Text(tx("ADD IMAGE"))
+                    }
+                    if (newAttachments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(tx("${newAttachments.size} attached"), color = onSurface.copy(alpha = 0.7f))
+                    }
+                }
+                if (newAttachments.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    newAttachments.forEach { uri ->
+                        val name = resolveDisplayName(context, uri) ?: "image"
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, color = onSurface, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                newAttachments = newAttachments.filterNot { it == uri }
+                            }) {
+                                Text(tx("REMOVE"), color = Ember)
+                            }
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             } else if (note.text.isNotBlank()) {
@@ -4004,7 +4100,7 @@ private fun NoteDetailScreen(
                 if (isEditing) {
                     Button(
                         onClick = {
-                            onUpdateNoteText(note.id, editText, editedExpiresAt)
+                            onSaveEditedNote(note.id, editText, editLabels, newAttachments, editedExpiresAt)
                             isEditing = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
@@ -4014,6 +4110,9 @@ private fun NoteDetailScreen(
                     TextButton(onClick = {
                         isEditing = false
                         editText = note.text
+                        editLabels = note.labels
+                        newLabel = ""
+                        newAttachments = emptyList()
                         customExpiresAt = note.expiresAt
                         expiryChoice = if (note.expiresAt == null) "none" else "custom"
                         onClearNoteEditDraft()

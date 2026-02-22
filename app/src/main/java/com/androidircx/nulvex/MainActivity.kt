@@ -200,6 +200,7 @@ class MainActivity : AppCompatActivity() {
                     onOpenNote = vm::openNote,
                     onCloseNote = vm::closeNoteDetail,
                     onUpdateNoteText = vm::updateNoteText,
+                    onSaveEditedNote = vm::saveEditedNote,
                     onShareNote = ::shareNoteFile,
                     onDelete = vm::deleteNote,
                     onTogglePinned = vm::togglePinned,

@@ -533,14 +533,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun updateNoteText(noteId: String, newText: String, expiresAt: Long?) {
+        val note = findNote(noteId) ?: return
+        saveEditedNote(noteId, newText, note.labels, emptyList(), expiresAt)
+    }
+
+    fun saveEditedNote(
+        noteId: String,
+        newText: String,
+        labels: List<String>,
+        newAttachments: List<Uri>,
+        expiresAt: Long?
+    ) {
         autoSaveEditJob?.cancel()
         uiState.value = uiState.value.copy(pendingNoteEdit = null)
-        val note = uiState.value.selectedNote ?: return
-        val updated = note.copy(text = newText, expiresAt = expiresAt)
+        val note = findNote(noteId) ?: return
+        setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            vaultService.updateNote(updated)
+            val sanitizedLabels = labels.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+            sanitizedLabels.forEach { appPreferences.addCustomLabel(it) }
+            val storedAttachments = vaultService.storeAttachments(noteId, newAttachments)
+            val updated = note.copy(
+                text = newText,
+                labels = sanitizedLabels,
+                attachments = note.attachments + storedAttachments,
+                expiresAt = expiresAt
+            )
+            val ok = vaultService.updateNote(updated)
+            val notes = vaultService.listNotes()
             withContext(Dispatchers.Main) {
-                uiState.value = uiState.value.copy(selectedNote = updated)
+                val selected = notes.firstOrNull { it.id == noteId }
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = selected,
+                    savedLabels = appPreferences.getCustomLabels(),
+                    error = if (ok) null else "Note update failed",
+                    isBusy = false
+                )
+                resetInactivityTimer()
             }
         }
     }
