@@ -61,11 +61,8 @@ class PlayBillingCoordinator(
             refreshCatalog()
             return
         }
-        val offerToken = product.offerToken
-        if (offerToken.isNullOrBlank()) {
-            sink.showError("Purchase offer is unavailable")
-            return
-        }
+        // offerToken is only required for subscriptions; INAPP one-time products may have null token.
+        val offerToken = product.offerToken ?: ""
         val (ok, debugMessage) = gateway.launchPurchase(productId, offerToken)
         if (!ok) {
             sink.showError("Unable to start purchase flow ($debugMessage)")
