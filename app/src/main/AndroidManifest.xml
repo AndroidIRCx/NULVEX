@@ -18,6 +18,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:localeConfig="@xml/locale_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.NULVEX">
 
@@ -34,8 +35,64 @@
             android:theme="@style/Theme.NULVEX">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Open encrypted note-share files (.nulvex) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/x-nulvex-note" />
+            </intent-filter>
+
+            <!-- Open encrypted backup files (.nulvxbk) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/x-nulvex-backup" />
+            </intent-filter>
+
+            <!-- Open key-manager export files (.nulvxkeys) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/x-nulvex-keys" />
+            </intent-filter>
+
+            <!-- file:// URI fallback for legacy file managers (.nulvex) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:pathPattern=".*\\.nulvex" android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- file:// URI fallback for legacy file managers (.nulvxbk) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:pathPattern=".*\\.nulvxbk" android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- file:// URI fallback for legacy file managers (.nulvxkeys) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:pathPattern=".*\\.nulvxkeys" android:mimeType="*/*" />
+            </intent-filter>
+
+            <!--
+                Deep link: https://androidircx.com/api/media/{mediaId}
+                Requires /.well-known/assetlinks.json on androidircx.com for autoVerify to pass.
+                Without it the link still opens the app but via disambiguation dialog.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="androidircx.com"
+                    android:pathPrefix="/api/media/" />
             </intent-filter>
         </activity>
 
