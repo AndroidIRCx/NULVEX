@@ -129,7 +129,7 @@ class PlayBillingCoordinatorTest {
     }
 
     @Test
-    fun buy_withMissingOfferToken_showsError() {
+    fun buy_withMissingOfferToken_forOneTimeProduct_usesEmptyToken() {
         val gateway = FakeGateway().apply {
             products = listOf(
                 BillingProductInfo(PlayBillingProducts.REMOVE_ADS_ONE_TIME, "$1.99", null)
@@ -141,7 +141,9 @@ class PlayBillingCoordinatorTest {
 
         coordinator.buy(PlayBillingProducts.REMOVE_ADS_ONE_TIME)
 
-        assertEquals("Purchase offer is unavailable", sink.lastError)
+        assertEquals(PlayBillingProducts.REMOVE_ADS_ONE_TIME, gateway.launchedProductId)
+        assertEquals("", gateway.launchedOfferToken)
+        assertEquals(null, sink.lastError)
     }
 
     @Test

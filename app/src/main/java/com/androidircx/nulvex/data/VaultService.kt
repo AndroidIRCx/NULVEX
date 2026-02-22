@@ -245,7 +245,12 @@ class VaultService(
     suspend fun importBackupJsonBytes(raw: ByteArray, merge: Boolean): Int {
         val session = requireSession()
         val root = JSONObject(raw.toString(Charsets.UTF_8))
-        val notesArray = root.optJSONArray("notes") ?: JSONArray()
+        // Support both full backup ({"notes":[...]}) and single note-share ({"note":{...}})
+        val notesArray = when {
+            root.has("notes") -> root.optJSONArray("notes") ?: JSONArray()
+            root.has("note") -> JSONArray().also { arr -> root.optJSONObject("note")?.let { arr.put(it) } }
+            else -> JSONArray()
+        }
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
 
         if (!merge) {

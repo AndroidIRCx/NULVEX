@@ -27,6 +27,10 @@ class MainViewModelBillingStateTest {
             .edit()
             .clear()
             .commit()
+        app.getSharedPreferences("nulvex_app_settings", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
         vm = MainViewModel(app)
     }
 
@@ -75,5 +79,18 @@ class MainViewModelBillingStateTest {
 
         vm.grantShareCredits(5)
         assertEquals(0, vm.uiState.value.shareCredits)
+    }
+
+    @Test
+    fun enableDecoyBiometric_updatesState() {
+        vm.enableDecoyBiometric()
+        assertTrue(vm.uiState.value.decoyBiometricEnabled)
+    }
+
+    @Test
+    fun disableDecoyBiometric_updatesState() {
+        vm.enableDecoyBiometric()
+        vm.disableDecoyBiometric()
+        assertFalse(vm.uiState.value.decoyBiometricEnabled)
     }
 }

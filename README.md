@@ -3,6 +3,8 @@
 [![Android Unit Tests](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml/badge.svg)](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml)
 [![Google Play Closed Testing](https://img.shields.io/badge/Google%20Play-Closed%20Testing-01875f?logo=googleplay&logoColor=white)](https://play.google.com/apps/testing/com.androidircx.nulvex)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/AndroidIRCx/NULVEX?style=flat)](https://github.com/AndroidIRCx/NULVEX/stargazers)
+[![GitHub downloads](https://img.shields.io/github/downloads/AndroidIRCx/NULVEX/total?style=flat)](https://github.com/AndroidIRCx/NULVEX/releases)
 
 **Offline-first encrypted notes vault for Android.**
 Built for secure local notes with strong encryption, clean UX, and optional cloud-era monetization/testing integrations.

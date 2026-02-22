@@ -20,6 +20,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 
+sealed class PendingImport {
+    data class LocalFile(val bytes: ByteArray, val mimeType: String) : PendingImport()
+    data class RemoteMedia(val mediaId: String) : PendingImport()
+}
+
+data class NewNoteDraft(
+    val text: String = "",
+    val checklist: List<ChecklistItem> = emptyList(),
+    val labels: List<String> = emptyList(),
+    val pinned: Boolean = false,
+    val expiresAt: Long? = null,
+    val readOnce: Boolean = false
+)
+
+data class NoteEditDraft(
+    val noteId: String,
+    val text: String,
+    val expiresAt: Long?
+)
+
 data class UiState(
     val screen: Screen = Screen.Unlock,
     val notes: List<Note> = emptyList(),
@@ -33,6 +53,7 @@ data class UiState(
     val defaultExpiry: String = "none",
     val defaultReadOnce: Boolean = false,
     val biometricEnabled: Boolean = false,
+    val decoyBiometricEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val searchQuery: String = "",
     val activeLabel: String? = null,
@@ -52,7 +73,11 @@ data class UiState(
     val backupRecords: List<BackupRecord> = emptyList(),
     val lastBackupMediaId: String = "",
     val backupStatus: String = "",
-    val languageTag: String = "system"
+    val languageTag: String = "system",
+    val savedLabels: List<String> = emptyList(),
+    val pendingNoteEdit: NoteEditDraft? = null,
+    val newNoteDraft: NewNoteDraft? = null,
+    val pendingImport: PendingImport? = null
 )
 
 sealed class Screen {
@@ -75,6 +100,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val sharedKeyStore = VaultServiceLocator.sharedKeyStore()
     private val encryptedBackupService = VaultServiceLocator.encryptedBackupService()
     private var inactivityJob: Job? = null
+    private var autoSaveEditJob: Job? = null
 
     var uiState = androidx.compose.runtime.mutableStateOf(
         UiState(
@@ -89,6 +115,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             defaultExpiry = appPreferences.getDefaultExpiry(),
             defaultReadOnce = appPreferences.getDefaultReadOnce(),
             biometricEnabled = appPreferences.isBiometricEnabled(),
+            decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
             themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
             wrongAttempts = appPreferences.getWrongAttempts(),
             lockoutUntil = appPreferences.getLockoutUntil(),
@@ -98,7 +125,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             hasProFeatures = adPreferences.hasProFeaturesLifetime(),
             sharedKeys = sharedKeyStore.listKeys(),
             backupRecords = encryptedBackupService.listBackupRecords(),
-            languageTag = appPreferences.getLanguageTag()
+            languageTag = appPreferences.getLanguageTag(),
+            savedLabels = appPreferences.getCustomLabels()
         )
     )
         private set
@@ -435,6 +463,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
                 onComplete?.invoke()
@@ -495,6 +524,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
                 resetInactivityTimer()
@@ -502,26 +532,207 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun updateNoteText(noteId: String, newText: String) {
-        val note = uiState.value.selectedNote ?: return
-        val updated = note.copy(text = newText)
+    fun updateNoteText(noteId: String, newText: String, expiresAt: Long?) {
+        val note = findNote(noteId) ?: return
+        saveEditedNote(noteId, newText, note.labels, emptyList(), expiresAt)
+    }
+
+    fun saveEditedNote(
+        noteId: String,
+        newText: String,
+        labels: List<String>,
+        newAttachments: List<Uri>,
+        expiresAt: Long?
+    ) {
+        autoSaveEditJob?.cancel()
+        uiState.value = uiState.value.copy(pendingNoteEdit = null)
+        val note = findNote(noteId) ?: return
+        setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            vaultService.updateNote(updated)
+            val sanitizedLabels = labels.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+            sanitizedLabels.forEach { appPreferences.addCustomLabel(it) }
+            val storedAttachments = vaultService.storeAttachments(noteId, newAttachments)
+            val updated = note.copy(
+                text = newText,
+                labels = sanitizedLabels,
+                attachments = note.attachments + storedAttachments,
+                expiresAt = expiresAt
+            )
+            val ok = vaultService.updateNote(updated)
+            val notes = vaultService.listNotes()
             withContext(Dispatchers.Main) {
-                uiState.value = uiState.value.copy(selectedNote = updated)
+                val selected = notes.firstOrNull { it.id == noteId }
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = selected,
+                    savedLabels = appPreferences.getCustomLabels(),
+                    error = if (ok) null else "Note update failed",
+                    isBusy = false
+                )
+                resetInactivityTimer()
             }
         }
     }
 
     fun lock() {
-        authController.lock()
-        clearInactivityTimer()
+        autoSaveEditJob?.cancel()
+        viewModelScope.launch {
+            runCatching { flushNoteEditDraft() }
+            runCatching { flushNewNoteDraft() }
+            authController.lock()
+            clearInactivityTimer()
+            uiState.value = uiState.value.copy(
+                screen = Screen.Unlock,
+                notes = emptyList(),
+                selectedNote = null,
+                pendingNoteEdit = null,
+                newNoteDraft = null,
+                attachmentPreviews = emptyMap()
+            )
+        }
+    }
+
+    fun notifyNoteEditDraft(noteId: String, text: String, expiresAt: Long?) {
         uiState.value = uiState.value.copy(
-            screen = Screen.Unlock,
-            notes = emptyList(),
-            selectedNote = null,
-            attachmentPreviews = emptyMap()
+            pendingNoteEdit = NoteEditDraft(noteId = noteId, text = text, expiresAt = expiresAt)
         )
+        autoSaveEditJob?.cancel()
+        autoSaveEditJob = viewModelScope.launch {
+            delay(1500L)
+            runCatching { flushNoteEditDraft() }
+        }
+    }
+
+    fun clearNoteEditDraft() {
+        autoSaveEditJob?.cancel()
+        uiState.value = uiState.value.copy(pendingNoteEdit = null)
+    }
+
+    fun notifyNewNoteDraft(draft: NewNoteDraft?) {
+        uiState.value = uiState.value.copy(newNoteDraft = draft)
+    }
+
+    fun setPendingImport(import: PendingImport) {
+        uiState.value = uiState.value.copy(pendingImport = import, error = null)
+    }
+
+    fun clearPendingImport() {
+        uiState.value = uiState.value.copy(pendingImport = null)
+    }
+
+    fun importIncomingFile(bytes: ByteArray, mimeType: String, keyId: String, merge: Boolean) {
+        if (keyId.isBlank()) {
+            uiState.value = uiState.value.copy(error = "Choose a key first")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val imported = encryptedBackupService.restoreFromEncryptedBytes(bytes, keyId, merge)
+                val notes = vaultService.listNotes()
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        notes = notes,
+                        pendingImport = null,
+                        error = null,
+                        backupStatus = when (mimeType) {
+                            com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME -> "Note imported"
+                            else -> "Backup restored ($imported notes)"
+                        }
+                    )
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(isBusy = false, error = "Import failed — wrong key or corrupted file")
+                }
+            }
+        }
+    }
+
+    fun importIncomingRemote(mediaId: String, keyId: String, merge: Boolean) {
+        if (keyId.isBlank()) {
+            uiState.value = uiState.value.copy(error = "Choose a key first")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val imported = encryptedBackupService.restoreFromRemote(mediaId, keyId, merge)
+                val notes = vaultService.listNotes()
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        notes = notes,
+                        pendingImport = null,
+                        error = null,
+                        backupStatus = "Remote import complete ($imported notes)"
+                    )
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(isBusy = false, error = "Remote import failed")
+                }
+            }
+        }
+    }
+
+    fun importIncomingKeyManager(bytes: ByteArray, password: String?) {
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val imported = sharedKeyStore.importManagerBackup(bytes, password?.toCharArray())
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        pendingImport = null,
+                        sharedKeys = sharedKeyStore.listKeys(),
+                        error = null,
+                        backupStatus = "Imported $imported keys"
+                    )
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(isBusy = false, error = "Key import failed — wrong password or corrupted file")
+                }
+            }
+        }
+    }
+
+    private suspend fun flushNoteEditDraft() {
+        val draft = uiState.value.pendingNoteEdit ?: return
+        val note = findNote(draft.noteId) ?: return
+        if (note.text == draft.text && note.expiresAt == draft.expiresAt) {
+            uiState.value = uiState.value.copy(pendingNoteEdit = null)
+            return
+        }
+        val updated = note.copy(text = draft.text, expiresAt = draft.expiresAt)
+        withContext(Dispatchers.IO) { vaultService.updateNote(updated) }
+        uiState.value = uiState.value.copy(
+            selectedNote = if (uiState.value.selectedNote?.id == draft.noteId) updated else uiState.value.selectedNote,
+            pendingNoteEdit = null
+        )
+    }
+
+    private suspend fun flushNewNoteDraft() {
+        if (uiState.value.screen != Screen.NewNote) return
+        val draft = uiState.value.newNoteDraft ?: return
+        val hasContent = draft.text.isNotBlank() || draft.checklist.any { it.text.isNotBlank() }
+        if (!hasContent) return
+        withContext(Dispatchers.IO) {
+            val noteId = java.util.UUID.randomUUID().toString()
+            vaultService.createNote(
+                id = noteId,
+                text = draft.text,
+                checklist = draft.checklist,
+                labels = draft.labels,
+                attachments = emptyList(),
+                pinned = draft.pinned,
+                expiresAt = draft.expiresAt,
+                readOnce = draft.readOnce
+            )
+        }
+        uiState.value = uiState.value.copy(newNoteDraft = null)
     }
 
     fun openNewNote() {
@@ -562,11 +773,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 panicWipeService.wipeDecoyOnly()
             }
             authController.setupDecoyPin(pin.toCharArray())
+            // Decoy biometric is invalidated when the decoy vault is wiped/changed.
+            appPreferences.setDecoyBiometricEnabled(false)
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(
                     isBusy = false,
                     error = null,
-                    isDecoyEnabled = authController.isDecoyEnabled()
+                    isDecoyEnabled = authController.isDecoyEnabled(),
+                    decoyBiometricEnabled = false
                 )
             }
         }
@@ -577,11 +791,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             panicWipeService.wipeDecoyOnly()
             authController.clearDecoyPin()
+            appPreferences.setDecoyBiometricEnabled(false)
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(
                     isBusy = false,
                     error = null,
-                    isDecoyEnabled = authController.isDecoyEnabled()
+                    isDecoyEnabled = authController.isDecoyEnabled(),
+                    decoyBiometricEnabled = false
                 )
             }
         }
@@ -621,6 +837,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disableBiometric() {
         appPreferences.setBiometricEnabled(false)
         uiState.value = uiState.value.copy(biometricEnabled = false)
+    }
+
+    fun enableDecoyBiometric() {
+        appPreferences.setDecoyBiometricEnabled(true)
+        uiState.value = uiState.value.copy(decoyBiometricEnabled = true)
+    }
+
+    fun disableDecoyBiometric() {
+        appPreferences.setDecoyBiometricEnabled(false)
+        uiState.value = uiState.value.copy(decoyBiometricEnabled = false)
+    }
+
+    fun unlockWithDecoyMasterKey(masterKey: ByteArray) {
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                vaultService.unlockWithMasterKey(masterKey, VaultProfile.DECOY)
+                val notes = vaultService.listNotes()
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        screen = Screen.Vault,
+                        lastProfile = VaultProfile.DECOY,
+                        notes = notes,
+                        error = null,
+                        isBusy = false
+                    )
+                    resetInactivityTimer()
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        error = "Fingerprint unlock failed",
+                        isBusy = false
+                    )
+                }
+            } finally {
+                masterKey.fill(0)
+            }
+        }
     }
 
     fun unlockWithMasterKey(masterKey: ByteArray) {
@@ -746,6 +1001,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     notes = notes,
                     error = null,
                     isBusy = false,
+                    newNoteDraft = null,
                     attachmentPreviews = emptyMap()
                 )
                 resetInactivityTimer()
@@ -847,6 +1103,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun addLabel(noteId: String, label: String) {
         val trimmed = label.trim()
         if (trimmed.isBlank()) return
+        val saved = appPreferences.addCustomLabel(trimmed)
+        uiState.value = uiState.value.copy(savedLabels = saved)
         val note = findNote(noteId) ?: return
         val updatedLabels = (note.labels + trimmed).distinct()
         persistNoteUpdate(note.copy(labels = updatedLabels))
@@ -864,6 +1122,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateActiveLabel(label: String?) {
         uiState.value = uiState.value.copy(activeLabel = label)
+    }
+
+    fun createStandaloneLabel(label: String) {
+        val trimmed = label.trim()
+        if (trimmed.isBlank()) return
+        val saved = appPreferences.addCustomLabel(trimmed)
+        uiState.value = uiState.value.copy(savedLabels = saved)
     }
 
     fun loadAttachmentPreview(noteId: String, attachmentId: String) {
@@ -905,6 +1170,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
             }
@@ -939,7 +1205,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
+                    savedLabels = appPreferences.getCustomLabels(),
+                    pendingNoteEdit = null,
+                    newNoteDraft = null,
                     attachmentPreviews = emptyMap()
                 )
                 resetInactivityTimer()

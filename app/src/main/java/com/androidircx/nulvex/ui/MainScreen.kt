@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -60,7 +61,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -93,12 +96,15 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
@@ -174,6 +180,9 @@ fun MainScreen(
     onRequestBiometricEnroll: (String) -> Unit,
     onRequestBiometricUnlock: () -> Unit,
     onDisableBiometric: () -> Unit,
+    onRequestDecoyBiometricEnroll: (String) -> Unit = {},
+    onRequestDecoyBiometricUnlock: () -> Unit = {},
+    onDisableDecoyBiometric: () -> Unit = {},
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
     onUpdateLanguage: (String) -> Unit = {},
@@ -181,7 +190,8 @@ fun MainScreen(
     onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean) -> Unit,
     onOpenNote: (String) -> Unit,
     onCloseNote: () -> Unit,
-    onUpdateNoteText: (String, String) -> Unit,
+    onUpdateNoteText: (String, String, Long?) -> Unit,
+    onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit = { _, _, _, _, _ -> },
     onShareNote: (String) -> Unit = {},
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
@@ -192,6 +202,7 @@ fun MainScreen(
     onMoveChecklistItem: (String, String, Int) -> Unit,
     onAddLabel: (String, String) -> Unit,
     onRemoveLabel: (String, String) -> Unit,
+    onCreateStandaloneLabel: (String) -> Unit = {},
     onSearchQueryChange: (String) -> Unit,
     onSelectLabel: (String?) -> Unit,
     onLoadAttachmentPreview: (String, String) -> Unit,
@@ -218,10 +229,26 @@ fun MainScreen(
     onGenerateXChaChaKey: (String) -> Unit = {},
     onGeneratePgpKey: (String) -> Unit = {},
     onBuildKeyTransferPayload: (String) -> String? = { null },
-    onStartNfcKeyShare: (String) -> Unit = {}
+    onStartNfcKeyShare: (String) -> Unit = {},
+    onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
+    onClearNoteEditDraft: () -> Unit = {},
+    onNewNoteDraftChanged: (NewNoteDraft?) -> Unit = {},
+    onImportIncomingFile: (ByteArray, String, String, Boolean) -> Unit = { _, _, _, _ -> },
+    onImportIncomingKeyManager: (ByteArray, String?) -> Unit = { _, _ -> },
+    onImportIncomingRemote: (String, String, Boolean) -> Unit = { _, _, _ -> },
+    onClearPendingImport: () -> Unit = {}
 ) {
     var showPanicConfirm by remember { mutableStateOf(false) }
     var showLabelMenu by remember { mutableStateOf(false) }
+    var decoyTapCount by remember { mutableStateOf(0) }
+    var decoyVisible by remember { mutableStateOf(false) }
+    // Auto-reset tap counter after 2 seconds of inactivity
+    LaunchedEffect(decoyTapCount) {
+        if (decoyTapCount > 0 && decoyTapCount < 6) {
+            delay(2000)
+            decoyTapCount = 0
+        }
+    }
     AppBackground {
         Row(modifier = Modifier.fillMaxSize()) {
             AnimatedVisibility(visible = showLabelMenu) {
@@ -230,6 +257,7 @@ fun MainScreen(
                     onSelectLabel = onSelectLabel,
                     onAddLabel = onAddLabel,
                     onRemoveLabel = onRemoveLabel,
+                    onCreateStandaloneLabel = onCreateStandaloneLabel,
                     onClose = { showLabelMenu = false }
                 )
             }
@@ -255,7 +283,16 @@ fun MainScreen(
                     onPanicClick = { showPanicConfirm = true },
                     onOpenSettings = onOpenSettings,
                     onCloseSettings = if (state.screen == Screen.Purchases) onClosePurchases else onCloseSettings,
-                    onToggleLabels = { showLabelMenu = !showLabelMenu }
+                    onToggleLabels = { showLabelMenu = !showLabelMenu },
+                    onLogoTap = {
+                        decoyTapCount++
+                        if (decoyTapCount >= 6) {
+                            decoyVisible = true
+                            decoyTapCount = 0
+                        }
+                    },
+                    decoyTapCount = decoyTapCount,
+                    decoyUnlocked = decoyVisible
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 AnimatedVisibility(
@@ -269,7 +306,7 @@ fun MainScreen(
                             onComplete = onCompleteOnboarding
                         )
                         Screen.Setup -> SetupScreen(state, onSetup)
-                        Screen.Unlock -> UnlockScreen(state, onUnlock, onRequestBiometricUnlock)
+                        Screen.Unlock -> UnlockScreen(state, onUnlock, onRequestBiometricUnlock, onRequestDecoyBiometricUnlock)
                         Screen.Vault -> VaultScreen(
                             state = state,
                             onOpenNew = onOpenNew,
@@ -280,6 +317,7 @@ fun MainScreen(
                         )
                         Screen.Settings -> SettingsScreen(
                             state = state,
+                            decoyVisible = decoyVisible,
                             onUpdateDecoyPin = onUpdateDecoyPin,
                             onDisableDecoy = onDisableDecoy,
                             onUpdateLockTimeout = onUpdateLockTimeout,
@@ -287,10 +325,16 @@ fun MainScreen(
                             onUpdateDefaultReadOnce = onUpdateDefaultReadOnce,
                             onDisableBiometric = onDisableBiometric,
                             onRequestBiometricEnroll = onRequestBiometricEnroll,
+                            onRequestDecoyBiometricEnroll = onRequestDecoyBiometricEnroll,
+                            onDisableDecoyBiometric = onDisableDecoyBiometric,
                             onChangeRealPin = onChangeRealPin,
                             onUpdateThemeMode = onUpdateThemeMode,
                             onUpdateLanguage = onUpdateLanguage,
-                            onClose = onCloseSettings,
+                            onClose = {
+                                decoyVisible = false
+                                decoyTapCount = 0
+                                onCloseSettings()
+                            },
                             onWatchAdToRemoveAds = onWatchAdToRemoveAds,
                             onWatchAdForShares = onWatchAdForShares,
                             onOpenPurchases = onOpenPurchases,
@@ -322,12 +366,14 @@ fun MainScreen(
                             onCreate = onCreate,
                             onCancel = onCloseNote,
                             defaultExpiry = state.defaultExpiry,
-                            defaultReadOnce = state.defaultReadOnce
+                            defaultReadOnce = state.defaultReadOnce,
+                            onDraftChanged = onNewNoteDraftChanged
                         )
                         Screen.NoteDetail -> NoteDetailScreen(
                             state,
                             onCloseNote,
                             onUpdateNoteText,
+                            onSaveEditedNote,
                             onShareNote,
                             onDelete,
                             onTogglePinned,
@@ -337,7 +383,9 @@ fun MainScreen(
                             onUpdateChecklistText,
                             onMoveChecklistItem,
                             onLoadAttachmentPreview,
-                            onRemoveAttachment
+                            onRemoveAttachment,
+                            onNoteEditDraftChanged,
+                            onClearNoteEditDraft
                         )
                     }
                 }
@@ -345,6 +393,15 @@ fun MainScreen(
             }
         }
         ErrorBar(state, onClearError)
+        if (state.pendingImport != null && state.screen == Screen.Vault) {
+            PendingImportDialog(
+                state = state,
+                onImportFile = onImportIncomingFile,
+                onImportKeyManager = onImportIncomingKeyManager,
+                onImportRemote = onImportIncomingRemote,
+                onDismiss = onClearPendingImport
+            )
+        }
         if (showPanicConfirm) {
             var holdProgress by remember { mutableFloatStateOf(0f) }
             var isHolding by remember { mutableStateOf(false) }
@@ -521,26 +578,130 @@ private fun TopHeader(
     onPanicClick: () -> Unit,
     onOpenSettings: () -> Unit,
     onCloseSettings: () -> Unit,
-    onToggleLabels: () -> Unit
+    onToggleLabels: () -> Unit,
+    onLogoTap: () -> Unit = {},
+    decoyTapCount: Int = 0,
+    decoyUnlocked: Boolean = false
 ) {
     val onBackground = MaterialTheme.colorScheme.onBackground
+
+    // 6 bolt targets (dx, dy in dp) — one per tap, spread in different directions
+    val boltTargets = remember {
+        listOf(
+            Pair(80f, -55f),    // tap 1: up-right
+            Pair(0f,  -85f),    // tap 2: straight up
+            Pair(-80f, -55f),   // tap 3: up-left
+            Pair(100f,  5f),    // tap 4: right
+            Pair(-100f,  5f),   // tap 5: left
+            Pair(55f,  -72f),   // tap 6: up-right (steeper, not used in success)
+        )
+    }
+
+    val boltAlphas = remember { List(6) { Animatable(0f) } }
+    val boltX     = remember { List(6) { Animatable(0f) } }
+    val boltY     = remember { List(6) { Animatable(0f) } }
+
+    var textFlash by remember { mutableStateOf(false) }
+    val flashColor by animateColorAsState(
+        targetValue = if (textFlash) Color(0xFFFFFF55) else onBackground,
+        animationSpec = tween(55),
+        label = "lightning_flash"
+    )
+    val shakeOffset by animateFloatAsState(
+        targetValue = if (textFlash) 6f else 0f,
+        animationSpec = spring(dampingRatio = 0.15f, stiffness = 1800f),
+        label = "lightning_shake"
+    )
+
+    var prevCount by remember { mutableStateOf(0) }
+    LaunchedEffect(decoyTapCount) {
+        val prev = prevCount
+        prevCount = decoyTapCount
+        when {
+            // 6th tap success — all active bolts explode outward and vanish
+            decoyTapCount == 0 && prev >= 5 && decoyUnlocked -> {
+                textFlash = true
+                (0 until 6).forEach { i ->
+                    launch {
+                        val (tx, ty) = boltTargets[i]
+                        launch { boltX[i].animateTo(tx * 2.2f, tween(300, easing = FastOutSlowInEasing)) }
+                        launch { boltY[i].animateTo(ty * 2.2f, tween(300, easing = FastOutSlowInEasing)) }
+                        boltAlphas[i].animateTo(0f, tween(300))
+                    }
+                }
+                delay(150)
+                textFlash = false
+            }
+
+            // Timeout reset — active bolts fade out smoothly
+            decoyTapCount == 0 && prev > 0 -> {
+                textFlash = false
+                (0 until prev.coerceAtMost(6)).forEach { i ->
+                    launch { boltAlphas[i].animateTo(0f, tween(400)) }
+                }
+            }
+
+            // Taps 1–5 — fire the corresponding bolt + flash text
+            decoyTapCount in 1..5 -> {
+                val idx = decoyTapCount - 1
+                val (tx, ty) = boltTargets[idx]
+                // Reset this bolt to the logo origin
+                boltX[idx].snapTo(0f)
+                boltY[idx].snapTo(0f)
+                boltAlphas[idx].snapTo(1f)
+                // Flash text color and shake
+                textFlash = true
+                // Fly outward
+                launch { boltX[idx].animateTo(tx, tween(620, easing = FastOutSlowInEasing)) }
+                launch { boltY[idx].animateTo(ty, tween(620, easing = FastOutSlowInEasing)) }
+                delay(85)
+                textFlash = false
+                // Fade bolt after it reaches destination
+                delay(420)
+                boltAlphas[idx].animateTo(0f, tween(230))
+            }
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text(
-                text = tx("NULVEX"),
-                style = MaterialTheme.typography.displayLarge,
-                color = onBackground
-            )
-            Text(
-                text = tx("Offline secure vault"),
-                style = MaterialTheme.typography.labelLarge,
-                color = onBackground.copy(alpha = 0.7f)
-            )
+        Box {
+            // ⚡ Lightning bolts flying out from the logo
+            boltTargets.forEachIndexed { i, _ ->
+                Text(
+                    text = "⚡",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier
+                        .offset(x = boltX[i].value.dp, y = boltY[i].value.dp)
+                        .alpha(boltAlphas[i].value)
+                )
+            }
+            // NULVEX logo — shakes and flashes on each tap
+            Column(
+                modifier = Modifier
+                    .offset(x = shakeOffset.dp)
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = onLogoTap
+                    )
+            ) {
+                Text(
+                    text = tx("NULVEX"),
+                    style = MaterialTheme.typography.displayLarge,
+                    color = flashColor
+                )
+                Text(
+                    text = tx("Offline secure vault"),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = flashColor.copy(alpha = 0.7f)
+                )
+            }
         }
+
         if (state.screen == Screen.Vault || state.screen == Screen.NoteDetail || state.screen == Screen.NewNote) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = onToggleLabels) {
@@ -771,11 +932,13 @@ private fun SetupScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UnlockScreen(
     state: UiState,
     onUnlock: (String) -> Unit,
-    onRequestBiometricUnlock: () -> Unit
+    onRequestBiometricUnlock: () -> Unit,
+    onRequestDecoyBiometricUnlock: () -> Unit = {}
 ) {
     var pin by remember { mutableStateOf("") }
     var lockoutRemainingSecs by remember { mutableStateOf(0L) }
@@ -837,12 +1000,21 @@ private fun UnlockScreen(
             }
             if (state.biometricEnabled && !isLockedOut) {
                 Spacer(modifier = Modifier.height(10.dp))
-                TextButton(
-                    onClick = onRequestBiometricUnlock,
-                    enabled = !state.isBusy,
-                    modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            enabled = !state.isBusy,
+                            onClick = onRequestBiometricUnlock,
+                            onLongClick = if (state.decoyBiometricEnabled) onRequestDecoyBiometricUnlock else null
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(tx("UNLOCK WITH FINGERPRINT"), color = Sand.copy(alpha = 0.7f))
+                    Text(
+                        tx("UNLOCK WITH FINGERPRINT"),
+                        color = Sand.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
                 }
             }
         }
@@ -1192,6 +1364,7 @@ private fun SwipeableNoteCard(
 @Composable
 private fun SettingsScreen(
     state: UiState,
+    decoyVisible: Boolean = false,
     onUpdateDecoyPin: (String, String) -> Unit,
     onDisableDecoy: () -> Unit,
     onUpdateLockTimeout: (Long) -> Unit,
@@ -1199,6 +1372,8 @@ private fun SettingsScreen(
     onUpdateDefaultReadOnce: (Boolean) -> Unit,
     onDisableBiometric: () -> Unit,
     onRequestBiometricEnroll: (String) -> Unit,
+    onRequestDecoyBiometricEnroll: (String) -> Unit = {},
+    onDisableDecoyBiometric: () -> Unit = {},
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
     onUpdateLanguage: (String) -> Unit,
@@ -1226,6 +1401,7 @@ private fun SettingsScreen(
     val clipboard = LocalClipboardManager.current
     var decoyPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
+    var decoyBiometricPin by remember { mutableStateOf("") }
     val pinMismatch = decoyPin.isNotEmpty() && confirmPin.isNotEmpty() && decoyPin != confirmPin
     var currentPin by remember { mutableStateOf("") }
     var newPin by remember { mutableStateOf("") }
@@ -1300,7 +1476,7 @@ private fun SettingsScreen(
         "change primary pin",
         "encryption"
     )
-    val showDanger = matchesSection(
+    val showDanger = decoyVisible && matchesSection(
         "danger zone",
         "decoy",
         "decoy pin",
@@ -1854,6 +2030,64 @@ private fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = Ember.copy(alpha = 0.8f)
                     )
+                }
+
+                if (state.isDecoyEnabled) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(tx("Decoy fingerprint"), color = onSurface)
+                            Text(
+                                if (state.decoyBiometricEnabled) tx("Enabled - long-press fingerprint to unlock decoy") else tx("Disabled"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (state.decoyBiometricEnabled) Brass else onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        if (state.decoyBiometricEnabled) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Brass.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(tx("ON"), style = MaterialTheme.typography.labelSmall, color = Brass)
+                            }
+                        }
+                    }
+                    if (!state.decoyBiometricEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = decoyBiometricPin,
+                            onValueChange = { decoyBiometricPin = it },
+                            label = { Text(tx("Decoy PIN (to enroll fingerprint)")) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.NumberPassword,
+                                imeAction = ImeAction.Done,
+                                autoCorrectEnabled = false
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (!state.decoyBiometricEnabled) {
+                            Button(
+                                onClick = {
+                                    onRequestDecoyBiometricEnroll(decoyBiometricPin)
+                                    decoyBiometricPin = ""
+                                },
+                                enabled = !state.isBusy && decoyBiometricPin.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
+                            ) {
+                                Text(tx("ENABLE FINGERPRINT"))
+                            }
+                        } else {
+                            TextButton(onClick = onDisableDecoyBiometric, enabled = !state.isBusy) {
+                                Text(tx("DISABLE FINGERPRINT"), color = Ember)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -3054,7 +3288,8 @@ private fun NewNoteScreen(
     onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean) -> Unit,
     onCancel: () -> Unit,
     defaultExpiry: String,
-    defaultReadOnce: Boolean
+    defaultReadOnce: Boolean,
+    onDraftChanged: (NewNoteDraft?) -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     var content by remember { mutableStateOf("") }
@@ -3108,6 +3343,17 @@ private fun NewNoteScreen(
             now.get(Calendar.MONTH),
             now.get(Calendar.DAY_OF_MONTH)
         ).show()
+    }
+
+    LaunchedEffect(content, checklistItems, labels, pinned, expiryChoice, customExpiresAt, readOnce) {
+        val expiresAtMs = when (expiryChoice) {
+            "1h" -> System.currentTimeMillis() + 3_600_000L
+            "24h" -> System.currentTimeMillis() + 86_400_000L
+            "7d" -> System.currentTimeMillis() + 604_800_000L
+            "custom" -> customExpiresAt
+            else -> null
+        }
+        onDraftChanged(NewNoteDraft(content, checklistItems, labels, pinned, expiresAtMs, readOnce))
     }
 
     Surface(
@@ -3389,7 +3635,8 @@ private fun NewNoteScreen(
 private fun NoteDetailScreen(
     state: UiState,
     onClose: () -> Unit,
-    onUpdateNoteText: (String, String) -> Unit,
+    onUpdateNoteText: (String, String, Long?) -> Unit,
+    onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit,
     onShareNote: (String) -> Unit,
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
@@ -3399,7 +3646,9 @@ private fun NoteDetailScreen(
     onUpdateChecklistText: (String, String, String) -> Unit,
     onMoveChecklistItem: (String, String, Int) -> Unit,
     onLoadAttachmentPreview: (String, String) -> Unit,
-    onRemoveAttachment: (String, String) -> Unit
+    onRemoveAttachment: (String, String) -> Unit,
+    onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
+    onClearNoteEditDraft: () -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val note = state.selectedNote
@@ -3409,6 +3658,15 @@ private fun NoteDetailScreen(
     }
     var isEditing by remember { mutableStateOf(false) }
     var editText by remember(note.id) { mutableStateOf(note.text) }
+    var editLabels by remember(note.id) { mutableStateOf(note.labels) }
+    var newLabel by remember { mutableStateOf("") }
+    var newAttachments by remember { mutableStateOf(listOf<Uri>()) }
+    var expiryChoice by remember(note.id) {
+        mutableStateOf(if (note.expiresAt == null) "none" else "custom")
+    }
+    var customExpiresAt by remember(note.id) {
+        mutableStateOf(note.expiresAt)
+    }
     var checklistInput by remember { mutableStateOf("") }
     var editingChecklistId by remember { mutableStateOf<String?>(null) }
     var editingChecklistText by remember { mutableStateOf("") }
@@ -3418,11 +3676,66 @@ private fun NoteDetailScreen(
     var lastSwapTargetId by remember { mutableStateOf<String?>(null) }
     var dragTargetId by remember { mutableStateOf<String?>(null) }
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val dateTimeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) newAttachments = newAttachments + uri
+    }
+
+    fun openDateTimePicker() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val cal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, day)
+                            set(Calendar.HOUR_OF_DAY, hour)
+                            set(Calendar.MINUTE, minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        customExpiresAt = cal.timeInMillis
+                        expiryChoice = "custom"
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    val editedExpiresAt = when (expiryChoice) {
+        "none" -> null
+        "1h" -> System.currentTimeMillis() + 3_600_000L
+        "24h" -> System.currentTimeMillis() + 86_400_000L
+        "7d" -> System.currentTimeMillis() + 604_800_000L
+        else -> customExpiresAt
+    }
+
+    LaunchedEffect(isEditing, editText, expiryChoice, customExpiresAt, note.id) {
+        if (isEditing) {
+            onNoteEditDraftChanged(note.id, editText, editedExpiresAt)
+        }
+    }
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(tx("Note"),
                     style = MaterialTheme.typography.titleLarge,
@@ -3433,6 +3746,12 @@ private fun NoteDetailScreen(
                     if (isEditing) {
                         isEditing = false
                         editText = note.text
+                        editLabels = note.labels
+                        newLabel = ""
+                        newAttachments = emptyList()
+                        customExpiresAt = note.expiresAt
+                        expiryChoice = if (note.expiresAt == null) "none" else "custom"
+                        onClearNoteEditDraft()
                     } else {
                         isEditing = true
                     }
@@ -3458,7 +3777,9 @@ private fun NoteDetailScreen(
             if (isEditing) {
                 OutlinedTextField(
                     value = editText,
-                    onValueChange = { editText = it },
+                    onValueChange = {
+                        editText = it
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Text,
@@ -3466,6 +3787,108 @@ private fun NoteDetailScreen(
                         autoCorrectEnabled = false
                     )
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Expiry"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    Chip(tx("None"), expiryChoice == "none") { expiryChoice = "none" }
+                    Chip(tx("1h"), expiryChoice == "1h") { expiryChoice = "1h" }
+                    Chip(tx("24h"), expiryChoice == "24h") { expiryChoice = "24h" }
+                    Chip(tx("7d"), expiryChoice == "7d") { expiryChoice = "7d" }
+                    Chip(tx("Custom"), expiryChoice == "custom") { openDateTimePicker() }
+                }
+                if (customExpiresAt != null && expiryChoice == "custom") {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        tx("Selected expiry:") + " " + dateTimeFormatter.format(java.util.Date(customExpiresAt!!)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Labels"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newLabel,
+                        onValueChange = { newLabel = it },
+                        label = { Text(tx("Add label")) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val trimmed = newLabel.trim()
+                            if (trimmed.isNotBlank() && !editLabels.contains(trimmed)) {
+                                editLabels = editLabels + trimmed
+                                newLabel = ""
+                            }
+                        },
+                        enabled = newLabel.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                    ) {
+                        Text(tx("ADD"))
+                    }
+                }
+                if (editLabels.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        editLabels.forEach { label ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(Moss.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+                            ) {
+                                Text(label, color = Moss, style = MaterialTheme.typography.labelLarge)
+                                IconButton(
+                                    onClick = { editLabels = editLabels.filterNot { it == label } },
+                                    modifier = Modifier.height(24.dp).width(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = tx("Remove"),
+                                        tint = Ember,
+                                        modifier = Modifier.height(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Add images"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = { imagePicker.launch("image/*") },
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                    ) {
+                        Text(tx("ADD IMAGE"))
+                    }
+                    if (newAttachments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(tx("${newAttachments.size} attached"), color = onSurface.copy(alpha = 0.7f))
+                    }
+                }
+                if (newAttachments.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    newAttachments.forEach { uri ->
+                        val name = resolveDisplayName(context, uri) ?: "image"
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, color = onSurface, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                newAttachments = newAttachments.filterNot { it == uri }
+                            }) {
+                                Text(tx("REMOVE"), color = Ember)
+                            }
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(12.dp))
             } else if (note.text.isNotBlank()) {
                 Text(note.text, color = onSurface, style = MaterialTheme.typography.bodyLarge)
@@ -3677,14 +4100,23 @@ private fun NoteDetailScreen(
                 if (isEditing) {
                     Button(
                         onClick = {
-                            onUpdateNoteText(note.id, editText)
+                            onSaveEditedNote(note.id, editText, editLabels, newAttachments, editedExpiresAt)
                             isEditing = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
                         Text(tx("SAVE"))
                     }
-                    TextButton(onClick = { isEditing = false; editText = note.text }) {
+                    TextButton(onClick = {
+                        isEditing = false
+                        editText = note.text
+                        editLabels = note.labels
+                        newLabel = ""
+                        newAttachments = emptyList()
+                        customExpiresAt = note.expiresAt
+                        expiryChoice = if (note.expiresAt == null) "none" else "custom"
+                        onClearNoteEditDraft()
+                    }) {
                         Text(tx("CANCEL"), color = onSurface.copy(alpha = 0.7f))
                     }
                 } else {
@@ -3715,6 +4147,119 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)
     }
+}
+
+@Composable
+private fun PendingImportDialog(
+    state: UiState,
+    onImportFile: (ByteArray, String, String, Boolean) -> Unit,
+    onImportKeyManager: (ByteArray, String?) -> Unit,
+    onImportRemote: (String, String, Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val import = state.pendingImport ?: return
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    var selectedKeyId by remember { mutableStateOf(state.sharedKeys.firstOrNull()?.id ?: "") }
+    var mergeMode by remember { mutableStateOf(true) }
+    var password by remember { mutableStateOf("") }
+    var showKeyMenu by remember { mutableStateOf(false) }
+    val selectedKeyLabel = state.sharedKeys.firstOrNull { it.id == selectedKeyId }?.label
+        ?: state.sharedKeys.firstOrNull()?.label
+        ?: tx("No keys available")
+
+    val isKeysFile = import is PendingImport.LocalFile &&
+        (import as PendingImport.LocalFile).mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+    val isNoteShare = import is PendingImport.LocalFile &&
+        (import as PendingImport.LocalFile).mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME
+    val noKeys = state.sharedKeys.isEmpty() && !isKeysFile
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                when {
+                    isKeysFile -> tx("Import Keys")
+                    isNoteShare -> tx("Import Note")
+                    import is PendingImport.RemoteMedia -> tx("Import from Link")
+                    else -> tx("Import Backup")
+                },
+                color = onSurface
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (import is PendingImport.RemoteMedia) {
+                    Text(
+                        tx("Media ID:") + " " + import.mediaId.take(16) + "…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                if (isKeysFile) {
+                    Text(tx("Enter password if the file was exported with encryption. Leave blank for unencrypted exports."), color = onSurface)
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text(tx("Password (optional)")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    )
+                } else if (noKeys) {
+                    Text(tx("No keys available. Go to Settings → Keys Manager to import a shared key first."), color = Ember)
+                } else {
+                    Text(tx("Select the shared key used to encrypt this file:"), color = onSurface)
+                    Box {
+                        Button(
+                            onClick = { showKeyMenu = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Coal, contentColor = Sand),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(selectedKeyLabel, maxLines = 1)
+                        }
+                        DropdownMenu(expanded = showKeyMenu, onDismissRequest = { showKeyMenu = false }) {
+                            state.sharedKeys.forEach { key ->
+                                DropdownMenuItem(
+                                    text = { Text(key.label) },
+                                    onClick = { selectedKeyId = key.id; showKeyMenu = false }
+                                )
+                            }
+                        }
+                    }
+                    if (!isNoteShare) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = mergeMode, onCheckedChange = { mergeMode = it })
+                            Text(tx("Merge with existing notes"), color = onSurface)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    when {
+                        isKeysFile && import is PendingImport.LocalFile ->
+                            onImportKeyManager(import.bytes, password.ifBlank { null })
+                        import is PendingImport.LocalFile ->
+                            onImportFile(import.bytes, import.mimeType, selectedKeyId, mergeMode || isNoteShare)
+                        import is PendingImport.RemoteMedia ->
+                            onImportRemote(import.mediaId, selectedKeyId, mergeMode)
+                        else -> onDismiss()
+                    }
+                },
+                enabled = !state.isBusy && (isKeysFile || !noKeys),
+                colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+            ) {
+                Text(tx("IMPORT"))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(tx("CANCEL"), color = onSurface.copy(alpha = 0.7f))
+            }
+        }
+    )
 }
 
 @Composable
@@ -3781,10 +4326,11 @@ private fun LabelsMenu(
     onSelectLabel: (String?) -> Unit,
     onAddLabel: (String, String) -> Unit,
     onRemoveLabel: (String, String) -> Unit,
+    onCreateStandaloneLabel: (String) -> Unit,
     onClose: () -> Unit
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val labels = state.notes.flatMap { it.labels }.distinct().sorted()
+    val labels = (state.notes.flatMap { it.labels } + state.savedLabels).distinct().sorted()
     val selectedNote = state.selectedNote
     var labelInput by remember { mutableStateOf("") }
     Surface(
@@ -3836,32 +4382,37 @@ private fun LabelsMenu(
                     }
                 }
             }
-            if (selectedNote != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(tx("Assign label"), style = MaterialTheme.typography.labelLarge, color = onSurface)
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = labelInput,
-                        onValueChange = { labelInput = it },
-                        label = { Text(tx("New label")) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                if (selectedNote != null) tx("Assign label") else tx("Create label"),
+                style = MaterialTheme.typography.labelLarge,
+                color = onSurface
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = labelInput,
+                    onValueChange = { labelInput = it },
+                    label = { Text(tx("New label")) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        if (selectedNote != null) {
                             onAddLabel(selectedNote.id, labelInput)
-                            labelInput = ""
-                        },
-                        enabled = labelInput.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
-                    ) {
-                        Text(tx("ADD"))
-                    }
+                        } else {
+                            onCreateStandaloneLabel(labelInput)
+                        }
+                        labelInput = ""
+                    },
+                    enabled = labelInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                ) {
+                    Text(tx("ADD"))
                 }
             }
         }
     }
 }
-

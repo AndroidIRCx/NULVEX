@@ -1,6 +1,7 @@
 package com.androidircx.nulvex.ui
 
 import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -15,12 +16,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.core.os.LocaleListCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.data.Note
 import com.androidircx.nulvex.pro.BackupRecord
 import com.androidircx.nulvex.ui.theme.NULVEXTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +33,11 @@ class NulvexUiTest {
 
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Before
+    fun forceEnglishLocale() {
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en"))
+    }
 
     // ---- Helper ----------------------------------------------------------------
 
@@ -77,7 +85,7 @@ class NulvexUiTest {
                     onCreate = { _, _, _, _, _, _, _ -> },
                     onOpenNote = onOpenNote,
                     onCloseNote = {},
-                    onUpdateNoteText = { _, _ -> },
+                    onUpdateNoteText = { _, _, _ -> },
                     onDelete = onDelete,
                     onTogglePinned = {},
                     onToggleChecklistItem = { _, _ -> },
