@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Tells the Android resource shrinker to keep all tx_auto_* string resources.
+    These are accessed dynamically via Resources.getIdentifier() in TxStrings.kt,
+    so the shrinker cannot detect them as "used" through static analysis.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/tx_auto_*" />
