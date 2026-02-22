@@ -34,6 +34,12 @@ data class NewNoteDraft(
     val readOnce: Boolean = false
 )
 
+data class NoteEditDraft(
+    val noteId: String,
+    val text: String,
+    val expiresAt: Long?
+)
+
 data class UiState(
     val screen: Screen = Screen.Unlock,
     val notes: List<Note> = emptyList(),
@@ -68,7 +74,8 @@ data class UiState(
     val lastBackupMediaId: String = "",
     val backupStatus: String = "",
     val languageTag: String = "system",
-    val pendingNoteEdit: Pair<String, String>? = null,
+    val savedLabels: List<String> = emptyList(),
+    val pendingNoteEdit: NoteEditDraft? = null,
     val newNoteDraft: NewNoteDraft? = null,
     val pendingImport: PendingImport? = null
 )
@@ -118,7 +125,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             hasProFeatures = adPreferences.hasProFeaturesLifetime(),
             sharedKeys = sharedKeyStore.listKeys(),
             backupRecords = encryptedBackupService.listBackupRecords(),
-            languageTag = appPreferences.getLanguageTag()
+            languageTag = appPreferences.getLanguageTag(),
+            savedLabels = appPreferences.getCustomLabels()
         )
     )
         private set
@@ -524,11 +532,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun updateNoteText(noteId: String, newText: String) {
+    fun updateNoteText(noteId: String, newText: String, expiresAt: Long?) {
         autoSaveEditJob?.cancel()
         uiState.value = uiState.value.copy(pendingNoteEdit = null)
         val note = uiState.value.selectedNote ?: return
-        val updated = note.copy(text = newText)
+        val updated = note.copy(text = newText, expiresAt = expiresAt)
         viewModelScope.launch(Dispatchers.IO) {
             vaultService.updateNote(updated)
             withContext(Dispatchers.Main) {
@@ -555,8 +563,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun notifyNoteEditDraft(noteId: String, text: String) {
-        uiState.value = uiState.value.copy(pendingNoteEdit = noteId to text)
+    fun notifyNoteEditDraft(noteId: String, text: String, expiresAt: Long?) {
+        uiState.value = uiState.value.copy(
+            pendingNoteEdit = NoteEditDraft(noteId = noteId, text = text, expiresAt = expiresAt)
+        )
         autoSaveEditJob?.cancel()
         autoSaveEditJob = viewModelScope.launch {
             delay(1500L)
@@ -661,16 +671,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun flushNoteEditDraft() {
-        val (noteId, draftText) = uiState.value.pendingNoteEdit ?: return
-        val note = findNote(noteId) ?: return
-        if (note.text == draftText) {
+        val draft = uiState.value.pendingNoteEdit ?: return
+        val note = findNote(draft.noteId) ?: return
+        if (note.text == draft.text && note.expiresAt == draft.expiresAt) {
             uiState.value = uiState.value.copy(pendingNoteEdit = null)
             return
         }
-        val updated = note.copy(text = draftText)
+        val updated = note.copy(text = draft.text, expiresAt = draft.expiresAt)
         withContext(Dispatchers.IO) { vaultService.updateNote(updated) }
         uiState.value = uiState.value.copy(
-            selectedNote = if (uiState.value.selectedNote?.id == noteId) updated else uiState.value.selectedNote,
+            selectedNote = if (uiState.value.selectedNote?.id == draft.noteId) updated else uiState.value.selectedNote,
             pendingNoteEdit = null
         )
     }
@@ -1064,6 +1074,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun addLabel(noteId: String, label: String) {
         val trimmed = label.trim()
         if (trimmed.isBlank()) return
+        val saved = appPreferences.addCustomLabel(trimmed)
+        uiState.value = uiState.value.copy(savedLabels = saved)
         val note = findNote(noteId) ?: return
         val updatedLabels = (note.labels + trimmed).distinct()
         persistNoteUpdate(note.copy(labels = updatedLabels))
@@ -1081,6 +1093,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateActiveLabel(label: String?) {
         uiState.value = uiState.value.copy(activeLabel = label)
+    }
+
+    fun createStandaloneLabel(label: String) {
+        val trimmed = label.trim()
+        if (trimmed.isBlank()) return
+        val saved = appPreferences.addCustomLabel(trimmed)
+        uiState.value = uiState.value.copy(savedLabels = saved)
     }
 
     fun loadAttachmentPreview(noteId: String, attachmentId: String) {
@@ -1159,6 +1178,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     biometricEnabled = appPreferences.isBiometricEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
+                    savedLabels = appPreferences.getCustomLabels(),
                     pendingNoteEdit = null,
                     newNoteDraft = null,
                     attachmentPreviews = emptyMap()

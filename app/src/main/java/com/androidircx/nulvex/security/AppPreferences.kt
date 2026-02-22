@@ -4,6 +4,7 @@ import android.content.Context
 
 class AppPreferences(context: Context) {
     private val prefs = context.getSharedPreferences("nulvex_app_settings", Context.MODE_PRIVATE)
+    private val customLabelsKey = "custom_labels"
 
     fun getLockTimeoutMs(): Long = prefs.getLong("lock_timeout_ms", 60_000L)
 
@@ -63,5 +64,27 @@ class AppPreferences(context: Context) {
 
     fun setLanguageTag(value: String) {
         prefs.edit().putString("language_tag", value).apply()
+    }
+
+    fun getCustomLabels(): List<String> {
+        val stored = prefs.getStringSet(customLabelsKey, emptySet()) ?: emptySet()
+        return stored.map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+    }
+
+    fun addCustomLabel(label: String): List<String> {
+        val trimmed = label.trim()
+        if (trimmed.isBlank()) return getCustomLabels()
+        val updated = (getCustomLabels() + trimmed).distinct().sorted()
+        prefs.edit().putStringSet(customLabelsKey, updated.toSet()).apply()
+        return updated
+    }
+
+    fun removeCustomLabel(label: String): List<String> {
+        val updated = getCustomLabels().filterNot { it == label.trim() }.sorted()
+        prefs.edit().putStringSet(customLabelsKey, updated.toSet()).apply()
+        return updated
     }
 }

@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.VaultServiceLocator
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -19,9 +19,10 @@ class VaultServiceImportTest {
     private lateinit var vaultService: VaultService
 
     @Before
-    fun setUp() = runTest {
+    fun setUp() = runBlocking {
         app = ApplicationProvider.getApplicationContext()
         VaultServiceLocator.init(app)
+        VaultServiceLocator.panicWipeService().wipeAll()
         val authController = VaultServiceLocator.vaultAuthController()
         authController.setupRealPin("2468".toCharArray())
         val profile = authController.unlockWithPin("2468".toCharArray())
@@ -30,7 +31,7 @@ class VaultServiceImportTest {
     }
 
     @Test
-    fun importBackupJsonBytes_supportsSingleNoteShareFormat() = runTest {
+    fun importBackupJsonBytes_supportsSingleNoteShareFormat() = runBlocking {
         val payload = """
             {
               "v": 1,

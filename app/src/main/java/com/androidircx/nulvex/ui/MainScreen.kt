@@ -190,7 +190,7 @@ fun MainScreen(
     onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean) -> Unit,
     onOpenNote: (String) -> Unit,
     onCloseNote: () -> Unit,
-    onUpdateNoteText: (String, String) -> Unit,
+    onUpdateNoteText: (String, String, Long?) -> Unit,
     onShareNote: (String) -> Unit = {},
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
@@ -201,6 +201,7 @@ fun MainScreen(
     onMoveChecklistItem: (String, String, Int) -> Unit,
     onAddLabel: (String, String) -> Unit,
     onRemoveLabel: (String, String) -> Unit,
+    onCreateStandaloneLabel: (String) -> Unit = {},
     onSearchQueryChange: (String) -> Unit,
     onSelectLabel: (String?) -> Unit,
     onLoadAttachmentPreview: (String, String) -> Unit,
@@ -228,7 +229,7 @@ fun MainScreen(
     onGeneratePgpKey: (String) -> Unit = {},
     onBuildKeyTransferPayload: (String) -> String? = { null },
     onStartNfcKeyShare: (String) -> Unit = {},
-    onNoteEditDraftChanged: (String, String) -> Unit = { _, _ -> },
+    onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
     onClearNoteEditDraft: () -> Unit = {},
     onNewNoteDraftChanged: (NewNoteDraft?) -> Unit = {},
     onImportIncomingFile: (ByteArray, String, String, Boolean) -> Unit = { _, _, _, _ -> },
@@ -255,6 +256,7 @@ fun MainScreen(
                     onSelectLabel = onSelectLabel,
                     onAddLabel = onAddLabel,
                     onRemoveLabel = onRemoveLabel,
+                    onCreateStandaloneLabel = onCreateStandaloneLabel,
                     onClose = { showLabelMenu = false }
                 )
             }
@@ -3631,7 +3633,7 @@ private fun NewNoteScreen(
 private fun NoteDetailScreen(
     state: UiState,
     onClose: () -> Unit,
-    onUpdateNoteText: (String, String) -> Unit,
+    onUpdateNoteText: (String, String, Long?) -> Unit,
     onShareNote: (String) -> Unit,
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
@@ -3642,7 +3644,7 @@ private fun NoteDetailScreen(
     onMoveChecklistItem: (String, String, Int) -> Unit,
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
-    onNoteEditDraftChanged: (String, String) -> Unit = { _, _ -> },
+    onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
     onClearNoteEditDraft: () -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -3653,6 +3655,12 @@ private fun NoteDetailScreen(
     }
     var isEditing by remember { mutableStateOf(false) }
     var editText by remember(note.id) { mutableStateOf(note.text) }
+    var expiryChoice by remember(note.id) {
+        mutableStateOf(if (note.expiresAt == null) "none" else "custom")
+    }
+    var customExpiresAt by remember(note.id) {
+        mutableStateOf(note.expiresAt)
+    }
     var checklistInput by remember { mutableStateOf("") }
     var editingChecklistId by remember { mutableStateOf<String?>(null) }
     var editingChecklistText by remember { mutableStateOf("") }
@@ -3662,6 +3670,53 @@ private fun NoteDetailScreen(
     var lastSwapTargetId by remember { mutableStateOf<String?>(null) }
     var dragTargetId by remember { mutableStateOf<String?>(null) }
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val dateTimeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+
+    fun openDateTimePicker() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val cal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, day)
+                            set(Calendar.HOUR_OF_DAY, hour)
+                            set(Calendar.MINUTE, minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        customExpiresAt = cal.timeInMillis
+                        expiryChoice = "custom"
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    val editedExpiresAt = when (expiryChoice) {
+        "none" -> null
+        "1h" -> System.currentTimeMillis() + 3_600_000L
+        "24h" -> System.currentTimeMillis() + 86_400_000L
+        "7d" -> System.currentTimeMillis() + 604_800_000L
+        else -> customExpiresAt
+    }
+
+    LaunchedEffect(isEditing, editText, expiryChoice, customExpiresAt, note.id) {
+        if (isEditing) {
+            onNoteEditDraftChanged(note.id, editText, editedExpiresAt)
+        }
+    }
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
@@ -3682,6 +3737,8 @@ private fun NoteDetailScreen(
                     if (isEditing) {
                         isEditing = false
                         editText = note.text
+                        customExpiresAt = note.expiresAt
+                        expiryChoice = if (note.expiresAt == null) "none" else "custom"
                         onClearNoteEditDraft()
                     } else {
                         isEditing = true
@@ -3710,7 +3767,6 @@ private fun NoteDetailScreen(
                     value = editText,
                     onValueChange = {
                         editText = it
-                        onNoteEditDraftChanged(note.id, it)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(
@@ -3719,6 +3775,24 @@ private fun NoteDetailScreen(
                         autoCorrectEnabled = false
                     )
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Expiry"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    Chip(tx("None"), expiryChoice == "none") { expiryChoice = "none" }
+                    Chip(tx("1h"), expiryChoice == "1h") { expiryChoice = "1h" }
+                    Chip(tx("24h"), expiryChoice == "24h") { expiryChoice = "24h" }
+                    Chip(tx("7d"), expiryChoice == "7d") { expiryChoice = "7d" }
+                    Chip(tx("Custom"), expiryChoice == "custom") { openDateTimePicker() }
+                }
+                if (customExpiresAt != null && expiryChoice == "custom") {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        tx("Selected expiry:") + " " + dateTimeFormatter.format(java.util.Date(customExpiresAt!!)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.7f)
+                    )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
             } else if (note.text.isNotBlank()) {
                 Text(note.text, color = onSurface, style = MaterialTheme.typography.bodyLarge)
@@ -3930,14 +4004,20 @@ private fun NoteDetailScreen(
                 if (isEditing) {
                     Button(
                         onClick = {
-                            onUpdateNoteText(note.id, editText)
+                            onUpdateNoteText(note.id, editText, editedExpiresAt)
                             isEditing = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
                         Text(tx("SAVE"))
                     }
-                    TextButton(onClick = { isEditing = false; editText = note.text; onClearNoteEditDraft() }) {
+                    TextButton(onClick = {
+                        isEditing = false
+                        editText = note.text
+                        customExpiresAt = note.expiresAt
+                        expiryChoice = if (note.expiresAt == null) "none" else "custom"
+                        onClearNoteEditDraft()
+                    }) {
                         Text(tx("CANCEL"), color = onSurface.copy(alpha = 0.7f))
                     }
                 } else {
@@ -4147,10 +4227,11 @@ private fun LabelsMenu(
     onSelectLabel: (String?) -> Unit,
     onAddLabel: (String, String) -> Unit,
     onRemoveLabel: (String, String) -> Unit,
+    onCreateStandaloneLabel: (String) -> Unit,
     onClose: () -> Unit
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val labels = state.notes.flatMap { it.labels }.distinct().sorted()
+    val labels = (state.notes.flatMap { it.labels } + state.savedLabels).distinct().sorted()
     val selectedNote = state.selectedNote
     var labelInput by remember { mutableStateOf("") }
     Surface(
@@ -4202,29 +4283,35 @@ private fun LabelsMenu(
                     }
                 }
             }
-            if (selectedNote != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(tx("Assign label"), style = MaterialTheme.typography.labelLarge, color = onSurface)
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = labelInput,
-                        onValueChange = { labelInput = it },
-                        label = { Text(tx("New label")) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                if (selectedNote != null) tx("Assign label") else tx("Create label"),
+                style = MaterialTheme.typography.labelLarge,
+                color = onSurface
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = labelInput,
+                    onValueChange = { labelInput = it },
+                    label = { Text(tx("New label")) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        if (selectedNote != null) {
                             onAddLabel(selectedNote.id, labelInput)
-                            labelInput = ""
-                        },
-                        enabled = labelInput.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
-                    ) {
-                        Text(tx("ADD"))
-                    }
+                        } else {
+                            onCreateStandaloneLabel(labelInput)
+                        }
+                        labelInput = ""
+                    },
+                    enabled = labelInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                ) {
+                    Text(tx("ADD"))
                 }
             }
         }
