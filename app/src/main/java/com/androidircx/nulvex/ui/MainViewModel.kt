@@ -22,7 +22,7 @@ import kotlinx.coroutines.delay
 
 sealed class PendingImport {
     data class LocalFile(val bytes: ByteArray, val mimeType: String) : PendingImport()
-    data class RemoteMedia(val mediaId: String) : PendingImport()
+    data class RemoteMedia(val mediaId: String, val mime: String? = null) : PendingImport()
 }
 
 data class NewNoteDraft(
@@ -799,6 +799,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(isBusy = false, error = "Key import failed — wrong password or corrupted file")
+                }
+            }
+        }
+    }
+
+    fun importIncomingRemoteKeyManager(mediaId: String, password: String?) {
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bytes = encryptedBackupService.downloadKeyManagerBackup(mediaId)
+                val imported = sharedKeyStore.importManagerBackup(bytes, password?.toCharArray())
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        pendingImport = null,
+                        sharedKeys = sharedKeyStore.listKeys(),
+                        error = null,
+                        backupStatus = "Imported $imported keys"
+                    )
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Key import failed — wrong password or corrupted file"
+                    )
                 }
             }
         }

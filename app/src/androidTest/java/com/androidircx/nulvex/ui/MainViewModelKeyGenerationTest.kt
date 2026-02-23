@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.VaultServiceLocator
+import com.androidircx.nulvex.ui.PendingImport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -143,5 +144,45 @@ class MainViewModelKeyGenerationTest {
         vm.grantLifetimeProFeatures()
         vm.restoreKeyManagerFromApi("", null)
         assertTrue(vm.uiState.value.error?.contains("required") == true)
+    }
+
+    // --- importIncomingRemoteKeyManager ---
+
+    @Test
+    fun importIncomingRemoteKeyManager_invalidMediaId_setsError() {
+        // Network call to non-existent ID should fail → sets error, clears busy
+        vm.importIncomingRemoteKeyManager("nonexistent-id-xyz", null)
+        Thread.sleep(3000) // wait for IO coroutine
+        assertFalse(vm.uiState.value.isBusy)
+        assertNotNull(vm.uiState.value.error)
+        assertTrue(
+            vm.uiState.value.error!!.contains("failed", ignoreCase = true) ||
+            vm.uiState.value.error!!.contains("import", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun importIncomingRemoteKeyManager_setsRemoteKeysMimeOnPendingImport() {
+        // Verify RemoteMedia carries mime correctly (unit-level, no network)
+        val pendingImport = PendingImport.RemoteMedia(
+            mediaId = "abc123",
+            mime = com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+        )
+        vm.setPendingImport(pendingImport)
+        val state = vm.uiState.value
+        assertTrue(state.pendingImport is PendingImport.RemoteMedia)
+        assertEquals(
+            com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME,
+            (state.pendingImport as PendingImport.RemoteMedia).mime
+        )
+    }
+
+    @Test
+    fun importIncomingRemoteKeyManager_remoteMediaWithoutMime_hasNullMime() {
+        val pendingImport = PendingImport.RemoteMedia(mediaId = "xyz")
+        vm.setPendingImport(pendingImport)
+        val import = vm.uiState.value.pendingImport as? PendingImport.RemoteMedia
+        assertNotNull(import)
+        assertEquals(null, import!!.mime)
     }
 }

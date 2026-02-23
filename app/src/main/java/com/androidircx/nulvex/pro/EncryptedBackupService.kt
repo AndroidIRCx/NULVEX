@@ -63,13 +63,13 @@ class EncryptedBackupService(
 
     suspend fun uploadKeyManagerBackup(encrypted: Boolean, password: CharArray?): NoteShareUploadResult {
         val bytes = sharedKeyStore.exportManagerBackup(encrypted, password)
-        val token = apiClient.requestUpload(type = "file", mime = "application/octet-stream")
+        val token = apiClient.requestUpload(type = "file", mime = NulvexFileTypes.KEY_MANAGER_MIME)
         apiClient.upload(token.id, token.uploadToken, token.expires, bytes)
         val pathId = token.downloadToken ?: token.id
         return NoteShareUploadResult(
             mediaId = token.id,
             downloadPathId = pathId,
-            url = "https://androidircx.com/api/media/download/$pathId"
+            url = "https://androidircx.com/api/media/download/$pathId?t=keys"
         )
     }
 

@@ -243,6 +243,7 @@ fun MainScreen(
     onImportIncomingFile: (ByteArray, String, String, Boolean) -> Unit = { _, _, _, _ -> },
     onImportIncomingKeyManager: (ByteArray, String?) -> Unit = { _, _ -> },
     onImportIncomingRemote: (String, String, Boolean) -> Unit = { _, _, _ -> },
+    onImportIncomingRemoteKeyManager: (String, String?) -> Unit = { _, _ -> },
     onClearPendingImport: () -> Unit = {},
     onClearNoteShareUrl: () -> Unit = {}
 ) {
@@ -439,6 +440,7 @@ fun MainScreen(
                 onImportFile = onImportIncomingFile,
                 onImportKeyManager = onImportIncomingKeyManager,
                 onImportRemote = onImportIncomingRemote,
+                onImportRemoteKeyManager = onImportIncomingRemoteKeyManager,
                 onDismiss = onClearPendingImport
             )
         }
@@ -4362,6 +4364,7 @@ private fun PendingImportDialog(
     onImportFile: (ByteArray, String, String, Boolean) -> Unit,
     onImportKeyManager: (ByteArray, String?) -> Unit,
     onImportRemote: (String, String, Boolean) -> Unit,
+    onImportRemoteKeyManager: (String, String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val import = state.pendingImport ?: return
@@ -4376,16 +4379,18 @@ private fun PendingImportDialog(
 
     val isKeysFile = import is PendingImport.LocalFile &&
         (import as PendingImport.LocalFile).mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+    val isRemoteKeysFile = import is PendingImport.RemoteMedia &&
+        (import as PendingImport.RemoteMedia).mime == com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
     val isNoteShare = import is PendingImport.LocalFile &&
         (import as PendingImport.LocalFile).mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME
-    val noKeys = state.sharedKeys.isEmpty() && !isKeysFile
+    val noKeys = state.sharedKeys.isEmpty() && !isKeysFile && !isRemoteKeysFile
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
                 when {
-                    isKeysFile -> tx("Import Keys")
+                    isKeysFile || isRemoteKeysFile -> tx("Import Keys")
                     isNoteShare -> tx("Import Note")
                     import is PendingImport.RemoteMedia -> tx("Import from Link")
                     else -> tx("Import Backup")
@@ -4402,7 +4407,7 @@ private fun PendingImportDialog(
                         color = onSurface.copy(alpha = 0.6f)
                     )
                 }
-                if (isKeysFile) {
+                if (isKeysFile || isRemoteKeysFile) {
                     Text(tx("Enter password if the file was exported with encryption. Leave blank for unencrypted exports."), color = onSurface)
                     OutlinedTextField(
                         value = password,
@@ -4448,6 +4453,8 @@ private fun PendingImportDialog(
                     when {
                         isKeysFile && import is PendingImport.LocalFile ->
                             onImportKeyManager(import.bytes, password.ifBlank { null })
+                        isRemoteKeysFile && import is PendingImport.RemoteMedia ->
+                            onImportRemoteKeyManager(import.mediaId, password.ifBlank { null })
                         import is PendingImport.LocalFile ->
                             onImportFile(import.bytes, import.mimeType, selectedKeyId, mergeMode || isNoteShare)
                         import is PendingImport.RemoteMedia ->
@@ -4455,7 +4462,7 @@ private fun PendingImportDialog(
                         else -> onDismiss()
                     }
                 },
-                enabled = !state.isBusy && (isKeysFile || !noKeys),
+                enabled = !state.isBusy && (isKeysFile || isRemoteKeysFile || !noKeys),
                 colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
             ) {
                 Text(tx("IMPORT"))

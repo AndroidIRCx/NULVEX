@@ -259,6 +259,7 @@ class MainActivity : AppCompatActivity() {
                     onImportIncomingFile = vm::importIncomingFile,
                     onImportIncomingKeyManager = vm::importIncomingKeyManager,
                     onImportIncomingRemote = vm::importIncomingRemote,
+                    onImportIncomingRemoteKeyManager = vm::importIncomingRemoteKeyManager,
                     onClearPendingImport = vm::clearPendingImport,
                     onClearNoteShareUrl = vm::clearNoteShareUrl
                 )
@@ -624,7 +625,12 @@ class MainActivity : AppCompatActivity() {
             scheme == "https" && data.host == "androidircx.com" -> {
                 val path = data.path ?: return
                 val mediaId = path.substringAfterLast("/").takeIf { it.isNotBlank() } ?: return
-                vm.setPendingImport(com.androidircx.nulvex.ui.PendingImport.RemoteMedia(mediaId))
+                val typeHint = data.getQueryParameter("t")
+                val mime = when (typeHint) {
+                    "keys" -> com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+                    else -> null
+                }
+                vm.setPendingImport(com.androidircx.nulvex.ui.PendingImport.RemoteMedia(mediaId, mime))
             }
             scheme == "content" || scheme == "file" -> {
                 val mimeType = intent.type?.takeIf { it.isNotBlank() }

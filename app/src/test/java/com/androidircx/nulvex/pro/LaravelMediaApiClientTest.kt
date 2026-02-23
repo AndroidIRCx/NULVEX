@@ -77,7 +77,7 @@ class LaravelMediaApiClientTest {
             seenQuery.get().contains("token=tok%2B1") ||
                 seenQuery.get().contains("token=tok+1")
         )
-        assertTrue(seenQuery.get().contains("expires=999"))
+        assertTrue(seenQuery.get().contains("exp=999"))
         assertEquals("tok+1", seenTokenHeader.get())
         assertEquals("999", seenExpiresHeader.get())
         assertArrayEquals(payload, seenBody.get())

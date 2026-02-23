@@ -52,7 +52,7 @@ class LaravelMediaApiClient(
 
     fun upload(id: String, token: String, expires: Long, payload: ByteArray): Boolean {
         val encodedToken = URLEncoder.encode(token, Charsets.UTF_8.name())
-        val endpoint = URL("$baseApiUrl/media/upload/$id?token=$encodedToken&expires=$expires")
+        val endpoint = URL("$baseApiUrl/media/upload/$id?token=$encodedToken&exp=$expires")
         val conn = (endpoint.openConnection() as HttpURLConnection).apply {
             requestMethod = "PUT"
             connectTimeout = CONNECT_TIMEOUT_MS

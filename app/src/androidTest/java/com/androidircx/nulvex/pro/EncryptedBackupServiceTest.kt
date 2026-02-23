@@ -82,7 +82,9 @@ class EncryptedBackupServiceTest {
         val apiClient = mockk<LaravelMediaApiClient>()
 
         every { sharedKeyStore.exportManagerBackup(false, null) } returns ByteArray(64) { it.toByte() }
-        every { apiClient.requestUpload(type = "file", mime = "application/octet-stream") } returns UploadRequestToken(
+        every {
+            apiClient.requestUpload(type = "file", mime = com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME)
+        } returns UploadRequestToken(
             id = "km-1",
             uploadToken = "up-token",
             expires = 999L,
@@ -97,6 +99,7 @@ class EncryptedBackupServiceTest {
         assertEquals("km-1", result.mediaId)
         assertEquals("dl-km", result.downloadPathId)
         assertTrue(result.url.contains("dl-km"))
+        assertTrue("URL should have ?t=keys hint", result.url.contains("?t=keys"))
         verify { apiClient.upload("km-1", "up-token", 999L, any()) }
     }
 
