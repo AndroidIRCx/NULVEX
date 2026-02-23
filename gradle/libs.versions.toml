@@ -23,8 +23,8 @@ appcompat = "1.7.1"
 playServicesAds = "25.0.0"
 playServicesCodeScanner = "16.1.0"
 billing = "8.3.0"
-bouncycastle = "1.81"
-zxing = "3.5.3"
+bouncycastle = "1.83"
+zxing = "3.5.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
