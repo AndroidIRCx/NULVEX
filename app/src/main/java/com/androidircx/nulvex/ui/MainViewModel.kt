@@ -73,6 +73,9 @@ data class UiState(
     val backupRecords: List<BackupRecord> = emptyList(),
     val lastBackupMediaId: String = "",
     val backupStatus: String = "",
+    val noteShareUrl: String = "",
+    val pinScrambleEnabled: Boolean = false,
+    val hidePinLengthEnabled: Boolean = false,
     val languageTag: String = "system",
     val savedLabels: List<String> = emptyList(),
     val pendingNoteEdit: NoteEditDraft? = null,
@@ -126,7 +129,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             sharedKeys = sharedKeyStore.listKeys(),
             backupRecords = encryptedBackupService.listBackupRecords(),
             languageTag = appPreferences.getLanguageTag(),
-            savedLabels = appPreferences.getCustomLabels()
+            savedLabels = appPreferences.getCustomLabels(),
+            pinScrambleEnabled = appPreferences.isPinScrambleEnabled(),
+            hidePinLengthEnabled = appPreferences.isHidePinLengthEnabled()
         )
     )
         private set
@@ -395,6 +400,98 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return encryptedBackupService.buildEncryptedNoteShareWrapper(noteId, keyId)
     }
 
+    fun uploadNoteShare(noteId: String) {
+        val keyId = uiState.value.sharedKeys.firstOrNull()?.id
+        if (keyId.isNullOrBlank()) {
+            uiState.value = uiState.value.copy(error = "Import at least one key in Keys Manager before sharing")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = encryptedBackupService.uploadEncryptedNoteShare(noteId, keyId)
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = null,
+                        noteShareUrl = result.url
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Note share upload failed: ${e.message?.take(120) ?: "unknown error"}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearNoteShareUrl() {
+        uiState.value = uiState.value.copy(noteShareUrl = "")
+    }
+
+    fun uploadKeyManagerToApi(encrypted: Boolean, password: String?) {
+        if (!uiState.value.hasProFeatures) {
+            uiState.value = uiState.value.copy(error = "Pro Features required")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = encryptedBackupService.uploadKeyManagerBackup(encrypted, password?.toCharArray())
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = null,
+                        noteShareUrl = result.url
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Key manager upload failed: ${e.message?.take(120) ?: "unknown error"}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun restoreKeyManagerFromApi(mediaId: String, password: String?) {
+        if (!uiState.value.hasProFeatures) {
+            uiState.value = uiState.value.copy(error = "Pro Features required")
+            return
+        }
+        if (mediaId.isBlank()) {
+            uiState.value = uiState.value.copy(error = "Media ID or URL is required")
+            return
+        }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bytes = encryptedBackupService.downloadKeyManagerBackup(mediaId)
+                val imported = sharedKeyStore.importManagerBackup(bytes, password?.toCharArray())
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = null,
+                        sharedKeys = sharedKeyStore.listKeys(),
+                        backupStatus = "Key manager restored ($imported keys)"
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        isBusy = false,
+                        error = "Key manager restore failed: ${e.message?.take(120) ?: "unknown error"}"
+                    )
+                }
+            }
+        }
+    }
+
     fun exportKeyManagerStorage(encrypted: Boolean, password: String?): ByteArray {
         return sharedKeyStore.exportManagerBackup(encrypted, password?.toCharArray())
     }
@@ -428,6 +525,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun buildKeyTransferPayload(keyId: String): String? {
         return try {
             sharedKeyStore.buildTransferPayload(keyId)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun buildQrKeyTransferPayload(keyId: String): String? {
+        return try {
+            sharedKeyStore.buildQrTransferPayload(keyId)
         } catch (_: Exception) {
             null
         }
@@ -837,6 +942,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disableBiometric() {
         appPreferences.setBiometricEnabled(false)
         uiState.value = uiState.value.copy(biometricEnabled = false)
+    }
+
+    fun setPinScramble(enabled: Boolean) {
+        appPreferences.setPinScrambleEnabled(enabled)
+        uiState.value = uiState.value.copy(pinScrambleEnabled = enabled)
+    }
+
+    fun setHidePinLength(enabled: Boolean) {
+        appPreferences.setHidePinLengthEnabled(enabled)
+        uiState.value = uiState.value.copy(hidePinLengthEnabled = enabled)
     }
 
     fun enableDecoyBiometric() {

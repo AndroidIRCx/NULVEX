@@ -192,6 +192,8 @@ class MainActivity : AppCompatActivity() {
                     onRequestDecoyBiometricEnroll = ::startDecoyBiometricEnrollment,
                     onRequestDecoyBiometricUnlock = ::startDecoyBiometricUnlock,
                     onDisableDecoyBiometric = ::disableDecoyBiometric,
+                    onTogglePinScramble = vm::setPinScramble,
+                    onToggleHidePinLength = vm::setHidePinLength,
                     onChangeRealPin = vm::changeRealPin,
                     onUpdateThemeMode = vm::updateThemeMode,
                     onUpdateLanguage = ::updateLanguage,
@@ -244,9 +246,12 @@ class MainActivity : AppCompatActivity() {
                     onImportLocalBackup = ::importLocalBackupFile,
                     onExportKeyManager = ::exportKeyManagerFile,
                     onImportKeyManager = ::importKeyManagerFile,
+                    onUploadKeyManagerToApi = vm::uploadKeyManagerToApi,
+                    onRestoreKeyManagerFromApi = vm::restoreKeyManagerFromApi,
                     onGenerateXChaChaKey = vm::generateXChaChaKey,
                     onGeneratePgpKey = vm::generatePgpKey,
                     onBuildKeyTransferPayload = vm::buildKeyTransferPayload,
+                    onBuildQrKeyTransferPayload = vm::buildQrKeyTransferPayload,
                     onStartNfcKeyShare = ::startNfcKeyShare,
                     onNoteEditDraftChanged = vm::notifyNoteEditDraft,
                     onClearNoteEditDraft = vm::clearNoteEditDraft,
@@ -254,7 +259,8 @@ class MainActivity : AppCompatActivity() {
                     onImportIncomingFile = vm::importIncomingFile,
                     onImportIncomingKeyManager = vm::importIncomingKeyManager,
                     onImportIncomingRemote = vm::importIncomingRemote,
-                    onClearPendingImport = vm::clearPendingImport
+                    onClearPendingImport = vm::clearPendingImport,
+                    onClearNoteShareUrl = vm::clearNoteShareUrl
                 )
             }
         }
@@ -572,7 +578,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun shareNoteFile(noteId: String) {
-        val keyId = vm.uiState.value.sharedKeys.firstOrNull()?.id
+        val state = vm.uiState.value
+        if (state.hasProFeatures) {
+            vm.uploadNoteShare(noteId)
+            return
+        }
+        val keyId = state.sharedKeys.firstOrNull()?.id
         if (keyId.isNullOrBlank()) {
             vm.showError("Import at least one key in Keys Manager before sharing")
             return

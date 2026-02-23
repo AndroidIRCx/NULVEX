@@ -6,6 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.VaultServiceLocator
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -22,10 +24,9 @@ class MainViewModelKeyGenerationTest {
         app = ApplicationProvider.getApplicationContext()
         VaultServiceLocator.init(app)
 
-        app.getSharedPreferences("nulvex_shared_keys", Context.MODE_PRIVATE)
-            .edit()
-            .clear()
-            .commit()
+        listOf("nulvex_shared_keys", "nulvex_ad_prefs", "nulvex_app_settings").forEach {
+            app.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit()
+        }
 
         vm = MainViewModel(app)
     }
@@ -62,5 +63,85 @@ class MainViewModelKeyGenerationTest {
         vm.deleteSharedKey(created!!.id)
 
         assertTrue(vm.uiState.value.sharedKeys.none { it.id == created.id })
+    }
+
+    @Test
+    fun setPinScramble_true_updatesStateAndPersists() {
+        vm.setPinScramble(true)
+        assertTrue(vm.uiState.value.pinScrambleEnabled)
+
+        val reloaded = MainViewModel(app)
+        assertTrue(reloaded.uiState.value.pinScrambleEnabled)
+    }
+
+    @Test
+    fun setPinScramble_false_updatesStateAndPersists() {
+        vm.setPinScramble(true)
+        vm.setPinScramble(false)
+        assertFalse(vm.uiState.value.pinScrambleEnabled)
+    }
+
+    @Test
+    fun setHidePinLength_true_updatesStateAndPersists() {
+        vm.setHidePinLength(true)
+        assertTrue(vm.uiState.value.hidePinLengthEnabled)
+
+        val reloaded = MainViewModel(app)
+        assertTrue(reloaded.uiState.value.hidePinLengthEnabled)
+    }
+
+    @Test
+    fun setHidePinLength_false_updatesStateAndPersists() {
+        vm.setHidePinLength(true)
+        vm.setHidePinLength(false)
+        assertFalse(vm.uiState.value.hidePinLengthEnabled)
+    }
+
+    @Test
+    fun clearNoteShareUrl_clearsStateField() {
+        vm.uiState.value = vm.uiState.value.copy(noteShareUrl = "https://example.com/abc")
+        vm.clearNoteShareUrl()
+        assertTrue(vm.uiState.value.noteShareUrl.isBlank())
+    }
+
+    @Test
+    fun buildQrKeyTransferPayload_withExistingXChaChaKey_returnsNonNullJson() {
+        vm.generateXChaChaKey("qr-test")
+        val key = vm.uiState.value.sharedKeys.firstOrNull { it.label == "qr-test" }
+        assertNotNull(key)
+
+        val payload = vm.buildQrKeyTransferPayload(key!!.id)
+
+        assertNotNull(payload)
+        val json = org.json.JSONObject(payload!!)
+        assertEquals("nulvex-key-share", json.getString("type"))
+        assertEquals("xchacha20poly1305_key", json.getString("format"))
+    }
+
+    @Test
+    fun buildQrKeyTransferPayload_unknownKey_returnsNull() {
+        val result = vm.buildQrKeyTransferPayload("no-such-key")
+        assertEquals(null, result)
+    }
+
+    @Test
+    fun uploadKeyManagerToApi_withoutProFeatures_setsError() {
+        // no pro features → should set error immediately without launching coroutine
+        vm.uploadKeyManagerToApi(false, null)
+        assertTrue(vm.uiState.value.error?.contains("Pro") == true)
+        assertFalse(vm.uiState.value.isBusy)
+    }
+
+    @Test
+    fun restoreKeyManagerFromApi_withoutProFeatures_setsError() {
+        vm.restoreKeyManagerFromApi("some-media-id", null)
+        assertTrue(vm.uiState.value.error?.contains("Pro") == true)
+    }
+
+    @Test
+    fun restoreKeyManagerFromApi_withProButBlankId_setsError() {
+        vm.grantLifetimeProFeatures()
+        vm.restoreKeyManagerFromApi("", null)
+        assertTrue(vm.uiState.value.error?.contains("required") == true)
     }
 }

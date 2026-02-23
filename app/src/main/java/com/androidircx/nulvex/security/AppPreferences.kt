@@ -66,6 +66,18 @@ class AppPreferences(context: Context) {
         prefs.edit().putString("language_tag", value).apply()
     }
 
+    fun isPinScrambleEnabled(): Boolean = prefs.getBoolean("pin_scramble", false)
+
+    fun setPinScrambleEnabled(value: Boolean) {
+        prefs.edit().putBoolean("pin_scramble", value).apply()
+    }
+
+    fun isHidePinLengthEnabled(): Boolean = prefs.getBoolean("hide_pin_length", false)
+
+    fun setHidePinLengthEnabled(value: Boolean) {
+        prefs.edit().putBoolean("hide_pin_length", value).apply()
+    }
+
     fun getCustomLabels(): List<String> {
         val stored = prefs.getStringSet(customLabelsKey, emptySet()) ?: emptySet()
         return stored.map { it.trim() }

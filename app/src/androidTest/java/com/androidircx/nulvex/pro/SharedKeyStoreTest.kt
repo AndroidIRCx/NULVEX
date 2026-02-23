@@ -69,6 +69,37 @@ class SharedKeyStoreTest {
     }
 
     @Test
+    fun buildQrTransferPayload_xchachaKey_returnsValidJson() {
+        val key = store.generateXChaChaKey("QR Test Key")
+        val payload = store.buildQrTransferPayload(key.id)
+
+        assertNotNull(payload)
+        val json = org.json.JSONObject(payload!!)
+        assertEquals(1, json.getInt("v"))
+        assertEquals("nulvex-key-share", json.getString("type"))
+        assertEquals("xchacha20poly1305_key", json.getString("format"))
+        assertEquals("QR Test Key", json.getString("label"))
+        assertTrue(json.getString("material_b64").isNotBlank())
+    }
+
+    @Test
+    fun buildQrTransferPayload_pgpKey_stripsSecretToPublicFormat() {
+        val key = store.generatePgpKey("QR PGP Key")
+        val payload = store.buildQrTransferPayload(key.id)
+
+        assertNotNull(payload)
+        val json = org.json.JSONObject(payload!!)
+        assertEquals("pgp_public", json.getString("format"))
+        assertTrue(json.getString("material_b64").isNotBlank())
+    }
+
+    @Test
+    fun buildQrTransferPayload_unknownId_returnsNull() {
+        val result = store.buildQrTransferPayload("nonexistent-id-xyz")
+        assertEquals(null, result)
+    }
+
+    @Test
     fun exportAndImportManagerBackup_encryptedRoundTrip() {
         store.generateXChaChaKey("Before export")
         val exported = store.exportManagerBackup(encrypted = true, password = "123456".toCharArray())

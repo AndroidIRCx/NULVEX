@@ -155,8 +155,10 @@ import android.graphics.Bitmap
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.common.BitMatrix
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -183,6 +185,8 @@ fun MainScreen(
     onRequestDecoyBiometricEnroll: (String) -> Unit = {},
     onRequestDecoyBiometricUnlock: () -> Unit = {},
     onDisableDecoyBiometric: () -> Unit = {},
+    onTogglePinScramble: (Boolean) -> Unit = {},
+    onToggleHidePinLength: (Boolean) -> Unit = {},
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
     onUpdateLanguage: (String) -> Unit = {},
@@ -226,9 +230,12 @@ fun MainScreen(
     onImportLocalBackup: (String, Boolean) -> Unit = { _, _ -> },
     onExportKeyManager: (Boolean, String?) -> Unit = { _, _ -> },
     onImportKeyManager: (String?) -> Unit = {},
+    onUploadKeyManagerToApi: (Boolean, String?) -> Unit = { _, _ -> },
+    onRestoreKeyManagerFromApi: (String, String?) -> Unit = { _, _ -> },
     onGenerateXChaChaKey: (String) -> Unit = {},
     onGeneratePgpKey: (String) -> Unit = {},
     onBuildKeyTransferPayload: (String) -> String? = { null },
+    onBuildQrKeyTransferPayload: (String) -> String? = { null },
     onStartNfcKeyShare: (String) -> Unit = {},
     onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
     onClearNoteEditDraft: () -> Unit = {},
@@ -236,7 +243,8 @@ fun MainScreen(
     onImportIncomingFile: (ByteArray, String, String, Boolean) -> Unit = { _, _, _, _ -> },
     onImportIncomingKeyManager: (ByteArray, String?) -> Unit = { _, _ -> },
     onImportIncomingRemote: (String, String, Boolean) -> Unit = { _, _, _ -> },
-    onClearPendingImport: () -> Unit = {}
+    onClearPendingImport: () -> Unit = {},
+    onClearNoteShareUrl: () -> Unit = {}
 ) {
     var showPanicConfirm by remember { mutableStateOf(false) }
     var showLabelMenu by remember { mutableStateOf(false) }
@@ -327,6 +335,8 @@ fun MainScreen(
                             onRequestBiometricEnroll = onRequestBiometricEnroll,
                             onRequestDecoyBiometricEnroll = onRequestDecoyBiometricEnroll,
                             onDisableDecoyBiometric = onDisableDecoyBiometric,
+                            onTogglePinScramble = onTogglePinScramble,
+                            onToggleHidePinLength = onToggleHidePinLength,
                             onChangeRealPin = onChangeRealPin,
                             onUpdateThemeMode = onUpdateThemeMode,
                             onUpdateLanguage = onUpdateLanguage,
@@ -349,9 +359,12 @@ fun MainScreen(
                             onImportLocalBackup = onImportLocalBackup,
                             onExportKeyManager = onExportKeyManager,
                             onImportKeyManager = onImportKeyManager,
+                            onUploadKeyManagerToApi = onUploadKeyManagerToApi,
+                            onRestoreKeyManagerFromApi = onRestoreKeyManagerFromApi,
                             onGenerateXChaChaKey = onGenerateXChaChaKey,
                             onGeneratePgpKey = onGeneratePgpKey,
                             onBuildKeyTransferPayload = onBuildKeyTransferPayload,
+                            onBuildQrKeyTransferPayload = onBuildQrKeyTransferPayload,
                             onStartNfcKeyShare = onStartNfcKeyShare
                         )
                         Screen.Purchases -> PurchaseScreen(
@@ -393,6 +406,33 @@ fun MainScreen(
             }
         }
         ErrorBar(state, onClearError)
+        if (state.noteShareUrl.isNotBlank()) {
+            val clipboard = LocalClipboardManager.current
+            AlertDialog(
+                onDismissRequest = onClearNoteShareUrl,
+                title = { Text(tx("Note uploaded")) },
+                text = {
+                    Column {
+                        Text(tx("Your encrypted note is available at:"), style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.noteShareUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        clipboard.setText(AnnotatedString(state.noteShareUrl))
+                        onClearNoteShareUrl()
+                    }) { Text(tx("COPY LINK")) }
+                },
+                dismissButton = {
+                    TextButton(onClick = onClearNoteShareUrl) { Text(tx("CLOSE")) }
+                }
+            )
+        }
         if (state.pendingImport != null && state.screen == Screen.Vault) {
             PendingImportDialog(
                 state = state,
@@ -747,17 +787,18 @@ private fun TopHeader(
 
 @Composable
 private fun PinKey(label: String, onClick: () -> Unit) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
     Box(
         modifier = Modifier
             .size(72.dp)
-            .background(Sand.copy(alpha = 0.08f), CircleShape)
+            .background(onSurface.copy(alpha = 0.10f), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.headlineMedium,
-            color = Sand,
+            color = onSurface,
             fontWeight = FontWeight.Light
         )
     }
@@ -768,9 +809,24 @@ private fun SecurePinPad(
     pin: String,
     label: String,
     onPinChange: (String) -> Unit,
-    maxLength: Int = 12
+    maxLength: Int = 12,
+    scrambled: Boolean = false,
+    hidePinLength: Boolean = false
 ) {
     val haptic = LocalHapticFeedback.current
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val shuffledDigits = remember(scrambled) {
+        if (scrambled) (0..9).map { it.toString() }.shuffled()
+        else listOf("1","2","3","4","5","6","7","8","9","0")
+    }
+    val rows = remember(shuffledDigits) {
+        listOf(
+            listOf(shuffledDigits[0], shuffledDigits[1], shuffledDigits[2]),
+            listOf(shuffledDigits[3], shuffledDigits[4], shuffledDigits[5]),
+            listOf(shuffledDigits[6], shuffledDigits[7], shuffledDigits[8]),
+            listOf("", shuffledDigits[9], "⌫")
+        )
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
@@ -778,40 +834,30 @@ private fun SecurePinPad(
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = Sand.copy(alpha = 0.6f)
+            color = onSurface.copy(alpha = 0.6f)
         )
         Spacer(modifier = Modifier.height(20.dp))
         Row(
             horizontalArrangement = Arrangement.Center,
             modifier = Modifier.height(24.dp)
         ) {
-            if (pin.isEmpty()) {
-                repeat(6) {
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 6.dp)
-                            .size(12.dp)
-                            .border(1.5.dp, Sand.copy(alpha = 0.35f), CircleShape)
-                    )
-                }
-            } else {
-                repeat(pin.length) {
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 6.dp)
-                            .size(12.dp)
-                            .background(Sand, CircleShape)
-                    )
-                }
+            val dotCount = if (hidePinLength) 6 else maxOf(pin.length, if (pin.isEmpty()) 6 else 0)
+            val filledCount = if (hidePinLength) pin.length.coerceAtMost(6) else pin.length
+            repeat(dotCount) { i ->
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 6.dp)
+                        .size(12.dp)
+                        .then(
+                            if (i < filledCount)
+                                Modifier.background(Brass, CircleShape)
+                            else
+                                Modifier.border(1.5.dp, onSurface.copy(alpha = 0.35f), CircleShape)
+                        )
+                )
             }
         }
         Spacer(modifier = Modifier.height(32.dp))
-        val rows = listOf(
-            listOf("1", "2", "3"),
-            listOf("4", "5", "6"),
-            listOf("7", "8", "9"),
-            listOf("", "0", "⌫")
-        )
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -964,12 +1010,14 @@ private fun UnlockScreen(
                 .padding(bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(tx("Unlock"), style = MaterialTheme.typography.titleLarge, color = Sand)
+            Text(tx("Unlock"), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.height(28.dp))
             SecurePinPad(
                 pin = pin,
                 label = tx("Enter PIN"),
-                onPinChange = { if (!isLockedOut) pin = it }
+                onPinChange = { if (!isLockedOut) pin = it },
+                scrambled = state.pinScrambleEnabled,
+                hidePinLength = state.hidePinLengthEnabled
             )
             Spacer(modifier = Modifier.height(20.dp))
             if (isLockedOut) {
@@ -1012,7 +1060,7 @@ private fun UnlockScreen(
                 ) {
                     Text(
                         tx("UNLOCK WITH FINGERPRINT"),
-                        color = Sand.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         modifier = Modifier.padding(vertical = 12.dp)
                     )
                 }
@@ -1374,6 +1422,8 @@ private fun SettingsScreen(
     onRequestBiometricEnroll: (String) -> Unit,
     onRequestDecoyBiometricEnroll: (String) -> Unit = {},
     onDisableDecoyBiometric: () -> Unit = {},
+    onTogglePinScramble: (Boolean) -> Unit = {},
+    onToggleHidePinLength: (Boolean) -> Unit = {},
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
     onUpdateLanguage: (String) -> Unit,
@@ -1392,9 +1442,12 @@ private fun SettingsScreen(
     onImportLocalBackup: (String, Boolean) -> Unit = { _, _ -> },
     onExportKeyManager: (Boolean, String?) -> Unit = { _, _ -> },
     onImportKeyManager: (String?) -> Unit = {},
+    onUploadKeyManagerToApi: (Boolean, String?) -> Unit = { _, _ -> },
+    onRestoreKeyManagerFromApi: (String, String?) -> Unit = { _, _ -> },
     onGenerateXChaChaKey: (String) -> Unit = {},
     onGeneratePgpKey: (String) -> Unit = {},
     onBuildKeyTransferPayload: (String) -> String? = { null },
+    onBuildQrKeyTransferPayload: (String) -> String? = { null },
     onStartNfcKeyShare: (String) -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -1412,13 +1465,14 @@ private fun SettingsScreen(
     var expandedSections by remember { mutableStateOf(setOf<String>()) }
     var keyLabel by remember { mutableStateOf("") }
     var keyInput by remember { mutableStateOf("") }
-    var selectedKeyId by remember { mutableStateOf("") }
+    var selectedKeyId by remember { mutableStateOf(state.sharedKeys.firstOrNull()?.id ?: "") }
     var restoreMediaId by remember { mutableStateOf(state.lastBackupMediaId) }
     var selectedBackupRecordId by remember { mutableStateOf("") }
     var restoreMerge by remember { mutableStateOf(true) }
     var keyManagerExportEncrypted by remember { mutableStateOf(true) }
     var keyManagerPassword by remember { mutableStateOf("") }
     var keyManagerImportPassword by remember { mutableStateOf("") }
+    var keyManagerApiRestoreId by remember { mutableStateOf("") }
     var keyShareDialog by remember { mutableStateOf(false) }
     var keyQrPayload by remember { mutableStateOf<String?>(null) }
     var keyQrBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -1497,7 +1551,7 @@ private fun SettingsScreen(
         "restore",
         "encrypted backup",
         "local backup",
-        "remote backup"
+        "remote encrypted storage"
     )
     val showAbout = matchesSection("about", "version", "nulvex", "offline", "xchacha20", "kyber768")
     val hasVisibleSections = showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys || showBackup || showAbout
@@ -1640,7 +1694,7 @@ private fun SettingsScreen(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(tx("Share credits"), color = onSurface)
-                            Text(tx("Used to share notes via the secure API"),
+                            Text(tx("Used to share notes via remote encrypted storage"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = onSurface.copy(alpha = 0.6f)
                             )
@@ -1845,6 +1899,56 @@ private fun SettingsScreen(
                     ) {
                         Text(tx("ENABLE FINGERPRINT"))
                     }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                HorizontalDivider(color = onSurface.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // PIN Scramble
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onTogglePinScramble(!state.pinScrambleEnabled) }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(tx("Scramble PIN pad"), color = onSurface)
+                        Text(
+                            tx("Randomly shuffles digits on each unlock to prevent fingerprint tracing"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = state.pinScrambleEnabled,
+                        onCheckedChange = onTogglePinScramble
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Hide PIN length
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleHidePinLength(!state.hidePinLengthEnabled) }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(tx("Hide PIN length"), color = onSurface)
+                        Text(
+                            tx("Always shows 6 dots regardless of actual PIN length"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = state.hidePinLengthEnabled,
+                        onCheckedChange = onToggleHidePinLength
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -2233,8 +2337,22 @@ private fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(tx("EXPORT KEY MANAGER")) }
+                if (state.hasProFeatures) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            onUploadKeyManagerToApi(
+                                keyManagerExportEncrypted,
+                                keyManagerPassword.ifBlank { null }
+                            )
+                        },
+                        enabled = !state.isBusy && (!keyManagerExportEncrypted || keyManagerPassword.isNotBlank()),
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(tx("UPLOAD KEYS TO REMOTE ENCRYPTED STORAGE")) }
+                }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = keyManagerImportPassword,
                     onValueChange = { keyManagerImportPassword = it },
@@ -2250,6 +2368,28 @@ private fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(tx("IMPORT KEY MANAGER")) }
+                if (state.hasProFeatures) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = keyManagerApiRestoreId,
+                        onValueChange = { keyManagerApiRestoreId = it },
+                        label = { Text(tx("Remote encrypted storage link or ID")) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            onRestoreKeyManagerFromApi(
+                                resolveRemoteMediaIdInput(keyManagerApiRestoreId),
+                                keyManagerImportPassword.ifBlank { null }
+                            )
+                        },
+                        enabled = !state.isBusy && resolveRemoteMediaIdInput(keyManagerApiRestoreId).isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(tx("RESTORE KEYS FROM REMOTE ENCRYPTED STORAGE")) }
+                }
 
                 if (state.sharedKeys.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -2309,7 +2449,7 @@ private fun SettingsScreen(
             if (showBackup) SettingsSection(
                 icon = Icons.Filled.Timer,
                 title = tx("Backup"),
-                description = tx("Local encrypted backup + optional Pro remote"),
+                description = tx("Local encrypted backup + Pro remote encrypted storage"),
                 expanded = isExpanded("backup"),
                 onToggle = { toggleSection("backup") }
             ) {
@@ -2320,7 +2460,7 @@ private fun SettingsScreen(
                     Text(
                         tx("Local backup exports") +
                             " ${com.androidircx.nulvex.pro.NulvexFileTypes.BACKUP_EXT}. " +
-                            tx("Remote backup uploads encrypted blobs (Pro)."),
+                            tx("Remote encrypted storage uploads (Pro)."),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f)
@@ -2361,7 +2501,7 @@ private fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    if (state.hasProFeatures) tx("Pro remote backup is active") else tx("Remote media backup requires Pro"),
+                    if (state.hasProFeatures) tx("Pro remote encrypted storage is active") else tx("Remote encrypted storage requires Pro"),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (state.hasProFeatures) Moss else Ember
                 )
@@ -2372,7 +2512,7 @@ private fun SettingsScreen(
                         enabled = !state.isBusy && state.hasProFeatures,
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text(tx("UPLOAD TO REMOTE MEDIA SERVER")) }
+                    ) { Text(tx("UPLOAD TO REMOTE ENCRYPTED STORAGE")) }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -2395,11 +2535,11 @@ private fun SettingsScreen(
                         selectedKeyId.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                     modifier = Modifier.fillMaxWidth()
-                ) { Text(tx("RESTORE FROM REMOTE")) }
+                ) { Text(tx("RESTORE FROM REMOTE ENCRYPTED STORAGE")) }
 
                 if (state.backupRecords.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(14.dp))
-                    Text(tx("Saved remote backups"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+                    Text(tx("Saved remote encrypted storage backups"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                     Spacer(modifier = Modifier.height(8.dp))
                     state.backupRecords.forEach { backup ->
                         val selected = selectedBackupRecordId == backup.id
@@ -2495,7 +2635,7 @@ private fun SettingsScreen(
             text = { Text(tx("Choose transfer method: NFC or QR code.")) },
             confirmButton = {
                 TextButton(onClick = {
-                    val payload = onBuildKeyTransferPayload(selectedKeyId)
+                    val payload = onBuildQrKeyTransferPayload(selectedKeyId)
                     if (payload != null) {
                         keyQrPayload = payload
                         keyQrBitmap = generateQrBitmap(payload, size = 900)
@@ -2515,29 +2655,40 @@ private fun SettingsScreen(
         )
     }
     if (keyQrPayload != null && keyQrBitmap != null) {
-        AlertDialog(
-            onDismissRequest = { keyQrPayload = null; keyQrBitmap = null },
-            title = { Text(tx("QR key transfer")) },
-            text = {
+        Dialog(onDismissRequest = { keyQrPayload = null; keyQrBitmap = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = tx("QR key transfer"),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(16.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White, RoundedCornerShape(12.dp))
-                        .padding(16.dp),
+                        .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         bitmap = keyQrBitmap!!.asImageBitmap(),
                         contentDescription = tx("Key QR"),
-                        modifier = Modifier.size(280.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         contentScale = ContentScale.Fit
                     )
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { keyQrPayload = null; keyQrBitmap = null }) { Text(tx("CLOSE")) }
+                Spacer(modifier = Modifier.height(12.dp))
+                TextButton(onClick = { keyQrPayload = null; keyQrBitmap = null }) {
+                    Text(tx("CLOSE"))
+                }
             }
-        )
+        }
     }
     if (infoDialogText != null) {
         AlertDialog(
@@ -3180,7 +3331,11 @@ private fun resolveDisplayName(context: android.content.Context, uri: Uri): Stri
 
 private fun generateQrBitmap(content: String, size: Int): Bitmap? {
     return try {
-        val matrix: BitMatrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+        val hints = mapOf(
+            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L,
+            EncodeHintType.MARGIN to 1
+        )
+        val matrix: BitMatrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, size, size, hints)
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         for (x in 0 until size) {
             for (y in 0 until size) {
@@ -3547,6 +3702,32 @@ private fun NewNoteScreen(
                         Text(tx("ADD"))
                     }
                 }
+                val labelSuggestions = if (newLabel.isNotBlank()) {
+                    state.savedLabels.filter {
+                        it.contains(newLabel.trim(), ignoreCase = true) && !labels.contains(it)
+                    }
+                } else emptyList()
+                if (labelSuggestions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        labelSuggestions.forEach { suggestion ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Moss.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        labels = labels + suggestion
+                                        newLabel = ""
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(suggestion, style = MaterialTheme.typography.labelMedium, color = Moss)
+                            }
+                        }
+                    }
+                }
                 if (labels.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
@@ -3829,6 +4010,32 @@ private fun NoteDetailScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
                         Text(tx("ADD"))
+                    }
+                }
+                val labelSuggestions = if (newLabel.isNotBlank()) {
+                    state.savedLabels.filter {
+                        it.contains(newLabel.trim(), ignoreCase = true) && !editLabels.contains(it)
+                    }
+                } else emptyList()
+                if (labelSuggestions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        labelSuggestions.forEach { suggestion ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Moss.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        editLabels = editLabels + suggestion
+                                        newLabel = ""
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(suggestion, style = MaterialTheme.typography.labelMedium, color = Moss)
+                            }
+                        }
                     }
                 }
                 if (editLabels.isNotEmpty()) {
@@ -4314,7 +4521,7 @@ private fun resolveInfoDialogText(key: String): String {
             tx("Receiver imports it via QR scanner or NFC read.")
         "info_backup_modes" -> tx("Backup modes:") + "\n\n" +
             tx("- Local backup: exports encrypted file to your phone storage.") + "\n" +
-            tx("- Remote backup (Pro): uploads encrypted blob to your media server.") + "\n\n" +
+            tx("- Remote encrypted storage (Pro): uploads encrypted backup to Pro remote storage.") + "\n\n" +
             tx("In both cases, decrypt requires the correct key.")
         else -> tx(key)
     }

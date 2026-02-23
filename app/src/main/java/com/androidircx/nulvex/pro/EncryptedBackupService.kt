@@ -61,6 +61,22 @@ class EncryptedBackupService(
         )
     }
 
+    suspend fun uploadKeyManagerBackup(encrypted: Boolean, password: CharArray?): NoteShareUploadResult {
+        val bytes = sharedKeyStore.exportManagerBackup(encrypted, password)
+        val token = apiClient.requestUpload(type = "file", mime = "application/octet-stream")
+        apiClient.upload(token.id, token.uploadToken, token.expires, bytes)
+        val pathId = token.downloadToken ?: token.id
+        return NoteShareUploadResult(
+            mediaId = token.id,
+            downloadPathId = pathId,
+            url = "https://androidircx.com/api/media/download/$pathId"
+        )
+    }
+
+    suspend fun downloadKeyManagerBackup(mediaId: String): ByteArray {
+        return apiClient.download(mediaId)
+    }
+
     suspend fun buildEncryptedNoteShareWrapper(noteId: String, keyId: String): ByteArray {
         val keyMaterial = sharedKeyStore.getKeyMaterial(keyId)
             ?: throw IllegalArgumentException("Shared key not found")

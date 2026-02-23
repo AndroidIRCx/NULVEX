@@ -11,10 +11,15 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.openpgp.PGPEncryptedData
 import org.bouncycastle.openpgp.PGPKeyRingGenerator
+import org.bouncycastle.openpgp.PGPPublicKey
+import org.bouncycastle.openpgp.PGPPublicKeyRing
+import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.PGPSignature
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair
+import java.io.ByteArrayInputStream
 import java.security.KeyStore
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
@@ -181,6 +186,42 @@ class SharedKeyStore(context: Context) {
             }
             material.fill(0)
             return payload.toString()
+        }
+        return null
+    }
+
+    fun buildQrTransferPayload(id: String): String? {
+        val array = loadArray()
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            if (obj.optString(KEY_ID) != id) continue
+            val format = obj.optString(KEY_FORMAT, FORMAT_XCHACHA_KEY)
+            val rawMaterial = getKeyMaterial(id) ?: return null
+            return try {
+                val (qrFormat, qrMaterial) = if (format == "pgp_secret") {
+                    val ring = PGPSecretKeyRing(ByteArrayInputStream(rawMaterial), JcaKeyFingerprintCalculator())
+                    val pubKeys = ArrayList<PGPPublicKey>()
+                    val iter = ring.secretKeys
+                    while (iter.hasNext()) pubKeys.add(iter.next().publicKey)
+                    val pubRing = PGPPublicKeyRing(pubKeys)
+                    Pair("pgp_public", pubRing.encoded)
+                } else {
+                    Pair(format, rawMaterial.copyOf())
+                }
+                val payload = JSONObject().apply {
+                    put("v", 1)
+                    put("type", "nulvex-key-share")
+                    put("label", obj.optString(KEY_LABEL, "Shared key"))
+                    put("source", "transfer")
+                    put("format", qrFormat)
+                    put("fingerprint", obj.optString(KEY_FINGERPRINT, ""))
+                    put("material_b64", Base64.encodeToString(qrMaterial, Base64.NO_WRAP))
+                }
+                qrMaterial.fill(0)
+                payload.toString()
+            } finally {
+                rawMaterial.fill(0)
+            }
         }
         return null
     }

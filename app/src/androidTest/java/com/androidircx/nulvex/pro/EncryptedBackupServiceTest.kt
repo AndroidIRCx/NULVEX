@@ -75,6 +75,49 @@ class EncryptedBackupServiceTest {
     }
 
     @Test
+    fun uploadKeyManagerBackup_callsExportAndUploadAndReturnsResult() = runTest {
+        val vaultService = mockk<VaultService>()
+        val sharedKeyStore = mockk<SharedKeyStore>()
+        val backupRegistryStore = mockk<BackupRegistryStore>(relaxed = true)
+        val apiClient = mockk<LaravelMediaApiClient>()
+
+        every { sharedKeyStore.exportManagerBackup(false, null) } returns ByteArray(64) { it.toByte() }
+        every { apiClient.requestUpload(type = "file", mime = "application/octet-stream") } returns UploadRequestToken(
+            id = "km-1",
+            uploadToken = "up-token",
+            expires = 999L,
+            downloadToken = "dl-km",
+            downloadExpires = 1000L
+        )
+        every { apiClient.upload("km-1", "up-token", 999L, any()) } returns true
+
+        val service = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore, apiClient)
+        val result = service.uploadKeyManagerBackup(encrypted = false, password = null)
+
+        assertEquals("km-1", result.mediaId)
+        assertEquals("dl-km", result.downloadPathId)
+        assertTrue(result.url.contains("dl-km"))
+        verify { apiClient.upload("km-1", "up-token", 999L, any()) }
+    }
+
+    @Test
+    fun downloadKeyManagerBackup_delegatesToApiClientDownload() = runTest {
+        val vaultService = mockk<VaultService>()
+        val sharedKeyStore = mockk<SharedKeyStore>()
+        val backupRegistryStore = mockk<BackupRegistryStore>()
+        val apiClient = mockk<LaravelMediaApiClient>()
+
+        val expected = ByteArray(16) { 42 }
+        every { apiClient.download("media-km", null, null) } returns expected
+
+        val service = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore, apiClient)
+        val result = service.downloadKeyManagerBackup("media-km")
+
+        assertTrue(result.contentEquals(expected))
+        verify { apiClient.download("media-km", null, null) }
+    }
+
+    @Test
     fun restoreFromStoredRecord_usesDownloadPathIdAndRecordKey() = runTest {
         val vaultService = mockk<VaultService>()
         val sharedKeyStore = mockk<SharedKeyStore>()
