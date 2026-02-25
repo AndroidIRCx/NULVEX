@@ -53,6 +53,7 @@ import com.androidircx.nulvex.billing.BillingPurchaseState
 import com.androidircx.nulvex.billing.PurchaseUpdateResult
 import com.androidircx.nulvex.billing.PurchaseUpdateStatus
 import com.androidircx.nulvex.i18n.sanitizeLanguageTag
+import com.androidircx.nulvex.reminder.ReminderConstants
 import com.androidircx.nulvex.i18n.tx
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.Dispatchers
@@ -216,8 +217,12 @@ class MainActivity : AppCompatActivity() {
                     onCreateStandaloneLabel = vm::createStandaloneLabel,
                     onSearchQueryChange = vm::updateSearchQuery,
                     onSelectLabel = vm::updateActiveLabel,
+                    onSetShowArchived = vm::setShowArchived,
                     onLoadAttachmentPreview = vm::loadAttachmentPreview,
                     onRemoveAttachment = vm::removeAttachment,
+                    onToggleArchived = vm::toggleArchived,
+                    onSetNoteReminder = vm::setNoteReminder,
+                    onClearNoteReminder = vm::clearNoteReminder,
                     onClearError = vm::clearError,
                     onWatchAdToRemoveAds = {
                         adManager.showRewardedNoAds(this) { amount ->
@@ -255,6 +260,8 @@ class MainActivity : AppCompatActivity() {
                     onStartNfcKeyShare = ::startNfcKeyShare,
                     onNoteEditDraftChanged = vm::notifyNoteEditDraft,
                     onClearNoteEditDraft = vm::clearNoteEditDraft,
+                    onUndoNoteEdit = vm::requestUndoNoteEdit,
+                    onRedoNoteEdit = vm::requestRedoNoteEdit,
                     onNewNoteDraftChanged = vm::notifyNewNoteDraft,
                     onImportIncomingFile = vm::importIncomingFile,
                     onImportIncomingKeyManager = vm::importIncomingKeyManager,
@@ -618,6 +625,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
+        val reminderNoteId = intent?.getStringExtra(ReminderConstants.EXTRA_NOTE_ID)?.trim().orEmpty()
+        val reminderAction = intent?.getStringExtra(ReminderConstants.EXTRA_ACTION)?.trim().orEmpty()
+        if (reminderNoteId.isNotBlank() && reminderAction.isNotBlank()) {
+            vm.handleReminderAction(reminderAction, reminderNoteId)
+            return
+        }
         if (intent?.action != Intent.ACTION_VIEW) return
         val data = intent.data ?: return
         val scheme = data.scheme ?: return
@@ -917,7 +930,7 @@ fun GreetingPreview() {
             onChangeRealPin = { _, _, _ -> },
             onUpdateThemeMode = {},
             onOpenNew = {},
-            onCreate = { _, _, _, _, _, _, _ -> },
+            onCreate = { _, _, _, _, _, _, _, _ -> },
             onOpenNote = {},
             onCloseNote = {},
             onUpdateNoteText = { _, _, _ -> },
@@ -933,8 +946,10 @@ fun GreetingPreview() {
             onRemoveLabel = { _, _ -> },
             onSearchQueryChange = {},
             onSelectLabel = {},
+            onSetShowArchived = {},
             onLoadAttachmentPreview = { _, _ -> },
             onRemoveAttachment = { _, _ -> },
+            onToggleArchived = {},
             onClearError = {},
             onImportSharedKey = { _, _, _ -> },
             onDeleteSharedKey = {},

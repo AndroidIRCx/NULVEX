@@ -5,6 +5,9 @@ import android.content.Context
 class AppPreferences(context: Context) {
     private val prefs = context.getSharedPreferences("nulvex_app_settings", Context.MODE_PRIVATE)
     private val customLabelsKey = "custom_labels"
+    private val reminderSchedulesKey = "reminder_schedules"
+    private val pendingReminderActionKey = "pending_reminder_action"
+    private val pendingReminderNoteIdKey = "pending_reminder_note_id"
 
     fun getLockTimeoutMs(): Long = prefs.getLong("lock_timeout_ms", 60_000L)
 
@@ -98,5 +101,64 @@ class AppPreferences(context: Context) {
         val updated = getCustomLabels().filterNot { it == label.trim() }.sorted()
         prefs.edit().putStringSet(customLabelsKey, updated.toSet()).apply()
         return updated
+    }
+
+    fun upsertReminderSchedule(noteId: String, triggerAt: Long) {
+        if (noteId.isBlank() || triggerAt <= 0L) return
+        val current = getReminderSchedules().toMutableMap()
+        current[noteId] = triggerAt
+        prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
+    }
+
+    fun removeReminderSchedule(noteId: String) {
+        if (noteId.isBlank()) return
+        val current = getReminderSchedules().toMutableMap()
+        current.remove(noteId)
+        prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
+    }
+
+    fun clearReminderSchedules() {
+        prefs.edit().remove(reminderSchedulesKey).apply()
+    }
+
+    fun getReminderSchedules(): Map<String, Long> {
+        val raw = prefs.getStringSet(reminderSchedulesKey, emptySet()) ?: emptySet()
+        val result = linkedMapOf<String, Long>()
+        raw.forEach { entry ->
+            val idx = entry.indexOf("::")
+            if (idx <= 0) return@forEach
+            val noteId = entry.substring(0, idx)
+            val trigger = entry.substring(idx + 2).toLongOrNull() ?: return@forEach
+            if (noteId.isNotBlank() && trigger > 0L) {
+                result[noteId] = trigger
+            }
+        }
+        return result
+    }
+
+    fun setPendingReminderAction(action: String, noteId: String) {
+        if (action.isBlank() || noteId.isBlank()) return
+        prefs.edit()
+            .putString(pendingReminderActionKey, action)
+            .putString(pendingReminderNoteIdKey, noteId)
+            .apply()
+    }
+
+    fun getPendingReminderAction(): Pair<String, String>? {
+        val action = prefs.getString(pendingReminderActionKey, null)?.trim().orEmpty()
+        val noteId = prefs.getString(pendingReminderNoteIdKey, null)?.trim().orEmpty()
+        if (action.isBlank() || noteId.isBlank()) return null
+        return action to noteId
+    }
+
+    fun clearPendingReminderAction() {
+        prefs.edit()
+            .remove(pendingReminderActionKey)
+            .remove(pendingReminderNoteIdKey)
+            .apply()
+    }
+
+    private fun encodeReminderSchedules(entries: Map<String, Long>): Set<String> {
+        return entries.map { (noteId, triggerAt) -> "$noteId::$triggerAt" }.toSet()
     }
 }

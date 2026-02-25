@@ -191,7 +191,7 @@ fun MainScreen(
     onUpdateThemeMode: (ThemeMode) -> Unit,
     onUpdateLanguage: (String) -> Unit = {},
     onOpenNew: () -> Unit,
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean) -> Unit,
+    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean, Long?) -> Unit,
     onOpenNote: (String) -> Unit,
     onCloseNote: () -> Unit,
     onUpdateNoteText: (String, String, Long?) -> Unit,
@@ -209,8 +209,12 @@ fun MainScreen(
     onCreateStandaloneLabel: (String) -> Unit = {},
     onSearchQueryChange: (String) -> Unit,
     onSelectLabel: (String?) -> Unit,
+    onSetShowArchived: (Boolean) -> Unit = {},
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
+    onToggleArchived: (String) -> Unit = {},
+    onSetNoteReminder: (String, Long) -> Unit = { _, _ -> },
+    onClearNoteReminder: (String) -> Unit = {},
     onClearError: () -> Unit,
     onWatchAdToRemoveAds: () -> Unit = {},
     onWatchAdForShares: () -> Unit = {},
@@ -239,6 +243,8 @@ fun MainScreen(
     onStartNfcKeyShare: (String) -> Unit = {},
     onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
     onClearNoteEditDraft: () -> Unit = {},
+    onUndoNoteEdit: (String) -> Unit = {},
+    onRedoNoteEdit: (String) -> Unit = {},
     onNewNoteDraftChanged: (NewNoteDraft?) -> Unit = {},
     onImportIncomingFile: (ByteArray, String, String, Boolean) -> Unit = { _, _, _, _ -> },
     onImportIncomingKeyManager: (ByteArray, String?) -> Unit = { _, _ -> },
@@ -322,7 +328,8 @@ fun MainScreen(
                             onOpenNote = onOpenNote,
                             onTogglePinned = onTogglePinned,
                             onDelete = onDelete,
-                            onSearchQueryChange = onSearchQueryChange
+                            onSearchQueryChange = onSearchQueryChange,
+                            onSetShowArchived = onSetShowArchived
                         )
                         Screen.Settings -> SettingsScreen(
                             state = state,
@@ -391,6 +398,9 @@ fun MainScreen(
                             onShareNote,
                             onDelete,
                             onTogglePinned,
+                            onToggleArchived,
+                            onSetNoteReminder,
+                            onClearNoteReminder,
                             onToggleChecklistItem,
                             onAddChecklistItem,
                             onRemoveChecklistItem,
@@ -399,7 +409,9 @@ fun MainScreen(
                             onLoadAttachmentPreview,
                             onRemoveAttachment,
                             onNoteEditDraftChanged,
-                            onClearNoteEditDraft
+                            onClearNoteEditDraft,
+                            onUndoNoteEdit,
+                            onRedoNoteEdit
                         )
                     }
                 }
@@ -1085,7 +1097,8 @@ private fun VaultScreen(
     onOpenNote: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onSearchQueryChange: (String) -> Unit
+    onSearchQueryChange: (String) -> Unit,
+    onSetShowArchived: (Boolean) -> Unit
 ) {
     var pendingReadOnce by remember { mutableStateOf<Note?>(null) }
     var pendingDelete by remember { mutableStateOf<Note?>(null) }
@@ -1129,6 +1142,13 @@ private fun VaultScreen(
                 onQueryChange = onSearchQueryChange,
                 onCreate = onOpenNew
             )
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip(tx("Active"), !state.showArchived) { onSetShowArchived(false) }
+                Chip(tx("Archived"), state.showArchived) { onSetShowArchived(true) }
+            }
 
             Spacer(modifier = Modifier.height(sectionGap))
 
@@ -3265,6 +3285,13 @@ private fun NoteCard(note: Note, onTogglePinned: (String) -> Unit, onOpen: () ->
                         color = Ember
                     )
                 }
+                if (note.reminderAt != null && !note.reminderDone) {
+                    Text(
+                        text = tx("REMINDER"),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Moss
+                    )
+                }
             }
         }
     }
@@ -3442,7 +3469,7 @@ private fun FeatureHint(icon: ImageVector, text: String) {
 @Composable
 private fun NewNoteScreen(
     state: UiState,
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean) -> Unit,
+    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean, Long?) -> Unit,
     onCancel: () -> Unit,
     defaultExpiry: String,
     defaultReadOnce: Boolean,
@@ -3453,6 +3480,7 @@ private fun NewNoteScreen(
     var readOnce by remember(defaultReadOnce) { mutableStateOf(defaultReadOnce) }
     var expiryChoice by remember(defaultExpiry) { mutableStateOf(defaultExpiry) }
     var customExpiresAt by remember { mutableStateOf<Long?>(null) }
+    var reminderAt by remember { mutableStateOf<Long?>(null) }
     var pinned by remember { mutableStateOf(false) }
     var showChecklist by remember { mutableStateOf(false) }
     var showAttachments by remember { mutableStateOf(false) }
@@ -3502,7 +3530,37 @@ private fun NewNoteScreen(
         ).show()
     }
 
-    LaunchedEffect(content, checklistItems, labels, pinned, expiryChoice, customExpiresAt, readOnce) {
+    fun openReminderPicker() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val cal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, day)
+                            set(Calendar.HOUR_OF_DAY, hour)
+                            set(Calendar.MINUTE, minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        reminderAt = cal.timeInMillis
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    LaunchedEffect(content, checklistItems, labels, pinned, expiryChoice, customExpiresAt, readOnce, reminderAt) {
         val expiresAtMs = when (expiryChoice) {
             "1h" -> System.currentTimeMillis() + 3_600_000L
             "24h" -> System.currentTimeMillis() + 86_400_000L
@@ -3510,7 +3568,7 @@ private fun NewNoteScreen(
             "custom" -> customExpiresAt
             else -> null
         }
-        onDraftChanged(NewNoteDraft(content, checklistItems, labels, pinned, expiresAtMs, readOnce))
+        onDraftChanged(NewNoteDraft(content, checklistItems, labels, pinned, expiresAtMs, readOnce, reminderAt))
     }
 
     Surface(
@@ -3784,6 +3842,28 @@ private fun NewNoteScreen(
                     color = onSurface.copy(alpha = 0.7f)
                 )
             }
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { openReminderPicker() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                ) {
+                    Text(tx("SET REMINDER"))
+                }
+                if (reminderAt != null) {
+                    TextButton(onClick = { reminderAt = null }) {
+                        Text(tx("CLEAR REMINDER"), color = Ember)
+                    }
+                }
+            }
+            if (reminderAt != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    tx("Reminder:") + " " + dateTimeFormatter.format(java.util.Date(reminderAt!!)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.7f)
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             val expiresAt = when (expiryChoice) {
                 "1h" -> System.currentTimeMillis() + 3_600_000L
@@ -3802,7 +3882,7 @@ private fun NewNoteScreen(
                     Text(tx("CANCEL"))
                 }
                 Button(
-                    onClick = { onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce) },
+                    onClick = { onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce, reminderAt) },
                     enabled = !state.isBusy,
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                     modifier = Modifier.weight(1f)
@@ -3823,6 +3903,9 @@ private fun NoteDetailScreen(
     onShareNote: (String) -> Unit,
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
+    onToggleArchived: (String) -> Unit,
+    onSetNoteReminder: (String, Long) -> Unit,
+    onClearNoteReminder: (String) -> Unit,
     onToggleChecklistItem: (String, String) -> Unit,
     onAddChecklistItem: (String, String) -> Unit,
     onRemoveChecklistItem: (String, String) -> Unit,
@@ -3831,7 +3914,9 @@ private fun NoteDetailScreen(
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
     onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
-    onClearNoteEditDraft: () -> Unit = {}
+    onClearNoteEditDraft: () -> Unit = {},
+    onUndoNoteEdit: (String) -> Unit = {},
+    onRedoNoteEdit: (String) -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val note = state.selectedNote
@@ -3896,6 +3981,36 @@ private fun NoteDetailScreen(
         ).show()
     }
 
+    fun openReminderPicker() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val cal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, day)
+                            set(Calendar.HOUR_OF_DAY, hour)
+                            set(Calendar.MINUTE, minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        onSetNoteReminder(note.id, cal.timeInMillis)
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
     val editedExpiresAt = when (expiryChoice) {
         "none" -> null
         "1h" -> System.currentTimeMillis() + 3_600_000L
@@ -3908,6 +4023,14 @@ private fun NoteDetailScreen(
         if (isEditing) {
             onNoteEditDraftChanged(note.id, editText, editedExpiresAt)
         }
+    }
+    LaunchedEffect(state.pendingNoteEdit, isEditing, note.id) {
+        if (!isEditing) return@LaunchedEffect
+        val pending = state.pendingNoteEdit ?: return@LaunchedEffect
+        if (pending.noteId != note.id) return@LaunchedEffect
+        editText = pending.text
+        customExpiresAt = pending.expiresAt
+        expiryChoice = if (pending.expiresAt == null) "none" else "custom"
     }
     Surface(
         shape = RoundedCornerShape(24.dp),
@@ -3945,6 +4068,20 @@ private fun NoteDetailScreen(
                         tint = if (isEditing) Brass else onSurface.copy(alpha = 0.6f)
                     )
                 }
+                if (isEditing) {
+                    IconButton(
+                        onClick = { onUndoNoteEdit(note.id) },
+                        enabled = state.canUndoNoteEdit
+                    ) {
+                        Text(tx("UNDO"), color = if (state.canUndoNoteEdit) Brass else onSurface.copy(alpha = 0.4f))
+                    }
+                    IconButton(
+                        onClick = { onRedoNoteEdit(note.id) },
+                        enabled = state.canRedoNoteEdit
+                    ) {
+                        Text(tx("REDO"), color = if (state.canRedoNoteEdit) Brass else onSurface.copy(alpha = 0.4f))
+                    }
+                }
                 IconButton(onClick = { onTogglePinned(note.id) }) {
                     Icon(
                         imageVector = if (note.pinned) Icons.Filled.Star else Icons.Outlined.StarBorder,
@@ -3952,9 +4089,34 @@ private fun NoteDetailScreen(
                         tint = if (note.pinned) Brass else onSurface.copy(alpha = 0.6f)
                     )
                 }
+                TextButton(onClick = { onToggleArchived(note.id) }) {
+                    Text(if (note.archivedAt == null) tx("ARCHIVE") else tx("UNARCHIVE"), color = Brass)
+                }
                 TextButton(onClick = { onShareNote(note.id) }) {
                     Text(tx("SHARE LINK"), color = Moss)
                 }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { openReminderPicker() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                ) {
+                    Text(tx("SET REMINDER"))
+                }
+                if (note.reminderAt != null) {
+                    TextButton(onClick = { onClearNoteReminder(note.id) }) {
+                        Text(tx("CLEAR REMINDER"), color = Ember)
+                    }
+                }
+            }
+            if (note.reminderAt != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    tx("Reminder:") + " " + dateTimeFormatter.format(java.util.Date(note.reminderAt)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.7f)
+                )
             }
             Spacer(modifier = Modifier.height(10.dp))
             if (isEditing) {

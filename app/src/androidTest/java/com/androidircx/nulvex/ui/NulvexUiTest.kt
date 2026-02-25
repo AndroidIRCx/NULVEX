@@ -54,6 +54,11 @@ class NulvexUiTest {
         onOpenNew: () -> Unit = {},
         onOpenNote: (String) -> Unit = {},
         onDelete: (String) -> Unit = {},
+        onSetShowArchived: (Boolean) -> Unit = {},
+        onToggleArchived: (String) -> Unit = {},
+        onUndoNoteEdit: (String) -> Unit = {},
+        onRedoNoteEdit: (String) -> Unit = {},
+        onClearNoteReminder: (String) -> Unit = {},
         onDeleteSharedKey: (String) -> Unit = {},
         onDeleteSavedBackup: (String) -> Unit = {},
         onRestoreBackup: (String, String, Boolean, String?, Long?) -> Unit = { _, _, _, _, _ -> },
@@ -82,7 +87,7 @@ class NulvexUiTest {
                     onChangeRealPin = { _, _, _ -> },
                     onUpdateThemeMode = {},
                     onOpenNew = onOpenNew,
-                    onCreate = { _, _, _, _, _, _, _ -> },
+                    onCreate = { _, _, _, _, _, _, _, _ -> },
                     onOpenNote = onOpenNote,
                     onCloseNote = {},
                     onUpdateNoteText = { _, _, _ -> },
@@ -97,8 +102,13 @@ class NulvexUiTest {
                     onRemoveLabel = { _, _ -> },
                     onSearchQueryChange = {},
                     onSelectLabel = {},
+                    onSetShowArchived = onSetShowArchived,
                     onLoadAttachmentPreview = { _, _ -> },
                     onRemoveAttachment = { _, _ -> },
+                    onToggleArchived = onToggleArchived,
+                    onUndoNoteEdit = onUndoNoteEdit,
+                    onRedoNoteEdit = onRedoNoteEdit,
+                    onClearNoteReminder = onClearNoteReminder,
                     onClearError = {},
                     onOpenPurchases = onOpenPurchases,
                     onRestorePurchases = onRestorePurchases,
@@ -110,7 +120,11 @@ class NulvexUiTest {
         }
     }
 
-    private fun note(id: String = "1", text: String = "Test note") = Note(
+    private fun note(
+        id: String = "1",
+        text: String = "Test note",
+        reminderAt: Long? = null
+    ) = Note(
         id = id,
         text = text,
         checklist = emptyList(),
@@ -119,7 +133,8 @@ class NulvexUiTest {
         pinned = false,
         createdAt = System.currentTimeMillis(),
         expiresAt = null,
-        readOnce = false
+        readOnce = false,
+        reminderAt = reminderAt
     )
 
     // ---- Onboarding -----------------------------------------------------------
@@ -379,6 +394,115 @@ class NulvexUiTest {
         rule.onNodeWithText("Tap me").performClick()
         rule.waitForIdle()
         assertEquals("abc", openedId)
+    }
+
+    @Test
+    fun vault_archiveTabCallsSetShowArchived() {
+        var showArchived: Boolean? = null
+        show(
+            state = UiState(isSetup = true, screen = Screen.Vault),
+            onSetShowArchived = { showArchived = it }
+        )
+
+        rule.onNodeWithText("Archived").performClick()
+        rule.waitForIdle()
+
+        assertEquals(true, showArchived)
+    }
+
+    @Test
+    fun noteDetail_archiveButtonCallsCallback() {
+        var archivedId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "archive-id", text = "Archive me")
+            ),
+            onToggleArchived = { archivedId = it }
+        )
+
+        rule.onNodeWithText("ARCHIVE").performClick()
+        rule.waitForIdle()
+
+        assertEquals("archive-id", archivedId)
+    }
+
+    @Test
+    fun noteDetail_setReminderButtonIsVisible() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "rem-1", text = "Reminder note")
+            )
+        )
+
+        rule.onNodeWithText("SET REMINDER").assertIsDisplayed()
+    }
+
+    @Test
+    fun noteDetail_clearReminderCallsCallback() {
+        var clearedId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(
+                    id = "rem-2",
+                    text = "Reminder set",
+                    reminderAt = System.currentTimeMillis() + 60_000L
+                )
+            ),
+            onClearNoteReminder = { clearedId = it }
+        )
+
+        rule.onNodeWithText("CLEAR REMINDER").performClick()
+        rule.waitForIdle()
+
+        assertEquals("rem-2", clearedId)
+    }
+
+    @Test
+    fun noteDetail_undoRedoButtonsRespectEnabledFlags() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "undo-1", text = "Editable"),
+                canUndoNoteEdit = false,
+                canRedoNoteEdit = false
+            )
+        )
+
+        rule.onNodeWithContentDescription("Edit note").performClick()
+        rule.onNodeWithText("UNDO").assertIsDisplayed().assertIsNotEnabled()
+        rule.onNodeWithText("REDO").assertIsDisplayed().assertIsNotEnabled()
+    }
+
+    @Test
+    fun noteDetail_undoRedoButtonsCallCallbacksWhenEnabled() {
+        var undoId: String? = null
+        var redoId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "undo-2", text = "Editable"),
+                canUndoNoteEdit = true,
+                canRedoNoteEdit = true
+            ),
+            onUndoNoteEdit = { undoId = it },
+            onRedoNoteEdit = { redoId = it }
+        )
+
+        rule.onNodeWithContentDescription("Edit note").performClick()
+        rule.onNodeWithText("UNDO").assertIsEnabled().performClick()
+        rule.onNodeWithText("REDO").assertIsEnabled().performClick()
+        rule.waitForIdle()
+
+        assertEquals("undo-2", undoId)
+        assertEquals("undo-2", redoId)
     }
 
     // ---- Panic button ---------------------------------------------------------

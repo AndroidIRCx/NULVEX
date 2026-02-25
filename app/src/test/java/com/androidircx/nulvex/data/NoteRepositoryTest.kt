@@ -133,6 +133,20 @@ class NoteRepositoryTest {
     }
 
     @Test
+    fun `listNotes with archived flag queries archived entities`() = runTest {
+        val entities = listOf(
+            NoteEntity("a1", fakeCiphertext, 1000L, null, false, false, archivedAt = 100L),
+            NoteEntity("a2", fakeCiphertext, 2000L, null, false, false, archivedAt = 200L)
+        )
+        coEvery { mockDao.listArchived() } returns entities
+
+        val notes = repo.listNotes(noteKey, archived = true)
+
+        assertEquals(2, notes.size)
+        assertTrue(notes.all { it.archivedAt != null })
+    }
+
+    @Test
     fun `updateNote re-encrypts and overwrites ciphertext`() = runTest {
         val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false)
         coEvery { mockDao.getById("1") } returns entity
@@ -186,5 +200,42 @@ class NoteRepositoryTest {
 
         coVerify(exactly = 0) { mockDao.overwriteCiphertext(any(), any()) }
         coVerify(exactly = 0) { mockDao.softDelete(any()) }
+    }
+
+    @Test
+    fun `setArchived sets timestamp when archiving`() = runTest {
+        val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false)
+        coEvery { mockDao.getById("1") } returns entity
+        coEvery { mockDao.setArchivedAt(eq("1"), any()) } returns 1
+
+        val result = repo.setArchived("1", archived = true)
+
+        assertTrue(result)
+        coVerify { mockDao.setArchivedAt(eq("1"), any()) }
+    }
+
+    @Test
+    fun `setArchived sets null when unarchiving`() = runTest {
+        val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false, archivedAt = 10L)
+        coEvery { mockDao.getById("1") } returns entity
+        coEvery { mockDao.setArchivedAt("1", null) } returns 1
+
+        val result = repo.setArchived("1", archived = false)
+
+        assertTrue(result)
+        coVerify { mockDao.setArchivedAt("1", null) }
+    }
+
+    @Test
+    fun `setReminder updates reminder fields`() = runTest {
+        val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false)
+        val reminderAt = System.currentTimeMillis() + 120_000L
+        coEvery { mockDao.getById("1") } returns entity
+        coEvery { mockDao.setReminder("1", reminderAt, false) } returns 1
+
+        val result = repo.setReminder("1", reminderAt = reminderAt, reminderDone = false)
+
+        assertTrue(result)
+        coVerify { mockDao.setReminder("1", reminderAt, false) }
     }
 }

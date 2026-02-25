@@ -31,11 +31,25 @@ class VaultService(
         attachments: List<NoteAttachment> = emptyList(),
         pinned: Boolean = false,
         expiresAt: Long? = null,
-        readOnce: Boolean = false
+        readOnce: Boolean = false,
+        reminderAt: Long? = null,
+        reminderDone: Boolean = false
     ): String {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.saveNote(id, text, checklist, labels, attachments, pinned, session.noteKey, expiresAt, readOnce)
+        return repo.saveNote(
+            id = id,
+            text = text,
+            checklist = checklist,
+            labels = labels,
+            attachments = attachments,
+            pinned = pinned,
+            noteKey = session.noteKey,
+            expiresAt = expiresAt,
+            readOnce = readOnce,
+            reminderAt = reminderAt,
+            reminderDone = reminderDone
+        )
     }
 
     suspend fun unlock(pin: CharArray, profile: VaultProfile = VaultProfile.REAL) {
@@ -62,10 +76,10 @@ class VaultService(
         return repo.getNoteById(id, session.noteKey)
     }
 
-    suspend fun listNotes(): List<Note> {
+    suspend fun listNotes(archived: Boolean = false): List<Note> {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.listNotes(session.noteKey)
+        return repo.listNotes(session.noteKey, archived)
     }
 
     suspend fun updateNote(note: Note): Boolean {
@@ -81,6 +95,18 @@ class VaultService(
         if (note != null) {
             deleteNoteInternal(note, session)
         }
+    }
+
+    suspend fun setArchived(id: String, archived: Boolean): Boolean {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        return repo.setArchived(id, archived)
+    }
+
+    suspend fun setReminder(id: String, reminderAt: Long?, reminderDone: Boolean): Boolean {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        return repo.setReminder(id, reminderAt, reminderDone)
     }
 
     suspend fun sweepExpired(vacuum: Boolean = false) {
@@ -147,6 +173,8 @@ class VaultService(
                 put("createdAt", note.createdAt)
                 put("expiresAt", note.expiresAt ?: JSONObject.NULL)
                 put("readOnce", note.readOnce)
+                put("reminderAt", note.reminderAt ?: JSONObject.NULL)
+                put("reminderDone", note.reminderDone)
             }
 
             val checklistArray = JSONArray()
@@ -204,6 +232,8 @@ class VaultService(
             put("createdAt", note.createdAt)
             put("expiresAt", note.expiresAt ?: JSONObject.NULL)
             put("readOnce", note.readOnce)
+            put("reminderAt", note.reminderAt ?: JSONObject.NULL)
+            put("reminderDone", note.reminderDone)
         }
         val checklistArray = JSONArray()
         note.checklist.forEach { item ->
@@ -268,6 +298,9 @@ class VaultService(
             val createdAt = noteObj.optLong("createdAt", System.currentTimeMillis())
             val expiresAt = noteObj.optLong("expiresAt").takeIf { noteObj.has("expiresAt") && !noteObj.isNull("expiresAt") }
             val readOnce = noteObj.optBoolean("readOnce", false)
+            val reminderAt = noteObj.optLong("reminderAt")
+                .takeIf { noteObj.has("reminderAt") && !noteObj.isNull("reminderAt") }
+            val reminderDone = noteObj.optBoolean("reminderDone", false)
 
             val checklist = mutableListOf<ChecklistItem>()
             val checklistArray = noteObj.optJSONArray("checklist") ?: JSONArray()
@@ -334,7 +367,10 @@ class VaultService(
                     createdAt = createdAt,
                     expiresAt = expiresAt,
                     readOnce = readOnce,
-                    deleted = false
+                    deleted = false,
+                    archivedAt = null,
+                    reminderAt = reminderAt,
+                    reminderDone = reminderDone
                 )
             )
             imported++

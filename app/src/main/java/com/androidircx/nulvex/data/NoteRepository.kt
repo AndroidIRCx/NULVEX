@@ -16,7 +16,9 @@ class NoteRepository(
         pinned: Boolean = false,
         noteKey: ByteArray,
         expiresAt: Long? = null,
-        readOnce: Boolean = false
+        readOnce: Boolean = false,
+        reminderAt: Long? = null,
+        reminderDone: Boolean = false
     ): String {
         val createdAt = System.currentTimeMillis()
         val payload = NotePayload(
@@ -34,7 +36,9 @@ class NoteRepository(
             createdAt = createdAt,
             expiresAt = expiresAt,
             readOnce = readOnce,
-            deleted = false
+            deleted = false,
+            reminderAt = reminderAt,
+            reminderDone = reminderDone
         )
         noteDao.upsert(entity)
         return id
@@ -47,7 +51,11 @@ class NoteRepository(
     }
 
     suspend fun listNotes(noteKey: ByteArray): List<Note> {
-        val entities = noteDao.listActive()
+        return listNotes(noteKey = noteKey, archived = false)
+    }
+
+    suspend fun listNotes(noteKey: ByteArray, archived: Boolean): List<Note> {
+        val entities = if (archived) noteDao.listArchived() else noteDao.listActive()
         return entities.mapNotNull { entity ->
             if (entity.deleted) return@mapNotNull null
             decodeEntity(entity, noteKey)
@@ -75,6 +83,21 @@ class NoteRepository(
         destroyEntity(entity)
     }
 
+    suspend fun setArchived(id: String, archived: Boolean): Boolean {
+        val entity = noteDao.getById(id) ?: return false
+        if (entity.deleted) return false
+        val archivedAt = if (archived) System.currentTimeMillis() else null
+        noteDao.setArchivedAt(id, archivedAt)
+        return true
+    }
+
+    suspend fun setReminder(id: String, reminderAt: Long?, reminderDone: Boolean): Boolean {
+        val entity = noteDao.getById(id) ?: return false
+        if (entity.deleted) return false
+        noteDao.setReminder(id, reminderAt, reminderDone)
+        return true
+    }
+
     private suspend fun destroyEntity(entity: NoteEntity) {
         val zeroed = ByteArray(entity.ciphertext.size)
         noteDao.overwriteCiphertext(entity.id, zeroed)
@@ -100,7 +123,10 @@ class NoteRepository(
             pinned = payload.pinned,
             createdAt = entity.createdAt,
             expiresAt = entity.expiresAt,
-            readOnce = entity.readOnce
+            readOnce = entity.readOnce,
+            archivedAt = entity.archivedAt,
+            reminderAt = entity.reminderAt,
+            reminderDone = entity.reminderDone
         )
     }
 }

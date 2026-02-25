@@ -17,6 +17,10 @@ object NulvexDatabaseFactory {
         val factory = SupportOpenHelperFactory(passphrase)
         return Room.databaseBuilder(context, NulvexDatabase::class.java, dbName)
             .openHelperFactory(factory)
+            .addMigrations(
+                DatabaseMigrations.MIGRATION_1_2,
+                DatabaseMigrations.MIGRATION_2_3
+            )
             .build()
     }
 }

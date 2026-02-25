@@ -22,7 +22,10 @@ data class Note(
     val pinned: Boolean,
     val createdAt: Long,
     val expiresAt: Long?,
-    val readOnce: Boolean
+    val readOnce: Boolean,
+    val archivedAt: Long? = null,
+    val reminderAt: Long? = null,
+    val reminderDone: Boolean = false
 ) {
     fun matchesQuery(query: String): Boolean {
         if (query.isBlank()) return true

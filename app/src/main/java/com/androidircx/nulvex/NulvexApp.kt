@@ -7,6 +7,8 @@ import com.androidircx.nulvex.i18n.sanitizeLanguageTag
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.androidircx.nulvex.reminder.ReminderNotificationHelper
+import com.androidircx.nulvex.reminder.ReminderRequest
 import com.androidircx.nulvex.security.AppPreferences
 import com.androidircx.nulvex.work.SelfDestructWorker
 import com.google.android.gms.ads.MobileAds
@@ -19,6 +21,8 @@ class NulvexApp : Application() {
         VaultServiceLocator.init(this)
         MobileAds.initialize(this)
         scheduleSelfDestructWork()
+        ReminderNotificationHelper.ensureChannel(this)
+        reschedulePersistedReminders()
     }
 
     private fun applySavedLanguage() {
@@ -39,5 +43,20 @@ class NulvexApp : Application() {
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
+    }
+
+    private fun reschedulePersistedReminders() {
+        val prefs = AppPreferences(this)
+        val scheduler = VaultServiceLocator.noteReminderScheduler()
+        prefs.getReminderSchedules().forEach { (noteId, triggerAt) ->
+            scheduler.schedule(
+                ReminderRequest(
+                    noteId = noteId,
+                    triggerAtEpochMillis = triggerAt,
+                    title = "Note reminder",
+                    preview = ""
+                )
+            )
+        }
     }
 }

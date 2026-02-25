@@ -35,14 +35,20 @@ class NoteDaoTest {
         ciphertext: ByteArray = ByteArray(16),
         expiresAt: Long? = null,
         deleted: Boolean = false,
-        readOnce: Boolean = false
+        readOnce: Boolean = false,
+        archivedAt: Long? = null,
+        reminderAt: Long? = null,
+        reminderDone: Boolean = false
     ) = NoteEntity(
         id = id,
         ciphertext = ciphertext,
         createdAt = System.currentTimeMillis(),
         expiresAt = expiresAt,
         readOnce = readOnce,
-        deleted = deleted
+        deleted = deleted,
+        archivedAt = archivedAt,
+        reminderAt = reminderAt,
+        reminderDone = reminderDone
     )
 
     @Test
@@ -82,9 +88,24 @@ class NoteDaoTest {
         dao.upsert(note("active1"))
         dao.upsert(note("active2"))
         dao.upsert(note("deleted1", deleted = true))
+        dao.upsert(note("archived", archivedAt = System.currentTimeMillis()))
         val active = dao.listActive()
         assertEquals(2, active.size)
         assertTrue(active.none { it.deleted })
+        assertTrue(active.none { it.archivedAt != null })
+    }
+
+    @Test
+    fun listArchivedReturnsOnlyArchivedAndNonDeletedNotes() = runTest {
+        dao.upsert(note("active"))
+        dao.upsert(note("archived1", archivedAt = System.currentTimeMillis()))
+        dao.upsert(note("archived2", archivedAt = System.currentTimeMillis()))
+        dao.upsert(note("archived-deleted", archivedAt = System.currentTimeMillis(), deleted = true))
+
+        val archived = dao.listArchived()
+
+        assertEquals(2, archived.size)
+        assertTrue(archived.all { it.archivedAt != null && !it.deleted })
     }
 
     @Test
@@ -178,5 +199,46 @@ class NoteDaoTest {
         dao.upsert(note("no-exp", expiresAt = null))
         val result = dao.getById("no-exp")
         assertNull(result!!.expiresAt)
+    }
+
+    @Test
+    fun setArchivedAtPersistsArchiveTimestamp() = runTest {
+        dao.upsert(note("n1"))
+        val ts = System.currentTimeMillis()
+        dao.setArchivedAt("n1", ts)
+        val result = dao.getById("n1")
+        assertEquals(ts, result!!.archivedAt)
+    }
+
+    @Test
+    fun setArchivedAtNullUnarchivesNote() = runTest {
+        dao.upsert(note("n1", archivedAt = System.currentTimeMillis()))
+        dao.setArchivedAt("n1", null)
+        val result = dao.getById("n1")
+        assertNull(result!!.archivedAt)
+    }
+
+    @Test
+    fun setReminderPersistsReminderFields() = runTest {
+        dao.upsert(note("n1"))
+        val ts = System.currentTimeMillis() + 60_000L
+        dao.setReminder("n1", ts, reminderDone = false)
+        val result = dao.getById("n1")
+        assertEquals(ts, result!!.reminderAt)
+        assertFalse(result.reminderDone)
+    }
+
+    @Test
+    fun listDueRemindersReturnsOnlyDueAndUndoneNotes() = runTest {
+        val now = System.currentTimeMillis()
+        dao.upsert(note("due", reminderAt = now - 1_000L, reminderDone = false))
+        dao.upsert(note("future", reminderAt = now + 60_000L, reminderDone = false))
+        dao.upsert(note("done", reminderAt = now - 1_000L, reminderDone = true))
+        dao.upsert(note("deleted", reminderAt = now - 1_000L, reminderDone = false, deleted = true))
+
+        val due = dao.listDueReminders(now)
+
+        assertEquals(1, due.size)
+        assertEquals("due", due[0].id)
     }
 }
