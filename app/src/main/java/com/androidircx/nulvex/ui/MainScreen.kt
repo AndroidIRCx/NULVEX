@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +52,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
@@ -93,6 +104,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -135,6 +147,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.AnnotatedString
@@ -150,10 +163,13 @@ import com.androidircx.nulvex.ui.theme.Sand
 import com.androidircx.nulvex.ui.theme.ThemeMode
 import kotlin.math.max
 import android.net.Uri
+import android.content.Intent
 import android.provider.OpenableColumns
 import android.graphics.Bitmap
+import android.app.Activity
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.speech.RecognizerIntent
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
@@ -191,12 +207,21 @@ fun MainScreen(
     onUpdateThemeMode: (ThemeMode) -> Unit,
     onUpdateLanguage: (String) -> Unit = {},
     onOpenNew: () -> Unit,
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean) -> Unit,
+    onQuickCreate: (QuickCreateType) -> Unit = {},
+    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean, Long?) -> Unit,
     onOpenNote: (String) -> Unit,
+    onOpenLinkedNote: (String) -> Unit = {},
+    onToggleNoteSelection: (String) -> Unit = {},
+    onClearNoteSelection: () -> Unit = {},
+    onBulkArchiveSelected: () -> Unit = {},
+    onBulkDeleteSelected: () -> Unit = {},
+    onBulkAddLabelSelected: (String) -> Unit = {},
+    onBulkSetReminderSelected: (Long) -> Unit = {},
     onCloseNote: () -> Unit,
     onUpdateNoteText: (String, String, Long?) -> Unit,
     onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit = { _, _, _, _, _ -> },
     onShareNote: (String) -> Unit = {},
+    onExportNoteFile: (String) -> Unit = {},
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
     onToggleChecklistItem: (String, String) -> Unit,
@@ -209,8 +234,16 @@ fun MainScreen(
     onCreateStandaloneLabel: (String) -> Unit = {},
     onSearchQueryChange: (String) -> Unit,
     onSelectLabel: (String?) -> Unit,
+    onSetShowArchived: (Boolean) -> Unit = {},
+    onSetShowTrash: (Boolean) -> Unit = {},
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
+    onToggleArchived: (String) -> Unit = {},
+    onRestoreNoteFromTrash: (String) -> Unit = {},
+    onSetNoteReminder: (String, Long) -> Unit = { _, _ -> },
+    onSetNoteReminderRepeat: (String, String?) -> Unit = { _, _ -> },
+    onClearNoteReminder: (String) -> Unit = {},
+    onRestoreNoteRevision: (String, String) -> Unit = { _, _ -> },
     onClearError: () -> Unit,
     onWatchAdToRemoveAds: () -> Unit = {},
     onWatchAdForShares: () -> Unit = {},
@@ -239,6 +272,8 @@ fun MainScreen(
     onStartNfcKeyShare: (String) -> Unit = {},
     onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
     onClearNoteEditDraft: () -> Unit = {},
+    onUndoNoteEdit: (String) -> Unit = {},
+    onRedoNoteEdit: (String) -> Unit = {},
     onNewNoteDraftChanged: (NewNoteDraft?) -> Unit = {},
     onImportIncomingFile: (ByteArray, String, String, Boolean) -> Unit = { _, _, _, _ -> },
     onImportIncomingKeyManager: (ByteArray, String?) -> Unit = { _, _ -> },
@@ -319,10 +354,19 @@ fun MainScreen(
                         Screen.Vault -> VaultScreen(
                             state = state,
                             onOpenNew = onOpenNew,
+                            onQuickCreate = onQuickCreate,
                             onOpenNote = onOpenNote,
+                            onToggleNoteSelection = onToggleNoteSelection,
+                            onClearNoteSelection = onClearNoteSelection,
+                            onBulkArchiveSelected = onBulkArchiveSelected,
+                            onBulkDeleteSelected = onBulkDeleteSelected,
+                            onBulkAddLabelSelected = onBulkAddLabelSelected,
+                            onBulkSetReminderSelected = onBulkSetReminderSelected,
                             onTogglePinned = onTogglePinned,
                             onDelete = onDelete,
-                            onSearchQueryChange = onSearchQueryChange
+                            onSearchQueryChange = onSearchQueryChange,
+                            onSetShowArchived = onSetShowArchived,
+                            onSetShowTrash = onSetShowTrash
                         )
                         Screen.Settings -> SettingsScreen(
                             state = state,
@@ -386,11 +430,19 @@ fun MainScreen(
                         Screen.NoteDetail -> NoteDetailScreen(
                             state,
                             onCloseNote,
+                            onOpenLinkedNote,
                             onUpdateNoteText,
                             onSaveEditedNote,
                             onShareNote,
+                            onExportNoteFile,
                             onDelete,
                             onTogglePinned,
+                            onToggleArchived,
+                            onRestoreNoteFromTrash,
+                            onSetNoteReminder,
+                            onSetNoteReminderRepeat,
+                            onClearNoteReminder,
+                            onRestoreNoteRevision,
                             onToggleChecklistItem,
                             onAddChecklistItem,
                             onRemoveChecklistItem,
@@ -399,7 +451,9 @@ fun MainScreen(
                             onLoadAttachmentPreview,
                             onRemoveAttachment,
                             onNoteEditDraftChanged,
-                            onClearNoteEditDraft
+                            onClearNoteEditDraft,
+                            onUndoNoteEdit,
+                            onRedoNoteEdit
                         )
                     }
                 }
@@ -541,11 +595,17 @@ internal fun resolveRemoteMediaIdInput(rawInput: String): String {
     val trimmed = rawInput.trim()
     if (trimmed.isBlank()) return ""
     val marker = "/api/media/download/"
-    return if (trimmed.contains(marker)) {
+    val candidate = if (trimmed.contains(marker)) {
         trimmed.substringAfter(marker).substringBefore("?").substringBefore("#").trim().trim('/')
     } else {
         trimmed
     }
+    val normalized = candidate.trim()
+    if (normalized.isBlank()) return ""
+    if (normalized.contains("..")) return ""
+    if (normalized.contains("/") || normalized.contains("\\")) return ""
+    if (!Regex("^[A-Za-z0-9._-]{1,200}$").matches(normalized)) return ""
+    return normalized
 }
 
 @Composable
@@ -1072,9 +1132,61 @@ private fun UnlockScreen(
 }
 
 private enum class SortMode(val label: String) {
-    NEWEST("Newest"),
-    OLDEST("Oldest"),
-    EXPIRING("Expiring soon")
+    RECENTLY_EDITED("Recently edited"),
+    EXPIRING_SOON("Expiring soon"),
+    REMINDER_DUE("Reminder due"),
+    PINNED_FIRST("Pinned first")
+}
+
+private enum class CreatedRangeFilter {
+    ANY,
+    LAST_24H,
+    LAST_7D,
+    LAST_30D
+}
+
+private const val DAY_MS = 24L * 60L * 60L * 1000L
+
+private fun dayStart(epochMillis: Long): Long {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = epochMillis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    return cal.timeInMillis
+}
+
+private fun computeBestCreationStreak(notes: List<Note>): Int {
+    val days = notes.map { dayStart(it.createdAt) }.distinct().sorted()
+    if (days.isEmpty()) return 0
+    var best = 1
+    var current = 1
+    for (i in 1 until days.size) {
+        if (days[i] - days[i - 1] == DAY_MS) {
+            current += 1
+        } else {
+            current = 1
+        }
+        if (current > best) best = current
+    }
+    return best
+}
+
+private fun computeCurrentCreationStreak(notes: List<Note>, nowMillis: Long): Int {
+    val daySet = notes.map { dayStart(it.createdAt) }.toSet()
+    if (daySet.isEmpty()) return 0
+    var cursor = dayStart(nowMillis)
+    if (!daySet.contains(cursor) && daySet.contains(cursor - DAY_MS)) {
+        cursor -= DAY_MS
+    }
+    var streak = 0
+    while (daySet.contains(cursor)) {
+        streak += 1
+        cursor -= DAY_MS
+    }
+    return streak
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -1082,19 +1194,35 @@ private enum class SortMode(val label: String) {
 private fun VaultScreen(
     state: UiState,
     onOpenNew: () -> Unit,
+    onQuickCreate: (QuickCreateType) -> Unit,
     onOpenNote: (String) -> Unit,
+    onToggleNoteSelection: (String) -> Unit,
+    onClearNoteSelection: () -> Unit,
+    onBulkArchiveSelected: () -> Unit,
+    onBulkDeleteSelected: () -> Unit,
+    onBulkAddLabelSelected: (String) -> Unit,
+    onBulkSetReminderSelected: (Long) -> Unit,
     onTogglePinned: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onSearchQueryChange: (String) -> Unit
+    onSearchQueryChange: (String) -> Unit,
+    onSetShowArchived: (Boolean) -> Unit,
+    onSetShowTrash: (Boolean) -> Unit
 ) {
     var pendingReadOnce by remember { mutableStateOf<Note?>(null) }
     var pendingDelete by remember { mutableStateOf<Note?>(null) }
-    var sortMode by remember { mutableStateOf(SortMode.NEWEST) }
+    var sortMode by remember { mutableStateOf(SortMode.RECENTLY_EDITED) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var hasReminderOnly by remember { mutableStateOf(false) }
+    var createdRange by remember { mutableStateOf(CreatedRangeFilter.ANY) }
+    var groupByLabel by remember { mutableStateOf(false) }
+    var showCalendarView by remember { mutableStateOf(false) }
+    var showBulkLabelDialog by remember { mutableStateOf(false) }
+    var bulkLabelInput by remember { mutableStateOf("") }
     val sortLabels = mapOf(
-        SortMode.NEWEST to tx("Newest"),
-        SortMode.OLDEST to tx("Oldest"),
-        SortMode.EXPIRING to tx("Expiring soon")
+        SortMode.RECENTLY_EDITED to stringResource(R.string.notes_sort_recently_edited),
+        SortMode.EXPIRING_SOON to stringResource(R.string.notes_sort_expiring_soon),
+        SortMode.REMINDER_DUE to stringResource(R.string.notes_sort_reminder_due),
+        SortMode.PINNED_FIRST to stringResource(R.string.notes_sort_pinned_first)
     )
 
     BoxWithConstraints {
@@ -1104,33 +1232,184 @@ private fun VaultScreen(
         val listTopPadding = if (compact) 16.dp else 20.dp
         val onSurface = MaterialTheme.colorScheme.onSurface
 
-        val filteredNotes = state.notes
+        val sortedNotes = state.notes
             .filter { note ->
                 note.matchesQuery(state.searchQuery) &&
-                    (state.activeLabel == null || note.labels.contains(state.activeLabel))
+                    (state.activeLabel == null || note.labels.contains(state.activeLabel)) &&
+                    (!hasReminderOnly || (note.reminderAt != null && !note.reminderDone)) &&
+                    when (createdRange) {
+                        CreatedRangeFilter.ANY -> true
+                        CreatedRangeFilter.LAST_24H -> note.createdAt >= System.currentTimeMillis() - 24L * 60L * 60L * 1000L
+                        CreatedRangeFilter.LAST_7D -> note.createdAt >= System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
+                        CreatedRangeFilter.LAST_30D -> note.createdAt >= System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L
+                    }
             }
             .let { notes ->
                 when (sortMode) {
-                    SortMode.NEWEST -> notes.sortedByDescending { it.createdAt }
-                    SortMode.OLDEST -> notes.sortedBy { it.createdAt }
-                    SortMode.EXPIRING -> notes.sortedBy { it.expiresAt ?: Long.MAX_VALUE }
+                    SortMode.RECENTLY_EDITED -> notes.sortedByDescending { it.updatedAt }
+                    SortMode.EXPIRING_SOON -> notes.sortedBy { it.expiresAt ?: Long.MAX_VALUE }
+                    SortMode.REMINDER_DUE -> notes.sortedBy { it.reminderAt ?: Long.MAX_VALUE }
+                    SortMode.PINNED_FIRST -> notes.sortedWith(
+                        compareByDescending<Note> { it.pinned }.thenByDescending { it.updatedAt }
+                    )
                 }
             }
-        val (pinnedNotes, otherNotes) = filteredNotes.partition { it.pinned }
+        val (pinnedNotes, otherNotes) = sortedNotes.partition { it.pinned }
 
         // Statistics
-        val readOnceCount = filteredNotes.count { it.readOnce }
-        val expiringCount = filteredNotes.count { it.expiresAt != null }
-        val nextExpiry = filteredNotes.mapNotNull { it.expiresAt }.minOrNull()
+        val readOnceCount = sortedNotes.count { it.readOnce }
+        val expiringCount = sortedNotes.count { it.expiresAt != null }
+        val nextExpiry = sortedNotes.mapNotNull { it.expiresAt }.minOrNull()
 
         Column {
             SearchBar(
                 query = state.searchQuery,
                 onQueryChange = onSearchQueryChange,
-                onCreate = onOpenNew
+                onCreate = onOpenNew,
+                onQuickCreate = onQuickCreate
             )
 
             Spacer(modifier = Modifier.height(sectionGap))
+
+            if (state.selectedNoteIds.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = onSurface.copy(alpha = 0.07f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            tx("{count} selected").replace("{count}", state.selectedNoteIds.size.toString()),
+                            color = onSurface,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = onBulkArchiveSelected) {
+                            Icon(Icons.Filled.Archive, contentDescription = stringResource(R.string.notes_cd_archive_selected), tint = Brass)
+                        }
+                        IconButton(onClick = onBulkDeleteSelected) {
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.notes_cd_delete_selected), tint = Ember)
+                        }
+                        IconButton(onClick = { showBulkLabelDialog = true }) {
+                            Icon(Icons.AutoMirrored.Filled.Label, contentDescription = stringResource(R.string.notes_cd_label_selected), tint = Moss)
+                        }
+                        IconButton(onClick = { onBulkSetReminderSelected(System.currentTimeMillis() + 3_600_000L) }) {
+                            Icon(Icons.Filled.Schedule, contentDescription = stringResource(R.string.notes_cd_reminder_plus_1h), tint = Moss)
+                        }
+                        IconButton(onClick = onClearNoteSelection) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.notes_cd_clear_selection), tint = onSurface.copy(alpha = 0.7f))
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(sectionGap))
+            }
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Chip(stringResource(R.string.notes_tab_active), !state.showArchived && !state.showTrash) {
+                    onSetShowTrash(false)
+                    onSetShowArchived(false)
+                }
+                Chip(stringResource(R.string.notes_tab_archived), state.showArchived && !state.showTrash) {
+                    onSetShowTrash(false)
+                    onSetShowArchived(true)
+                }
+                Chip(stringResource(R.string.notes_tab_trash), state.showTrash) {
+                    onSetShowTrash(true)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Chip(stringResource(R.string.notes_filter_has_reminder), hasReminderOnly) { hasReminderOnly = !hasReminderOnly }
+                Chip(stringResource(R.string.notes_filter_group_by_label), groupByLabel) { groupByLabel = !groupByLabel }
+                Chip(stringResource(R.string.notes_filter_calendar), showCalendarView) { showCalendarView = !showCalendarView }
+                Chip(
+                    when (createdRange) {
+                        CreatedRangeFilter.ANY -> tx("Any date")
+                        CreatedRangeFilter.LAST_24H -> tx("Last 24h")
+                        CreatedRangeFilter.LAST_7D -> tx("Last 7d")
+                        CreatedRangeFilter.LAST_30D -> tx("Last 30d")
+                    },
+                    createdRange != CreatedRangeFilter.ANY
+                ) {
+                    createdRange = when (createdRange) {
+                        CreatedRangeFilter.ANY -> CreatedRangeFilter.LAST_24H
+                        CreatedRangeFilter.LAST_24H -> CreatedRangeFilter.LAST_7D
+                        CreatedRangeFilter.LAST_7D -> CreatedRangeFilter.LAST_30D
+                        CreatedRangeFilter.LAST_30D -> CreatedRangeFilter.ANY
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            val now = System.currentTimeMillis()
+            val createdToday = sortedNotes.count { it.createdAt >= now - 24L * 60L * 60L * 1000L }
+            val createdWeek = sortedNotes.count { it.createdAt >= now - 7L * 24L * 60L * 60L * 1000L }
+            val dueToday = sortedNotes.count { it.reminderAt != null && it.reminderAt <= now + 24L * 60L * 60L * 1000L }
+            val currentStreak = computeCurrentCreationStreak(sortedNotes, now)
+            val bestStreak = computeBestCreationStreak(sortedNotes)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                VaultBadge(text = stringResource(R.string.notes_badge_today_prefix) + " $createdToday", tint = Moss)
+                VaultBadge(text = stringResource(R.string.notes_badge_7d_prefix) + " $createdWeek", tint = Brass)
+                VaultBadge(text = stringResource(R.string.notes_badge_due_soon_prefix) + " $dueToday", tint = Ember)
+                if (currentStreak > 0) {
+                    VaultBadge(text = stringResource(R.string.notes_badge_streak_prefix) + " $currentStreak", tint = Moss)
+                }
+                if (bestStreak > 1) {
+                    VaultBadge(text = tx("Best:") + " $bestStreak", tint = Sand)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(sectionGap))
+
+            if (showCalendarView) {
+                val dateKeyFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+                val events = buildList {
+                    sortedNotes.forEach { n ->
+                        n.reminderAt?.let { add(Triple(it, tx("Reminder"), n)) }
+                        n.expiresAt?.let { add(Triple(it, tx("Expiry"), n)) }
+                    }
+                }.sortedBy { it.first }
+                if (events.isEmpty()) {
+                    Text(tx("No reminder/expiry events"), color = onSurface.copy(alpha = 0.7f))
+                } else {
+                    val groupedEvents = events.groupBy { dateKeyFmt.format(java.util.Date(it.first)) }
+                    groupedEvents.forEach { (day, dayEvents) ->
+                        SectionLabel(day)
+                        dayEvents.forEach { event ->
+                            val title = event.third.text.lineSequence().firstOrNull { it.trim().isNotBlank() }?.trim().orEmpty()
+                            Text(
+                                text = "${timeFmt.format(java.util.Date(event.first))}  ${event.second}: ${if (title.isBlank()) event.third.id else title}",
+                                color = onSurface.copy(alpha = 0.85f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(sectionGap))
+            }
 
             // Stats and sort row
             Row(
@@ -1140,7 +1419,11 @@ private fun VaultScreen(
             ) {
                 // Badges
                 Row(horizontalArrangement = Arrangement.spacedBy(badgeSpacing)) {
-                    val notesBadge = tx("{count} notes").replace("{count}", filteredNotes.size.toString())
+                    val notesBadge = pluralStringResource(
+                        id = R.plurals.notes_count,
+                        count = sortedNotes.size,
+                        sortedNotes.size
+                    )
                     VaultBadge(text = notesBadge, tint = Sand)
                     if (readOnceCount > 0) {
                         VaultBadge(text = "$readOnceCount ${tx("burn")}", tint = Brass)
@@ -1208,7 +1491,7 @@ private fun VaultScreen(
                 EmptyVaultState(onOpenNew)
                 return@BoxWithConstraints
             }
-            if (filteredNotes.isEmpty()) {
+            if (sortedNotes.isEmpty()) {
                 EmptySearchState()
                 return@BoxWithConstraints
             }
@@ -1217,13 +1500,50 @@ private fun VaultScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(top = listTopPadding, bottom = 16.dp)
             ) {
-                if (pinnedNotes.isNotEmpty()) {
-                    item(key = "pinned_header") {
-                        SectionLabel("Pinned")
+                if (groupByLabel) {
+                    val grouped = sortedNotes
+                        .groupBy { it.labels.firstOrNull()?.trim().orEmpty().ifBlank { "Unlabeled" } }
+                        .toSortedMap()
+                    grouped.forEach { (groupName, notesInGroup) ->
+                        item(key = "group_header_$groupName") { SectionLabel(groupName) }
+                        val groupedOrdered = notesInGroup.partition { it.pinned }.let { it.first + it.second }
+                        items(groupedOrdered, key = { "${groupName}_${it.id}" }) { note ->
+                            SwipeableNoteCard(
+                                note = note,
+                                selected = state.selectedNoteIds.contains(note.id),
+                                selectionMode = state.selectedNoteIds.isNotEmpty(),
+                                onToggleSelection = { onToggleNoteSelection(note.id) },
+                                onTogglePinned = onTogglePinned,
+                                onDelete = { pendingDelete = note },
+                                onOpen = {
+                                    if (note.readOnce) {
+                                        pendingReadOnce = note
+                                    } else {
+                                        onOpenNote(note.id)
+                                    }
+                                },
+                                modifier = Modifier.animateItem()
+                            )
+                        }
                     }
-                    items(pinnedNotes, key = { it.id }) { note ->
+                } else {
+                    if (sortMode == SortMode.PINNED_FIRST && pinnedNotes.isNotEmpty()) {
+                        item(key = "pinned_header") { SectionLabel("Pinned") }
+                    }
+                    val notesToRender = if (sortMode == SortMode.PINNED_FIRST) {
+                        pinnedNotes + otherNotes
+                    } else {
+                        sortedNotes
+                    }
+                    items(notesToRender, key = { it.id }) { note ->
+                        if (sortMode == SortMode.PINNED_FIRST && note == otherNotes.firstOrNull()) {
+                            SectionLabel(if (pinnedNotes.isEmpty()) tx("Notes") else tx("Others"))
+                        }
                         SwipeableNoteCard(
                             note = note,
+                            selected = state.selectedNoteIds.contains(note.id),
+                            selectionMode = state.selectedNoteIds.isNotEmpty(),
+                            onToggleSelection = { onToggleNoteSelection(note.id) },
                             onTogglePinned = onTogglePinned,
                             onDelete = { pendingDelete = note },
                             onOpen = {
@@ -1237,28 +1557,38 @@ private fun VaultScreen(
                         )
                     }
                 }
-                if (otherNotes.isNotEmpty()) {
-                    item(key = "others_header") {
-                        SectionLabel(if (pinnedNotes.isEmpty()) tx("Notes") else tx("Others"))
-                    }
-                }
-                items(otherNotes, key = { it.id }) { note ->
-                    SwipeableNoteCard(
-                        note = note,
-                        onTogglePinned = onTogglePinned,
-                        onDelete = { pendingDelete = note },
-                        onOpen = {
-                            if (note.readOnce) {
-                                pendingReadOnce = note
-                            } else {
-                                onOpenNote(note.id)
-                            }
-                        },
-                        modifier = Modifier.animateItem()
-                    )
-                }
             }
         }
+    }
+
+    if (showBulkLabelDialog) {
+        AlertDialog(
+            onDismissRequest = { showBulkLabelDialog = false },
+            title = { Text(tx("Add label to selected")) },
+            text = {
+                OutlinedTextField(
+                    value = bulkLabelInput,
+                    onValueChange = { bulkLabelInput = it },
+                    singleLine = true,
+                    label = { Text(tx("Label")) }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onBulkAddLabelSelected(bulkLabelInput)
+                        bulkLabelInput = ""
+                        showBulkLabelDialog = false
+                    },
+                    enabled = bulkLabelInput.isNotBlank()
+                ) { Text(tx("APPLY"), color = Brass) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkLabelDialog = false }) {
+                    Text(tx("CANCEL"))
+                }
+            }
+        )
     }
 
     // Read-once confirmation dialog
@@ -1317,9 +1647,15 @@ private fun VaultScreen(
     if (pendingDelete != null) {
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text(tx("Delete note?"), color = MaterialTheme.colorScheme.onSurface) },
+            title = {
+                Text(
+                    if (state.showTrash) tx("Delete permanently?") else tx("Move to trash?"),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
             text = {
-                Text(tx("This action cannot be undone."),
+                Text(
+                    if (state.showTrash) tx("This action cannot be undone.") else tx("The note will stay in Trash for 7 days."),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
             },
@@ -1348,6 +1684,9 @@ private fun VaultScreen(
 @Composable
 private fun SwipeableNoteCard(
     note: Note,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onToggleSelection: () -> Unit,
     onTogglePinned: (String) -> Unit,
     onDelete: () -> Unit,
     onOpen: () -> Unit,
@@ -1407,7 +1746,14 @@ private fun SwipeableNoteCard(
         },
         modifier = modifier
     ) {
-        NoteCard(note = note, onTogglePinned = onTogglePinned, onOpen = onOpen)
+        NoteCard(
+            note = note,
+            selected = selected,
+            selectionMode = selectionMode,
+            onToggleSelection = onToggleSelection,
+            onTogglePinned = onTogglePinned,
+            onOpen = onOpen
+        )
     }
 }
 
@@ -1760,7 +2106,10 @@ private fun SettingsScreen(
                 ) {
                     Text(tx("Theme"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
                         Chip(tx("System"), state.themeMode == ThemeMode.SYSTEM) { onUpdateThemeMode(ThemeMode.SYSTEM) }
                         Chip(tx("Dark"), state.themeMode == ThemeMode.DARK) { onUpdateThemeMode(ThemeMode.DARK) }
                         Chip(tx("Light"), state.themeMode == ThemeMode.LIGHT) { onUpdateThemeMode(ThemeMode.LIGHT) }
@@ -1768,7 +2117,10 @@ private fun SettingsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(stringResource(R.string.settings_language_title), style = MaterialTheme.typography.labelLarge, color = onSurface)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
                         Chip(stringResource(R.string.settings_language_system), state.languageTag == "system") { onUpdateLanguage("system") }
                         Chip(tx("English"), state.languageTag == "en") { onUpdateLanguage("en") }
                         Chip(tx("Serbian"), state.languageTag == "sr") { onUpdateLanguage("sr") }
@@ -1789,11 +2141,11 @@ private fun SettingsScreen(
                 Text(tx("Auto-lock timeout"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
                 val timeoutOptions = listOf(
-                    "Off" to 0L,
-                    "30s" to 30_000L,
-                    "1m" to 60_000L,
-                    "5m" to 300_000L,
-                    "10m" to 600_000L
+                    stringResource(R.string.settings_lock_timeout_off) to 0L,
+                    stringResource(R.string.settings_lock_timeout_30s) to 30_000L,
+                    stringResource(R.string.settings_lock_timeout_1m) to 60_000L,
+                    stringResource(R.string.settings_lock_timeout_5m) to 300_000L,
+                    stringResource(R.string.settings_lock_timeout_10m) to 600_000L
                 )
                 val timeoutScroll = rememberScrollState()
                 Row(
@@ -1801,7 +2153,7 @@ private fun SettingsScreen(
                     modifier = Modifier.horizontalScroll(timeoutScroll)
                 ) {
                     timeoutOptions.forEach { (label, value) ->
-                        Chip(tx(label), state.lockTimeoutMs == value) { onUpdateLockTimeout(value) }
+                        Chip(label, state.lockTimeoutMs == value) { onUpdateLockTimeout(value) }
                     }
                 }
 
@@ -3119,9 +3471,11 @@ private fun formatExpiryBadge(expiresAt: Long): String {
 private fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onCreate: () -> Unit
+    onCreate: () -> Unit,
+    onQuickCreate: (QuickCreateType) -> Unit
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
+    var quickCreateExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -3148,11 +3502,37 @@ private fun SearchBar(
                 focusedContainerColor = Color.Transparent
             )
         )
-        IconButton(onClick = onCreate) {
+        IconButton(onClick = { quickCreateExpanded = true }) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = tx("New note"),
                 tint = onSurface
+            )
+        }
+        DropdownMenu(
+            expanded = quickCreateExpanded,
+            onDismissRequest = { quickCreateExpanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(tx("Text note")) },
+                onClick = {
+                    quickCreateExpanded = false
+                    onCreate()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(tx("Checklist note")) },
+                onClick = {
+                    quickCreateExpanded = false
+                    onQuickCreate(QuickCreateType.CHECKLIST)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(tx("Attachment note")) },
+                onClick = {
+                    quickCreateExpanded = false
+                    onQuickCreate(QuickCreateType.ATTACHMENT)
+                }
             )
         }
     }
@@ -3187,15 +3567,30 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun NoteCard(note: Note, onTogglePinned: (String) -> Unit, onOpen: () -> Unit) {
+private fun NoteCard(
+    note: Note,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onToggleSelection: () -> Unit,
+    onTogglePinned: (String) -> Unit,
+    onOpen: () -> Unit
+) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val preview = note.text.trim().replace("\n", " ")
     val checklistPreview = note.checklist.take(3)
     Card(
-        onClick = onOpen,
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)),
-        modifier = Modifier.fillMaxWidth()
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) Brass.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {
+                    if (selectionMode) onToggleSelection() else onOpen()
+                },
+                onLongClick = onToggleSelection
+            )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3215,7 +3610,7 @@ private fun NoteCard(note: Note, onTogglePinned: (String) -> Unit, onOpen: () ->
                 IconButton(onClick = { onTogglePinned(note.id) }) {
                     Icon(
                         imageVector = if (note.pinned) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                        contentDescription = if (note.pinned) "Unpin" else "Pin",
+                        contentDescription = if (note.pinned) stringResource(R.string.notes_cd_unpin) else stringResource(R.string.notes_cd_pin),
                         tint = if (note.pinned) Brass else onSurface.copy(alpha = 0.6f)
                     )
                 }
@@ -3242,18 +3637,24 @@ private fun NoteCard(note: Note, onTogglePinned: (String) -> Unit, onOpen: () ->
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            if (note.attachments.isNotEmpty()) {
-                Text(
-                    text = "${note.attachments.size} image(s)",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = onSurface.copy(alpha = 0.7f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (note.pinned) {
+                    Text(
+                        text = tx("PINNED"),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Brass
+                    )
+                }
+                if (note.archivedAt != null) {
+                    Text(
+                        text = tx("ARCHIVED"),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = onSurface.copy(alpha = 0.7f)
+                    )
+                }
                 if (note.readOnce) {
                     Text(
-                        text = "READ ONCE",
+                        text = tx("Read once"),
                         style = MaterialTheme.typography.labelLarge,
                         color = Brass
                     )
@@ -3263,6 +3664,20 @@ private fun NoteCard(note: Note, onTogglePinned: (String) -> Unit, onOpen: () ->
                         text = tx("EXPIRING"),
                         style = MaterialTheme.typography.labelLarge,
                         color = Ember
+                    )
+                }
+                if (note.reminderAt != null && !note.reminderDone) {
+                    Text(
+                        text = tx("REMINDER"),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Moss
+                    )
+                }
+                if (note.attachments.isNotEmpty()) {
+                    Text(
+                        text = "${note.attachments.size} IMG",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = onSurface.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -3442,7 +3857,7 @@ private fun FeatureHint(icon: ImageVector, text: String) {
 @Composable
 private fun NewNoteScreen(
     state: UiState,
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean) -> Unit,
+    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean, Long?) -> Unit,
     onCancel: () -> Unit,
     defaultExpiry: String,
     defaultReadOnce: Boolean,
@@ -3453,20 +3868,108 @@ private fun NewNoteScreen(
     var readOnce by remember(defaultReadOnce) { mutableStateOf(defaultReadOnce) }
     var expiryChoice by remember(defaultExpiry) { mutableStateOf(defaultExpiry) }
     var customExpiresAt by remember { mutableStateOf<Long?>(null) }
+    var reminderAt by remember { mutableStateOf<Long?>(null) }
     var pinned by remember { mutableStateOf(false) }
     var showChecklist by remember { mutableStateOf(false) }
     var showAttachments by remember { mutableStateOf(false) }
     var showLabels by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
+    var showTemplateMenu by remember { mutableStateOf(false) }
     var checklistItems by remember { mutableStateOf(listOf<ChecklistItem>()) }
     var newChecklistItem by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf(listOf<Uri>()) }
     var labels by remember { mutableStateOf(listOf<String>()) }
     var newLabel by remember { mutableStateOf("") }
     val context = LocalContext.current
+    var appliedQuickCreate by remember { mutableStateOf<QuickCreateType?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             attachments = attachments + uri
+        }
+    }
+    val voiceInputLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val spokenText = result.data
+                    ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                    ?.firstOrNull()
+                    ?.trim()
+                    .orEmpty()
+                if (spokenText.isNotBlank()) {
+                    content = if (content.isBlank()) spokenText else "$content\n$spokenText"
+                }
+            }
+        }
+    var autoAttachmentLaunchDone by remember { mutableStateOf(false) }
+    data class NoteTemplate(
+        val name: String,
+        val content: String,
+        val checklist: List<String> = emptyList(),
+        val labels: List<String> = emptyList()
+    )
+    val templates = listOf(
+        NoteTemplate(
+            name = tx("Meeting"),
+            content = "## Meeting\n\n- Agenda:\n- Decisions:\n- Action items:\n- Follow-up:"
+        ),
+        NoteTemplate(
+            name = tx("Checklist"),
+            content = "",
+            checklist = listOf("First task", "Second task", "Third task")
+        ),
+        NoteTemplate(
+            name = tx("Journal"),
+            content = "## Journal\n\nMood:\nWhat happened today:\nWhat I learned:\nNext step:"
+        ),
+        NoteTemplate(
+            name = tx("Credentials"),
+            content = "Service:\nUsername:\nPassword:\nBackup code:\nNotes:",
+            labels = listOf("security")
+        )
+    )
+
+    fun applyTemplate(template: NoteTemplate) {
+        content = template.content
+        if (template.checklist.isNotEmpty()) {
+            showChecklist = true
+            checklistItems = template.checklist.map {
+                ChecklistItem(id = java.util.UUID.randomUUID().toString(), text = it, checked = false)
+            }
+        }
+        if (template.labels.isNotEmpty()) {
+            showLabels = true
+            labels = (labels + template.labels).distinct()
+        }
+    }
+
+    LaunchedEffect(state.newNoteQuickCreate) {
+        if (appliedQuickCreate != state.newNoteQuickCreate) {
+            when (state.newNoteQuickCreate) {
+                QuickCreateType.CHECKLIST -> {
+                    showChecklist = true
+                    if (checklistItems.isEmpty()) {
+                        checklistItems = listOf(
+                            ChecklistItem(
+                                id = java.util.UUID.randomUUID().toString(),
+                                text = "",
+                                checked = false
+                            )
+                        )
+                    }
+                }
+                QuickCreateType.ATTACHMENT -> {
+                    showAttachments = true
+                }
+                QuickCreateType.TEXT -> Unit
+            }
+            appliedQuickCreate = state.newNoteQuickCreate
+        }
+        if (state.newNoteQuickCreate == QuickCreateType.ATTACHMENT && !autoAttachmentLaunchDone) {
+            autoAttachmentLaunchDone = true
+            imagePicker.launch("image/*")
+        }
+        if (state.newNoteQuickCreate != QuickCreateType.ATTACHMENT) {
+            autoAttachmentLaunchDone = false
         }
     }
     val dateTimeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
@@ -3502,7 +4005,37 @@ private fun NewNoteScreen(
         ).show()
     }
 
-    LaunchedEffect(content, checklistItems, labels, pinned, expiryChoice, customExpiresAt, readOnce) {
+    fun openReminderPicker() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val cal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, day)
+                            set(Calendar.HOUR_OF_DAY, hour)
+                            set(Calendar.MINUTE, minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        reminderAt = cal.timeInMillis
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    LaunchedEffect(content, checklistItems, labels, pinned, expiryChoice, customExpiresAt, readOnce, reminderAt) {
         val expiresAtMs = when (expiryChoice) {
             "1h" -> System.currentTimeMillis() + 3_600_000L
             "24h" -> System.currentTimeMillis() + 86_400_000L
@@ -3510,7 +4043,7 @@ private fun NewNoteScreen(
             "custom" -> customExpiresAt
             else -> null
         }
-        onDraftChanged(NewNoteDraft(content, checklistItems, labels, pinned, expiresAtMs, readOnce))
+        onDraftChanged(NewNoteDraft(content, checklistItems, labels, pinned, expiresAtMs, readOnce, reminderAt))
     }
 
     Surface(
@@ -3537,6 +4070,29 @@ private fun NewNoteScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                 ) {
                     Text(tx("ADD"))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Box {
+                    Button(
+                        onClick = { showTemplateMenu = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Coal, contentColor = Sand)
+                    ) {
+                        Text(tx("TEMPLATES"))
+                    }
+                    DropdownMenu(
+                        expanded = showTemplateMenu,
+                        onDismissRequest = { showTemplateMenu = false }
+                    ) {
+                        templates.forEach { template ->
+                            DropdownMenuItem(
+                                text = { Text(template.name) },
+                                onClick = {
+                                    applyTemplate(template)
+                                    showTemplateMenu = false
+                                }
+                            )
+                        }
+                    }
                 }
                 DropdownMenu(
                     expanded = showAddMenu,
@@ -3588,6 +4144,25 @@ private fun NewNoteScreen(
                     .fillMaxWidth()
                     .heightIn(min = 260.dp)
             )
+            Spacer(modifier = Modifier.height(6.dp))
+            val voicePrompt = stringResource(R.string.notes_voice_prompt)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                IconButton(
+                    onClick = {
+                        val voiceIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                            )
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, voicePrompt)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                        }
+                        runCatching { voiceInputLauncher.launch(voiceIntent) }
+                    }
+                ) {
+                    Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.notes_cd_voice_input), tint = Moss)
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = pinned, onCheckedChange = { pinned = it })
@@ -3784,6 +4359,34 @@ private fun NewNoteScreen(
                     color = onSurface.copy(alpha = 0.7f)
                 )
             }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.notes_section_metadata),
+                style = MaterialTheme.typography.labelLarge,
+                color = onSurface.copy(alpha = 0.75f)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { openReminderPicker() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                ) {
+                    Text(tx("SET REMINDER"))
+                }
+                if (reminderAt != null) {
+                    TextButton(onClick = { reminderAt = null }) {
+                        Text(tx("CLEAR REMINDER"), color = Ember)
+                    }
+                }
+            }
+            if (reminderAt != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.notes_reminder_prefix) + " " + dateTimeFormatter.format(java.util.Date(reminderAt!!)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.7f)
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             val expiresAt = when (expiryChoice) {
                 "1h" -> System.currentTimeMillis() + 3_600_000L
@@ -3802,7 +4405,7 @@ private fun NewNoteScreen(
                     Text(tx("CANCEL"))
                 }
                 Button(
-                    onClick = { onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce) },
+                    onClick = { onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce, reminderAt) },
                     enabled = !state.isBusy,
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                     modifier = Modifier.weight(1f)
@@ -3818,11 +4421,19 @@ private fun NewNoteScreen(
 private fun NoteDetailScreen(
     state: UiState,
     onClose: () -> Unit,
+    onOpenLinkedNote: (String) -> Unit,
     onUpdateNoteText: (String, String, Long?) -> Unit,
     onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit,
     onShareNote: (String) -> Unit,
+    onExportNoteFile: (String) -> Unit,
     onDelete: (String) -> Unit,
     onTogglePinned: (String) -> Unit,
+    onToggleArchived: (String) -> Unit,
+    onRestoreNoteFromTrash: (String) -> Unit,
+    onSetNoteReminder: (String, Long) -> Unit,
+    onSetNoteReminderRepeat: (String, String?) -> Unit,
+    onClearNoteReminder: (String) -> Unit,
+    onRestoreNoteRevision: (String, String) -> Unit,
     onToggleChecklistItem: (String, String) -> Unit,
     onAddChecklistItem: (String, String) -> Unit,
     onRemoveChecklistItem: (String, String) -> Unit,
@@ -3831,7 +4442,9 @@ private fun NoteDetailScreen(
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
     onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
-    onClearNoteEditDraft: () -> Unit = {}
+    onClearNoteEditDraft: () -> Unit = {},
+    onUndoNoteEdit: (String) -> Unit = {},
+    onRedoNoteEdit: (String) -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val note = state.selectedNote
@@ -3851,6 +4464,8 @@ private fun NoteDetailScreen(
         mutableStateOf(note.expiresAt)
     }
     var checklistInput by remember { mutableStateOf("") }
+    var showMarkdownPreview by remember(note.id) { mutableStateOf(false) }
+    var showRevisionHistory by remember(note.id) { mutableStateOf(false) }
     var editingChecklistId by remember { mutableStateOf<String?>(null) }
     var editingChecklistText by remember { mutableStateOf("") }
     val checklistBounds = remember { mutableStateMapOf<String, IntRange>() }
@@ -3896,6 +4511,36 @@ private fun NoteDetailScreen(
         ).show()
     }
 
+    fun openReminderPicker() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val cal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, day)
+                            set(Calendar.HOUR_OF_DAY, hour)
+                            set(Calendar.MINUTE, minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        onSetNoteReminder(note.id, cal.timeInMillis)
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
     val editedExpiresAt = when (expiryChoice) {
         "none" -> null
         "1h" -> System.currentTimeMillis() + 3_600_000L
@@ -3909,16 +4554,42 @@ private fun NoteDetailScreen(
             onNoteEditDraftChanged(note.id, editText, editedExpiresAt)
         }
     }
+    LaunchedEffect(state.pendingNoteEdit, isEditing, note.id) {
+        if (!isEditing) return@LaunchedEffect
+        val pending = state.pendingNoteEdit ?: return@LaunchedEffect
+        if (pending.noteId != note.id) return@LaunchedEffect
+        editText = pending.text
+        customExpiresAt = pending.expiresAt
+        expiryChoice = if (pending.expiresAt == null) "none" else "custom"
+    }
+
+    fun cancelEditing() {
+        isEditing = false
+        editText = note.text
+        editLabels = note.labels
+        newLabel = ""
+        newAttachments = emptyList()
+        customExpiresAt = note.expiresAt
+        expiryChoice = if (note.expiresAt == null) "none" else "custom"
+        showMarkdownPreview = false
+        onClearNoteEditDraft()
+    }
+
+    fun saveEditing() {
+        onSaveEditedNote(note.id, editText, editLabels, newAttachments, editedExpiresAt)
+        isEditing = false
+    }
+
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
     ) {
-        Column(
-            modifier = Modifier
-                .padding(20.dp)
-                .verticalScroll(rememberScrollState())
-                .imePadding()
-        ) {
+        Box(modifier = Modifier.padding(20.dp).imePadding()) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = if (isEditing) 48.dp else 0.dp)
+            ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(tx("Note"),
                     style = MaterialTheme.typography.titleLarge,
@@ -3926,50 +4597,158 @@ private fun NoteDetailScreen(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = {
+                    if (note.trashedAt != null) return@IconButton
                     if (isEditing) {
-                        isEditing = false
-                        editText = note.text
-                        editLabels = note.labels
-                        newLabel = ""
-                        newAttachments = emptyList()
-                        customExpiresAt = note.expiresAt
-                        expiryChoice = if (note.expiresAt == null) "none" else "custom"
-                        onClearNoteEditDraft()
+                        cancelEditing()
                     } else {
                         isEditing = true
+                        showMarkdownPreview = false
                     }
                 }) {
                     Icon(
                         imageVector = Icons.Filled.Edit,
-                        contentDescription = if (isEditing) "Cancel edit" else "Edit note",
-                        tint = if (isEditing) Brass else onSurface.copy(alpha = 0.6f)
+                        contentDescription = if (isEditing) stringResource(R.string.notes_cd_cancel_edit) else stringResource(R.string.notes_cd_edit_note),
+                        tint = if (note.trashedAt != null) onSurface.copy(alpha = 0.3f) else if (isEditing) Brass else onSurface.copy(alpha = 0.6f)
                     )
                 }
                 IconButton(onClick = { onTogglePinned(note.id) }) {
                     Icon(
                         imageVector = if (note.pinned) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                        contentDescription = if (note.pinned) "Unpin" else "Pin",
+                        contentDescription = if (note.pinned) stringResource(R.string.notes_cd_unpin) else stringResource(R.string.notes_cd_pin),
                         tint = if (note.pinned) Brass else onSurface.copy(alpha = 0.6f)
                     )
                 }
-                TextButton(onClick = { onShareNote(note.id) }) {
-                    Text(tx("SHARE LINK"), color = Moss)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            ) {
+                if (note.trashedAt == null) {
+                    IconButton(onClick = { onToggleArchived(note.id) }) {
+                        Icon(
+                            imageVector = if (note.archivedAt == null) Icons.Filled.Archive else Icons.Filled.Unarchive,
+                            contentDescription = if (note.archivedAt == null) stringResource(R.string.notes_cd_archive) else stringResource(R.string.notes_cd_unarchive),
+                            tint = Brass
+                        )
+                    }
+                } else {
+                    IconButton(onClick = { onRestoreNoteFromTrash(note.id) }) {
+                        Icon(Icons.Filled.RestoreFromTrash, contentDescription = stringResource(R.string.notes_cd_restore), tint = Brass)
+                    }
+                }
+                IconButton(onClick = { onShareNote(note.id) }) {
+                    Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.notes_cd_share_link), tint = Moss)
+                }
+                IconButton(onClick = { onExportNoteFile(note.id) }) {
+                    Icon(Icons.Filled.FileDownload, contentDescription = stringResource(R.string.notes_cd_export_file), tint = Moss)
+                }
+                IconButton(onClick = { showRevisionHistory = true }) {
+                    Icon(Icons.Filled.History, contentDescription = stringResource(R.string.notes_cd_history), tint = Moss)
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
-            if (isEditing) {
-                OutlinedTextField(
-                    value = editText,
-                    onValueChange = {
-                        editText = it
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Default,
-                        autoCorrectEnabled = false
-                    )
+            if (note.trashedAt == null) {
+                Text(
+                    text = stringResource(R.string.notes_section_metadata),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = onSurface.copy(alpha = 0.75f),
+                    modifier = Modifier.testTag("note_section_metadata")
                 )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = { openReminderPicker() },
+                        modifier = Modifier.background(Moss.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.Filled.Notifications, contentDescription = stringResource(R.string.notes_cd_set_reminder), tint = Moss)
+                    }
+                    if (note.reminderAt != null) {
+                        IconButton(onClick = { onClearNoteReminder(note.id) }) {
+                            Icon(Icons.Filled.NotificationsOff, contentDescription = stringResource(R.string.notes_cd_clear_reminder), tint = Ember)
+                        }
+                    }
+                }
+                if (note.reminderAt != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val currentRepeat = note.reminderRepeat
+                        Chip(stringResource(R.string.notes_repeat_none), currentRepeat == null) { onSetNoteReminderRepeat(note.id, null) }
+                        Chip(stringResource(R.string.notes_repeat_daily), currentRepeat == "daily") { onSetNoteReminderRepeat(note.id, "daily") }
+                        Chip(stringResource(R.string.notes_repeat_weekly), currentRepeat == "weekly") { onSetNoteReminderRepeat(note.id, "weekly") }
+                        Chip(stringResource(R.string.notes_repeat_monthly), currentRepeat == "monthly") { onSetNoteReminderRepeat(note.id, "monthly") }
+                    }
+                }
+                if (note.reminderAt != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        stringResource(R.string.notes_reminder_prefix) + " " + dateTimeFormatter.format(java.util.Date(note.reminderAt)) +
+                            (note.reminderRepeat?.let { " (" + it.uppercase() + ")" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            if (state.noteLinkedNotes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Linked notes"), style = MaterialTheme.typography.labelLarge, color = onSurface.copy(alpha = 0.75f))
+                Spacer(modifier = Modifier.height(6.dp))
+                state.noteLinkedNotes.forEach { linked ->
+                    val title = linked.text.lineSequence().firstOrNull { it.trim().isNotBlank() }?.trim().orEmpty()
+                    TextButton(onClick = { onOpenLinkedNote(linked.id) }) {
+                        Text(text = if (title.isNotBlank()) title else linked.id, color = Moss)
+                    }
+                }
+            }
+            if (state.noteBacklinks.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(tx("Backlinks"), style = MaterialTheme.typography.labelLarge, color = onSurface.copy(alpha = 0.75f))
+                Spacer(modifier = Modifier.height(6.dp))
+                state.noteBacklinks.forEach { linked ->
+                    val title = linked.text.lineSequence().firstOrNull { it.trim().isNotBlank() }?.trim().orEmpty()
+                    TextButton(onClick = { onOpenLinkedNote(linked.id) }) {
+                        Text(text = if (title.isNotBlank()) title else linked.id, color = Brass)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.notes_section_content),
+                style = MaterialTheme.typography.labelLarge,
+                color = onSurface.copy(alpha = 0.75f),
+                modifier = Modifier.testTag("note_section_content")
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            if (isEditing) {
+                if (showMarkdownPreview) {
+                    val preview = remember(editText) { MarkdownPreviewRenderer.render(editText) }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = onSurface.copy(alpha = 0.06f)
+                    ) {
+                        Text(
+                            text = preview.ifBlank { tx("Nothing to preview") },
+                            color = onSurface,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = editText,
+                        onValueChange = {
+                            editText = it
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Default,
+                            autoCorrectEnabled = false
+                        )
+                    )
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(tx("Expiry"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -4103,9 +4882,14 @@ private fun NoteDetailScreen(
                 Text(note.text, color = onSurface, style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(12.dp))
             }
+            Text(
+                tx("Checklist"),
+                color = onSurface.copy(alpha = 0.75f),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.testTag("note_section_checklist")
+            )
+            Spacer(modifier = Modifier.height(6.dp))
             if (note.checklist.isNotEmpty()) {
-                Text(tx("Checklist"), color = onSurface, style = MaterialTheme.typography.labelLarge)
-                Spacer(modifier = Modifier.height(6.dp))
                 note.checklist.forEach { item ->
                     val isDragging = draggingChecklistId == item.id
                     val isDragTarget = dragTargetId == item.id && !isDragging
@@ -4242,9 +5026,6 @@ private fun NoteDetailScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-            } else {
-                Text(tx("Checklist"), color = onSurface, style = MaterialTheme.typography.labelLarge)
-                Spacer(modifier = Modifier.height(6.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -4269,7 +5050,7 @@ private fun NoteDetailScreen(
             Spacer(modifier = Modifier.height(12.dp))
             if (note.attachments.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(tx("Attachments"), color = onSurface, style = MaterialTheme.typography.labelLarge)
+                Text(tx("Attachments"), color = onSurface.copy(alpha = 0.75f), style = MaterialTheme.typography.labelLarge)
                 Spacer(modifier = Modifier.height(6.dp))
                 note.attachments.forEach { attachment ->
                     val preview = state.attachmentPreviews[attachment.id]
@@ -4308,24 +5089,12 @@ private fun NoteDetailScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (isEditing) {
                     Button(
-                        onClick = {
-                            onSaveEditedNote(note.id, editText, editLabels, newAttachments, editedExpiresAt)
-                            isEditing = false
-                        },
+                        onClick = { saveEditing() },
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                     ) {
                         Text(tx("SAVE"))
                     }
-                    TextButton(onClick = {
-                        isEditing = false
-                        editText = note.text
-                        editLabels = note.labels
-                        newLabel = ""
-                        newAttachments = emptyList()
-                        customExpiresAt = note.expiresAt
-                        expiryChoice = if (note.expiresAt == null) "none" else "custom"
-                        onClearNoteEditDraft()
-                    }) {
+                    TextButton(onClick = { cancelEditing() }) {
                         Text(tx("CANCEL"), color = onSurface.copy(alpha = 0.7f))
                     }
                 } else {
@@ -4333,7 +5102,10 @@ private fun NoteDetailScreen(
                         onClick = { onDelete(note.id) },
                         colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = Sand)
                     ) {
-                        Text(tx("DELETE"))
+                        Icon(
+                            imageVector = if (note.trashedAt == null) Icons.Filled.Delete else Icons.Filled.DeleteForever,
+                            contentDescription = if (note.trashedAt == null) stringResource(R.string.notes_cd_delete) else stringResource(R.string.notes_cd_delete_now)
+                        )
                     }
                     TextButton(onClick = onClose) {
                         Text(tx("BACK"), color = Brass)
@@ -4341,7 +5113,82 @@ private fun NoteDetailScreen(
                 }
             }
         }
+        if (isEditing) {
+            Surface(
+                modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = onSurface.copy(alpha = 0.08f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = { onUndoNoteEdit(note.id) },
+                        enabled = state.canUndoNoteEdit
+                    ) {
+                        Text(tx("UNDO"), color = if (state.canUndoNoteEdit) Brass else onSurface.copy(alpha = 0.4f))
+                    }
+                    TextButton(
+                        onClick = { onRedoNoteEdit(note.id) },
+                        enabled = state.canRedoNoteEdit
+                    ) {
+                        Text(tx("REDO"), color = if (state.canRedoNoteEdit) Brass else onSurface.copy(alpha = 0.4f))
+                    }
+                    TextButton(onClick = { showMarkdownPreview = !showMarkdownPreview }) {
+                        Text(if (showMarkdownPreview) tx("EDIT") else tx("PREVIEW"), color = Moss)
+                    }
+                    TextButton(onClick = { saveEditing() }) {
+                        Text(tx("SAVE"), color = Brass)
+                    }
+                }
+            }
+        }
     }
+    if (showRevisionHistory) {
+        AlertDialog(
+            onDismissRequest = { showRevisionHistory = false },
+            title = { Text(tx("Version history")) },
+            text = {
+                if (state.noteRevisions.isEmpty()) {
+                    Text(tx("No revisions yet"))
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.noteRevisions.forEach { revision ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = dateTimeFormatter.format(java.util.Date(revision.createdAt)),
+                                    modifier = Modifier.weight(1f),
+                                    color = onSurface
+                                )
+                                TextButton(onClick = {
+                                    onRestoreNoteRevision(note.id, revision.id)
+                                    showRevisionHistory = false
+                                }, modifier = Modifier.testTag("history_restore_${revision.id}")) {
+                                    Text(tx("RESTORE"), color = Brass)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showRevisionHistory = false },
+                    modifier = Modifier.testTag("history_close")
+                ) {
+                    Text(tx("CLOSE"))
+                }
+            }
+        )
+    }
+}
 }
 
 @Composable
@@ -4589,7 +5436,7 @@ private fun LabelsMenu(
                         }) {
                             Icon(
                                 imageVector = if (hasLabel) Icons.Filled.Delete else Icons.Filled.Add,
-                                contentDescription = if (hasLabel) "Remove label" else "Add label",
+                                contentDescription = if (hasLabel) stringResource(R.string.notes_cd_remove_label) else stringResource(R.string.notes_cd_add_label),
                                 tint = if (hasLabel) Ember else Moss
                             )
                         }

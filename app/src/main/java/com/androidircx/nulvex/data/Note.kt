@@ -21,8 +21,14 @@ data class Note(
     val attachments: List<NoteAttachment>,
     val pinned: Boolean,
     val createdAt: Long,
+    val updatedAt: Long = createdAt,
     val expiresAt: Long?,
-    val readOnce: Boolean
+    val readOnce: Boolean,
+    val archivedAt: Long? = null,
+    val reminderAt: Long? = null,
+    val reminderDone: Boolean = false,
+    val reminderRepeat: String? = null,
+    val trashedAt: Long? = null
 ) {
     fun matchesQuery(query: String): Boolean {
         if (query.isBlank()) return true

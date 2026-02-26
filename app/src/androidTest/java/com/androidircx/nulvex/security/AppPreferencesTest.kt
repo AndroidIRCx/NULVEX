@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -65,5 +67,34 @@ class AppPreferencesTest {
 
         assertTrue(prefs.isPinScrambleEnabled())
         assertFalse(prefs.isHidePinLengthEnabled())
+    }
+
+    @Test
+    fun reminderSchedules_upsertAndRemove_work() {
+        prefs.upsertReminderSchedule("note-1", 12345L)
+        prefs.upsertReminderSchedule("note-2", 67890L)
+
+        val all = prefs.getReminderSchedules()
+        assertEquals(2, all.size)
+        assertEquals(12345L, all["note-1"])
+        assertEquals(67890L, all["note-2"])
+
+        prefs.removeReminderSchedule("note-1")
+        val updated = prefs.getReminderSchedules()
+        assertEquals(1, updated.size)
+        assertNull(updated["note-1"])
+    }
+
+    @Test
+    fun pendingReminderAction_roundTripAndClear_work() {
+        assertNull(prefs.getPendingReminderAction())
+
+        prefs.setPendingReminderAction("open", "note-xyz")
+        val pending = prefs.getPendingReminderAction()
+        assertEquals("open", pending?.first)
+        assertEquals("note-xyz", pending?.second)
+
+        prefs.clearPendingReminderAction()
+        assertNull(prefs.getPendingReminderAction())
     }
 }

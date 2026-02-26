@@ -6,12 +6,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performClick
@@ -19,9 +21,12 @@ import androidx.compose.ui.test.performTextInput
 import androidx.core.os.LocaleListCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.data.Note
+import com.androidircx.nulvex.data.NoteAttachment
+import com.androidircx.nulvex.data.NoteRevision
 import com.androidircx.nulvex.pro.BackupRecord
 import com.androidircx.nulvex.ui.theme.NULVEXTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -52,8 +57,25 @@ class NulvexUiTest {
         onUnlock: (String) -> Unit = {},
         onPanic: () -> Unit = {},
         onOpenNew: () -> Unit = {},
+        onQuickCreate: (QuickCreateType) -> Unit = {},
         onOpenNote: (String) -> Unit = {},
+        onOpenLinkedNote: (String) -> Unit = {},
+        onToggleNoteSelection: (String) -> Unit = {},
+        onClearNoteSelection: () -> Unit = {},
+        onBulkArchiveSelected: () -> Unit = {},
+        onBulkDeleteSelected: () -> Unit = {},
+        onBulkAddLabelSelected: (String) -> Unit = {},
+        onBulkSetReminderSelected: (Long) -> Unit = {},
         onDelete: (String) -> Unit = {},
+        onSetShowArchived: (Boolean) -> Unit = {},
+        onSetShowTrash: (Boolean) -> Unit = {},
+        onToggleArchived: (String) -> Unit = {},
+        onRestoreNoteFromTrash: (String) -> Unit = {},
+        onUndoNoteEdit: (String) -> Unit = {},
+        onRedoNoteEdit: (String) -> Unit = {},
+        onClearNoteReminder: (String) -> Unit = {},
+        onSetNoteReminderRepeat: (String, String?) -> Unit = { _, _ -> },
+        onRestoreNoteRevision: (String, String) -> Unit = { _, _ -> },
         onDeleteSharedKey: (String) -> Unit = {},
         onDeleteSavedBackup: (String) -> Unit = {},
         onRestoreBackup: (String, String, Boolean, String?, Long?) -> Unit = { _, _, _, _, _ -> },
@@ -82,8 +104,16 @@ class NulvexUiTest {
                     onChangeRealPin = { _, _, _ -> },
                     onUpdateThemeMode = {},
                     onOpenNew = onOpenNew,
-                    onCreate = { _, _, _, _, _, _, _ -> },
+                    onQuickCreate = onQuickCreate,
+                    onCreate = { _, _, _, _, _, _, _, _ -> },
                     onOpenNote = onOpenNote,
+                    onOpenLinkedNote = onOpenLinkedNote,
+                    onToggleNoteSelection = onToggleNoteSelection,
+                    onClearNoteSelection = onClearNoteSelection,
+                    onBulkArchiveSelected = onBulkArchiveSelected,
+                    onBulkDeleteSelected = onBulkDeleteSelected,
+                    onBulkAddLabelSelected = onBulkAddLabelSelected,
+                    onBulkSetReminderSelected = onBulkSetReminderSelected,
                     onCloseNote = {},
                     onUpdateNoteText = { _, _, _ -> },
                     onDelete = onDelete,
@@ -97,8 +127,17 @@ class NulvexUiTest {
                     onRemoveLabel = { _, _ -> },
                     onSearchQueryChange = {},
                     onSelectLabel = {},
+                    onSetShowArchived = onSetShowArchived,
+                    onSetShowTrash = onSetShowTrash,
                     onLoadAttachmentPreview = { _, _ -> },
                     onRemoveAttachment = { _, _ -> },
+                    onToggleArchived = onToggleArchived,
+                    onRestoreNoteFromTrash = onRestoreNoteFromTrash,
+                    onUndoNoteEdit = onUndoNoteEdit,
+                    onRedoNoteEdit = onRedoNoteEdit,
+                    onSetNoteReminderRepeat = onSetNoteReminderRepeat,
+                    onClearNoteReminder = onClearNoteReminder,
+                    onRestoreNoteRevision = onRestoreNoteRevision,
                     onClearError = {},
                     onOpenPurchases = onOpenPurchases,
                     onRestorePurchases = onRestorePurchases,
@@ -110,16 +149,24 @@ class NulvexUiTest {
         }
     }
 
-    private fun note(id: String = "1", text: String = "Test note") = Note(
+    private fun note(
+        id: String = "1",
+        text: String = "Test note",
+        reminderAt: Long? = null,
+        archivedAt: Long? = null,
+        pinned: Boolean = false
+    ) = Note(
         id = id,
         text = text,
         checklist = emptyList(),
         labels = emptyList(),
         attachments = emptyList(),
-        pinned = false,
+        pinned = pinned,
         createdAt = System.currentTimeMillis(),
         expiresAt = null,
-        readOnce = false
+        readOnce = false,
+        archivedAt = archivedAt,
+        reminderAt = reminderAt
     )
 
     // ---- Onboarding -----------------------------------------------------------
@@ -315,6 +362,17 @@ class NulvexUiTest {
         rule.onNodeWithText("UNLOCK WITH FINGERPRINT").assertIsDisplayed()
     }
 
+    @Test
+    fun newNote_templateMeetingPrefillsContent() {
+        show(state = UiState(isSetup = true, screen = Screen.NewNote))
+
+        rule.onNodeWithText("TEMPLATES").performClick()
+        rule.onNodeWithText("Meeting").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Agenda:", substring = true).assertIsDisplayed()
+    }
+
     // ---- Vault ----------------------------------------------------------------
 
     @Test
@@ -331,8 +389,24 @@ class NulvexUiTest {
             onOpenNew = { clicked = true }
         )
         rule.onNodeWithContentDescription("New note").performClick()
+        rule.onNodeWithText("Text note").performClick()
         rule.waitForIdle()
         assertTrue(clicked)
+    }
+
+    @Test
+    fun vault_quickCreateChecklistCallsCallback() {
+        var selected: QuickCreateType? = null
+        show(
+            state = UiState(isSetup = true, screen = Screen.Vault),
+            onQuickCreate = { selected = it }
+        )
+
+        rule.onNodeWithContentDescription("New note").performClick()
+        rule.onNodeWithText("Checklist note").performClick()
+        rule.waitForIdle()
+
+        assertEquals(QuickCreateType.CHECKLIST, selected)
     }
 
     @Test
@@ -379,6 +453,489 @@ class NulvexUiTest {
         rule.onNodeWithText("Tap me").performClick()
         rule.waitForIdle()
         assertEquals("abc", openedId)
+    }
+
+    @Test
+    fun vault_archiveTabCallsSetShowArchived() {
+        var showArchived: Boolean? = null
+        show(
+            state = UiState(isSetup = true, screen = Screen.Vault),
+            onSetShowArchived = { showArchived = it }
+        )
+
+        rule.onNodeWithText("Archived").performClick()
+        rule.waitForIdle()
+
+        assertEquals(true, showArchived)
+    }
+
+    @Test
+    fun vault_trashTabCallsSetShowTrash() {
+        var showTrash: Boolean? = null
+        show(
+            state = UiState(isSetup = true, screen = Screen.Vault),
+            onSetShowTrash = { showTrash = it }
+        )
+
+        rule.onNodeWithText("Trash").performClick()
+        rule.waitForIdle()
+
+        assertEquals(true, showTrash)
+    }
+
+    @Test
+    fun vault_archivedNoteShowsArchivedChip() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(note(id = "arch-1", text = "Archived note", archivedAt = System.currentTimeMillis()))
+            )
+        )
+
+        rule.onNodeWithText("ARCHIVED").assertIsDisplayed()
+    }
+
+    @Test
+    fun vault_pinnedNoteShowsPinnedChip() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(note(id = "pin-1", text = "Pinned note", pinned = true))
+            )
+        )
+
+        rule.onNodeWithText("PINNED").assertIsDisplayed()
+    }
+
+    @Test
+    fun vault_noteShowsCombinedMetadataChips() {
+        val now = System.currentTimeMillis()
+        val richNote = Note(
+            id = "meta-1",
+            text = "Rich note",
+            checklist = emptyList(),
+            labels = emptyList(),
+            attachments = listOf(
+                NoteAttachment(id = "a1", name = "img1", mimeType = "image/png", byteCount = 10),
+                NoteAttachment(id = "a2", name = "img2", mimeType = "image/png", byteCount = 12)
+            ),
+            pinned = true,
+            createdAt = now,
+            expiresAt = now + 60_000L,
+            readOnce = true,
+            archivedAt = null,
+            reminderAt = now + 120_000L,
+            reminderDone = false
+        )
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(richNote)
+            )
+        )
+
+        rule.onNodeWithText("PINNED").assertIsDisplayed()
+        rule.onNodeWithText("READ ONCE").assertIsDisplayed()
+        rule.onNodeWithText("EXPIRING").assertIsDisplayed()
+        rule.onNodeWithText("REMINDER").assertIsDisplayed()
+        rule.onNodeWithText("2 IMG").assertIsDisplayed()
+    }
+
+    @Test
+    fun vault_bulkActionBarButtonsCallCallbacks() {
+        var archived = false
+        var deleted = false
+        var labeled: String? = null
+        var reminderAt: Long? = null
+
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(note(id = "bulk-1", text = "Bulk note")),
+                selectedNoteIds = setOf("bulk-1")
+            ),
+            onBulkArchiveSelected = { archived = true },
+            onBulkDeleteSelected = { deleted = true },
+            onBulkAddLabelSelected = { labeled = it },
+            onBulkSetReminderSelected = { reminderAt = it }
+        )
+
+        rule.onNodeWithContentDescription("Archive selected").performClick()
+        rule.onNodeWithContentDescription("Delete selected").performClick()
+        rule.onNodeWithContentDescription("Label selected").performClick()
+        rule.onNodeWithText("Label").performTextInput("team")
+        rule.onNodeWithText("APPLY").performClick()
+        rule.onNodeWithContentDescription("Reminder +1 hour").performClick()
+        rule.waitForIdle()
+
+        assertTrue(archived)
+        assertTrue(deleted)
+        assertEquals("team", labeled)
+        assertNotNull(reminderAt)
+    }
+
+    @Test
+    fun vault_sortPresetCanSwitchToReminderDue() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(note(id = "sort-1", text = "Sort me"))
+            )
+        )
+
+        rule.onNodeWithText("Recently edited").performClick()
+        rule.onNodeWithText("Reminder due").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Reminder due").assertIsDisplayed()
+    }
+
+    @Test
+    fun vault_hasReminderFilterShowsOnlyReminderNotes() {
+        val now = System.currentTimeMillis()
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(
+                    note(id = "rf-1", text = "Reminder note", reminderAt = now + 60_000L),
+                    note(id = "rf-2", text = "No reminder", reminderAt = null)
+                )
+            )
+        )
+
+        rule.onNodeWithText("Has reminder").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Reminder note").assertIsDisplayed()
+        rule.onNodeWithText("No reminder").assertDoesNotExist()
+    }
+
+    @Test
+    fun vault_createdDateFilterHidesOldNotes() {
+        val now = System.currentTimeMillis()
+        val old = Note(
+            id = "date-old",
+            text = "Old note",
+            checklist = emptyList(),
+            labels = emptyList(),
+            attachments = emptyList(),
+            pinned = false,
+            createdAt = now - (40L * 24L * 60L * 60L * 1000L),
+            updatedAt = now - (40L * 24L * 60L * 60L * 1000L),
+            expiresAt = null,
+            readOnce = false
+        )
+        val fresh = Note(
+            id = "date-new",
+            text = "Fresh note",
+            checklist = emptyList(),
+            labels = emptyList(),
+            attachments = emptyList(),
+            pinned = false,
+            createdAt = now,
+            updatedAt = now,
+            expiresAt = null,
+            readOnce = false
+        )
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(old, fresh)
+            )
+        )
+
+        rule.onAllNodesWithText("Any date")[0].performClick() // cycle from Any date
+        rule.waitForIdle()
+
+        rule.onNodeWithText("Fresh note").assertIsDisplayed()
+    }
+
+    @Test
+    fun vault_groupByLabelShowsLabelSections() {
+        val now = System.currentTimeMillis()
+        val work = Note(
+            id = "grp-1",
+            text = "Work note",
+            checklist = emptyList(),
+            labels = listOf("Work"),
+            attachments = emptyList(),
+            pinned = false,
+            createdAt = now,
+            updatedAt = now,
+            expiresAt = null,
+            readOnce = false
+        )
+        val personal = Note(
+            id = "grp-2",
+            text = "Personal note",
+            checklist = emptyList(),
+            labels = listOf("Personal"),
+            attachments = emptyList(),
+            pinned = false,
+            createdAt = now,
+            updatedAt = now,
+            expiresAt = null,
+            readOnce = false
+        )
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.Vault,
+                notes = listOf(work, personal)
+            )
+        )
+
+        rule.onNodeWithText("Group by label").performClick()
+        rule.waitForIdle()
+
+        rule.onNodeWithText("WORK").assertIsDisplayed()
+        rule.onNodeWithText("PERSONAL").assertIsDisplayed()
+    }
+
+    @Test
+    fun noteDetail_archiveButtonCallsCallback() {
+        var archivedId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "archive-id", text = "Archive me")
+            ),
+            onToggleArchived = { archivedId = it }
+        )
+
+        rule.onNodeWithContentDescription("Archive").performClick()
+        rule.waitForIdle()
+
+        assertEquals("archive-id", archivedId)
+    }
+
+    @Test
+    fun noteDetail_setReminderButtonIsVisible() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "rem-1", text = "Reminder note")
+            )
+        )
+
+        rule.onNodeWithContentDescription("Set reminder").assertIsDisplayed()
+    }
+
+    @Test
+    fun noteDetail_groupedSectionsAreVisible() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "sec-1", text = "Sectioned note")
+            )
+        )
+
+        rule.onNodeWithTag("note_section_metadata").assertIsDisplayed()
+        rule.onNodeWithTag("note_section_content").assertIsDisplayed()
+        rule.onNodeWithTag("note_section_checklist").assertIsDisplayed()
+    }
+
+    @Test
+    fun noteDetail_clearReminderCallsCallback() {
+        var clearedId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(
+                    id = "rem-2",
+                    text = "Reminder set",
+                    reminderAt = System.currentTimeMillis() + 60_000L
+                )
+            ),
+            onClearNoteReminder = { clearedId = it }
+        )
+
+        rule.onNodeWithContentDescription("Clear reminder").performClick()
+        rule.waitForIdle()
+
+        assertEquals("rem-2", clearedId)
+    }
+
+    @Test
+    fun noteDetail_reminderRepeatDailyCallsCallback() {
+        var captured: Pair<String, String?>? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(
+                    id = "rem-repeat-1",
+                    text = "Repeat",
+                    reminderAt = System.currentTimeMillis() + 60_000L
+                )
+            ),
+            onSetNoteReminderRepeat = { id, repeat -> captured = id to repeat }
+        )
+
+        rule.onNodeWithText("Daily").performClick()
+        rule.waitForIdle()
+
+        assertEquals("rem-repeat-1" to "daily", captured)
+    }
+
+    @Test
+    fun noteDetail_undoRedoButtonsRespectEnabledFlags() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "undo-1", text = "Editable"),
+                canUndoNoteEdit = false,
+                canRedoNoteEdit = false
+            )
+        )
+
+        rule.onNodeWithContentDescription("Edit note").performClick()
+        rule.onNodeWithText("UNDO").assertIsDisplayed().assertIsNotEnabled()
+        rule.onNodeWithText("REDO").assertIsDisplayed().assertIsNotEnabled()
+    }
+
+    @Test
+    fun noteDetail_undoRedoButtonsCallCallbacksWhenEnabled() {
+        var undoId: String? = null
+        var redoId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "undo-2", text = "Editable"),
+                canUndoNoteEdit = true,
+                canRedoNoteEdit = true
+            ),
+            onUndoNoteEdit = { undoId = it },
+            onRedoNoteEdit = { redoId = it }
+        )
+
+        rule.onNodeWithContentDescription("Edit note").performClick()
+        rule.onNodeWithText("UNDO").assertIsEnabled().performClick()
+        rule.onNodeWithText("REDO").assertIsEnabled().performClick()
+        rule.waitForIdle()
+
+        assertEquals("undo-2", undoId)
+        assertEquals("undo-2", redoId)
+    }
+
+    @Test
+    fun noteDetail_markdownPreviewToggleSwitchesBetweenPreviewAndEdit() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "md-1", text = "# Title")
+            )
+        )
+
+        rule.onNodeWithContentDescription("Edit note").performClick()
+        rule.onNodeWithText("PREVIEW").assertIsDisplayed().performClick()
+        rule.onNodeWithText("EDIT").assertIsDisplayed().performClick()
+        rule.onNodeWithText("PREVIEW").assertIsDisplayed()
+    }
+
+    @Test
+    fun noteDetail_stickyToolbarAppearsOnlyInEditMode() {
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(id = "sticky-1", text = "Editable")
+            )
+        )
+
+        rule.onNodeWithText("UNDO").assertDoesNotExist()
+        rule.onNodeWithText("REDO").assertDoesNotExist()
+        rule.onNodeWithText("PREVIEW").assertDoesNotExist()
+
+        rule.onNodeWithContentDescription("Edit note").performClick()
+        rule.onNodeWithText("UNDO").assertIsDisplayed()
+        rule.onNodeWithText("REDO").assertIsDisplayed()
+        rule.onNodeWithText("PREVIEW").assertIsDisplayed()
+    }
+
+    @Test
+    fun noteDetail_trashedNoteShowsRestoreAndDeleteNow() {
+        var restoredId: String? = null
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = note(
+                    id = "trash-1",
+                    text = "Trashed",
+                    archivedAt = null
+                ).copy(trashedAt = System.currentTimeMillis())
+            ),
+            onRestoreNoteFromTrash = { restoredId = it }
+        )
+
+        rule.onNodeWithContentDescription("Restore").assertIsDisplayed().performClick()
+        rule.onNodeWithContentDescription("Delete now").assertIsDisplayed()
+        rule.waitForIdle()
+
+        assertEquals("trash-1", restoredId)
+    }
+
+    @Test
+    fun noteDetail_historyActionIsVisible() {
+        val selected = note(id = "rev-note", text = "Current")
+        val revisionNote = selected.copy(text = "Older")
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = selected,
+                noteRevisions = listOf(
+                    NoteRevision(
+                        id = "rev-1",
+                        noteId = "rev-note",
+                        note = revisionNote,
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+            )
+        )
+
+        rule.onNodeWithContentDescription("History").assertIsDisplayed()
+    }
+
+    @Test
+    fun noteDetail_linkedNotesAndBacklinksOpenCallback() {
+        var opened: String? = null
+        val selected = note(id = "n-main", text = "Main")
+        val linked = note(id = "n-linked", text = "Linked title")
+        val backlink = note(id = "n-back", text = "Back title")
+        show(
+            state = UiState(
+                isSetup = true,
+                screen = Screen.NoteDetail,
+                selectedNote = selected,
+                noteLinkedNotes = listOf(linked),
+                noteBacklinks = listOf(backlink)
+            ),
+            onOpenLinkedNote = { opened = it }
+        )
+
+        rule.onNodeWithText("Linked notes").assertIsDisplayed()
+        rule.onNodeWithText("Backlinks").assertIsDisplayed()
+        rule.onNodeWithText("Linked title").performClick()
+        rule.waitForIdle()
+
+        assertEquals("n-linked", opened)
     }
 
     // ---- Panic button ---------------------------------------------------------
@@ -524,7 +1081,7 @@ class NulvexUiTest {
         show(state = UiState(isSetup = true, screen = Screen.Settings))
 
         rule.onNodeWithText("Search settings").performTextInput("zzzzzzz")
-        rule.onNodeWithText("No settings match your search.").assertIsDisplayed()
+        rule.onAllNodesWithText("No settings match your search.").assertCountEquals(1)
     }
 
 

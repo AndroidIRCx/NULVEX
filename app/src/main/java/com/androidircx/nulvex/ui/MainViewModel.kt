@@ -10,8 +10,11 @@ import com.androidircx.nulvex.VaultServiceLocator
 import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
+import com.androidircx.nulvex.data.NoteRevision
 import com.androidircx.nulvex.pro.BackupRecord
 import com.androidircx.nulvex.pro.SharedKeyInfo
+import com.androidircx.nulvex.reminder.ReminderConstants
+import com.androidircx.nulvex.reminder.ReminderRequest
 import com.androidircx.nulvex.security.VaultProfile
 import com.androidircx.nulvex.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
@@ -25,25 +28,39 @@ sealed class PendingImport {
     data class RemoteMedia(val mediaId: String, val mime: String? = null) : PendingImport()
 }
 
+enum class QuickCreateType {
+    TEXT,
+    CHECKLIST,
+    ATTACHMENT
+}
+
 data class NewNoteDraft(
     val text: String = "",
     val checklist: List<ChecklistItem> = emptyList(),
     val labels: List<String> = emptyList(),
     val pinned: Boolean = false,
     val expiresAt: Long? = null,
-    val readOnce: Boolean = false
+    val readOnce: Boolean = false,
+    val reminderAt: Long? = null
 )
 
 data class NoteEditDraft(
     val noteId: String,
     val text: String,
-    val expiresAt: Long?
+    val expiresAt: Long?,
+    val labels: List<String> = emptyList(),
+    val checklist: List<ChecklistItem> = emptyList(),
+    val reminderAt: Long? = null,
+    val reminderDone: Boolean = false,
+    val archivedAt: Long? = null
 )
 
 data class UiState(
     val screen: Screen = Screen.Unlock,
     val notes: List<Note> = emptyList(),
     val selectedNote: Note? = null,
+    val noteLinkedNotes: List<Note> = emptyList(),
+    val noteBacklinks: List<Note> = emptyList(),
     val lastProfile: VaultProfile? = null,
     val error: String? = null,
     val isBusy: Boolean = false,
@@ -57,6 +74,9 @@ data class UiState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val searchQuery: String = "",
     val activeLabel: String? = null,
+    val showArchived: Boolean = false,
+    val showTrash: Boolean = false,
+    val selectedNoteIds: Set<String> = emptySet(),
     val attachmentPreviews: Map<String, Bitmap> = emptyMap(),
     val wrongAttempts: Int = 0,
     val lockoutUntil: Long = 0L,
@@ -79,6 +99,10 @@ data class UiState(
     val languageTag: String = "system",
     val savedLabels: List<String> = emptyList(),
     val pendingNoteEdit: NoteEditDraft? = null,
+    val canUndoNoteEdit: Boolean = false,
+    val canRedoNoteEdit: Boolean = false,
+    val noteRevisions: List<NoteRevision> = emptyList(),
+    val newNoteQuickCreate: QuickCreateType = QuickCreateType.TEXT,
     val newNoteDraft: NewNoteDraft? = null,
     val pendingImport: PendingImport? = null
 )
@@ -102,8 +126,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val adPreferences = VaultServiceLocator.adPreferences()
     private val sharedKeyStore = VaultServiceLocator.sharedKeyStore()
     private val encryptedBackupService = VaultServiceLocator.encryptedBackupService()
+    private val reminderScheduler = VaultServiceLocator.noteReminderScheduler()
+    private val noteEditHistory = NoteEditHistory()
     private var inactivityJob: Job? = null
     private var autoSaveEditJob: Job? = null
+    private val wikiLinkRegex = Regex("\\[\\[([^\\]]+)\\]\\]")
 
     var uiState = androidx.compose.runtime.mutableStateOf(
         UiState(
@@ -320,7 +347,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     downloadToken = downloadToken,
                     downloadExpires = downloadExpires
                 )
-                val notes = vaultService.listNotes()
+                val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -353,7 +380,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val imported = encryptedBackupService.restoreFromStoredRecord(recordId, merge)
-                val notes = vaultService.listNotes()
+                val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -384,7 +411,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun restoreLocalEncryptedBackupPayload(payload: ByteArray, keyId: String, merge: Boolean): Int {
         val imported = encryptedBackupService.restoreFromEncryptedBytes(payload, keyId, merge)
-        val notes = vaultService.listNotes()
+        val notes = listCurrentNotes()
         withContext(Dispatchers.Main) {
             uiState.value = uiState.value.copy(
                 notes = notes,
@@ -612,7 +639,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 return@launch
             }
-            val notes = vaultService.listNotes()
+            val notes = listCurrentNotes()
             withContext(Dispatchers.Main) {
                 appPreferences.setWrongAttempts(0)
                 appPreferences.setLockoutUntil(0L)
@@ -632,6 +659,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
+                applyPendingReminderActionIfAny()
                 resetInactivityTimer()
             }
         }
@@ -651,6 +679,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     ) {
         autoSaveEditJob?.cancel()
         uiState.value = uiState.value.copy(pendingNoteEdit = null)
+        clearEditHistory(noteId)
+        updateEditHistoryFlags(noteId)
         val note = findNote(noteId) ?: return
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
@@ -664,7 +694,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 expiresAt = expiresAt
             )
             val ok = vaultService.updateNote(updated)
-            val notes = vaultService.listNotes()
+            val notes = listCurrentNotes()
             withContext(Dispatchers.Main) {
                 val selected = notes.firstOrNull { it.id == noteId }
                 uiState.value = uiState.value.copy(
@@ -686,11 +716,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { flushNewNoteDraft() }
             authController.lock()
             clearInactivityTimer()
+            clearEditHistory()
             uiState.value = uiState.value.copy(
                 screen = Screen.Unlock,
                 notes = emptyList(),
                 selectedNote = null,
+                noteRevisions = emptyList(),
+                newNoteQuickCreate = QuickCreateType.TEXT,
                 pendingNoteEdit = null,
+                canUndoNoteEdit = false,
+                canRedoNoteEdit = false,
                 newNoteDraft = null,
                 attachmentPreviews = emptyMap()
             )
@@ -698,9 +733,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun notifyNoteEditDraft(noteId: String, text: String, expiresAt: Long?) {
-        uiState.value = uiState.value.copy(
-            pendingNoteEdit = NoteEditDraft(noteId = noteId, text = text, expiresAt = expiresAt)
+        val note = findNote(noteId) ?: return
+        val currentDraft = uiState.value.pendingNoteEdit?.takeIf { it.noteId == noteId }
+        if (currentDraft != null && currentDraft.text == text && currentDraft.expiresAt == expiresAt) {
+            return
+        }
+        val previousState = currentDraft?.let { draftToState(it) } ?: noteToEditState(note)
+        val currentState = previousState.copy(text = text, expiresAt = expiresAt)
+        noteEditHistory.recordDraftChange(
+            noteId = noteId,
+            previous = previousState,
+            current = currentState
         )
+        uiState.value = uiState.value.copy(
+            pendingNoteEdit = NoteEditDraft(
+                noteId = noteId,
+                text = text,
+                expiresAt = expiresAt,
+                labels = previousState.labels,
+                checklist = previousState.checklist,
+                reminderAt = previousState.reminderAt,
+                reminderDone = previousState.reminderDone,
+                archivedAt = previousState.archivedAt
+            )
+        )
+        updateEditHistoryFlags(noteId)
         autoSaveEditJob?.cancel()
         autoSaveEditJob = viewModelScope.launch {
             delay(1500L)
@@ -710,7 +767,98 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearNoteEditDraft() {
         autoSaveEditJob?.cancel()
-        uiState.value = uiState.value.copy(pendingNoteEdit = null)
+        clearEditHistory(uiState.value.pendingNoteEdit?.noteId)
+        uiState.value = uiState.value.copy(
+            pendingNoteEdit = null,
+            canUndoNoteEdit = false,
+            canRedoNoteEdit = false
+        )
+    }
+
+    fun requestUndoNoteEdit(noteId: String) {
+        autoSaveEditJob?.cancel()
+        val note = findNote(noteId) ?: return
+        val current = uiState.value.pendingNoteEdit?.takeIf { it.noteId == noteId }
+            ?: NoteEditDraft(
+                noteId = noteId,
+                text = note.text,
+                expiresAt = note.expiresAt,
+                labels = note.labels,
+                checklist = note.checklist,
+                reminderAt = note.reminderAt,
+                reminderDone = note.reminderDone,
+                archivedAt = note.archivedAt
+            )
+        val previous = noteEditHistory.undo(
+            noteId = noteId,
+            current = draftToState(current)
+        ) ?: return
+        val pendingDraft = uiState.value.pendingNoteEdit?.takeIf { it.noteId == noteId }
+        if (pendingDraft != null) {
+            val baseNote = findNote(noteId) ?: return
+            val baseState = noteToEditState(baseNote)
+            uiState.value = uiState.value.copy(
+                pendingNoteEdit = NoteEditDraft(
+                    noteId = noteId,
+                    text = previous.text,
+                    expiresAt = previous.expiresAt,
+                    labels = previous.labels,
+                    checklist = previous.checklist,
+                    reminderAt = previous.reminderAt,
+                    reminderDone = previous.reminderDone,
+                    archivedAt = previous.archivedAt
+                )
+            )
+            if (hasMetadataChange(baseState, previous)) {
+                persistNoteUpdate(applyEditState(baseNote, previous), recordHistory = false)
+            }
+        } else {
+            persistNoteUpdate(applyEditState(note, previous), recordHistory = false)
+        }
+        updateEditHistoryFlags(noteId)
+    }
+
+    fun requestRedoNoteEdit(noteId: String) {
+        autoSaveEditJob?.cancel()
+        val note = findNote(noteId) ?: return
+        val current = uiState.value.pendingNoteEdit?.takeIf { it.noteId == noteId }
+            ?: NoteEditDraft(
+                noteId = noteId,
+                text = note.text,
+                expiresAt = note.expiresAt,
+                labels = note.labels,
+                checklist = note.checklist,
+                reminderAt = note.reminderAt,
+                reminderDone = note.reminderDone,
+                archivedAt = note.archivedAt
+            )
+        val next = noteEditHistory.redo(
+            noteId = noteId,
+            current = draftToState(current)
+        ) ?: return
+        val pendingDraft = uiState.value.pendingNoteEdit?.takeIf { it.noteId == noteId }
+        if (pendingDraft != null) {
+            val baseNote = findNote(noteId) ?: return
+            val baseState = noteToEditState(baseNote)
+            uiState.value = uiState.value.copy(
+                pendingNoteEdit = NoteEditDraft(
+                    noteId = noteId,
+                    text = next.text,
+                    expiresAt = next.expiresAt,
+                    labels = next.labels,
+                    checklist = next.checklist,
+                    reminderAt = next.reminderAt,
+                    reminderDone = next.reminderDone,
+                    archivedAt = next.archivedAt
+                )
+            )
+            if (hasMetadataChange(baseState, next)) {
+                persistNoteUpdate(applyEditState(baseNote, next), recordHistory = false)
+            }
+        } else {
+            persistNoteUpdate(applyEditState(note, next), recordHistory = false)
+        }
+        updateEditHistoryFlags(noteId)
     }
 
     fun notifyNewNoteDraft(draft: NewNoteDraft?) {
@@ -734,7 +882,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val imported = encryptedBackupService.restoreFromEncryptedBytes(bytes, keyId, merge)
-                val notes = vaultService.listNotes()
+                val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -764,7 +912,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val imported = encryptedBackupService.restoreFromRemote(mediaId, keyId, merge)
-                val notes = vaultService.listNotes()
+                val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -833,11 +981,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun flushNoteEditDraft() {
         val draft = uiState.value.pendingNoteEdit ?: return
         val note = findNote(draft.noteId) ?: return
-        if (note.text == draft.text && note.expiresAt == draft.expiresAt) {
+        if (
+            note.text == draft.text &&
+            note.expiresAt == draft.expiresAt &&
+            note.labels == draft.labels &&
+            note.checklist == draft.checklist &&
+            note.reminderAt == draft.reminderAt &&
+            note.reminderDone == draft.reminderDone &&
+            note.archivedAt == draft.archivedAt
+        ) {
             uiState.value = uiState.value.copy(pendingNoteEdit = null)
             return
         }
-        val updated = note.copy(text = draft.text, expiresAt = draft.expiresAt)
+        val updated = note.copy(
+            text = draft.text,
+            expiresAt = draft.expiresAt,
+            labels = draft.labels,
+            checklist = draft.checklist,
+            reminderAt = draft.reminderAt,
+            reminderDone = draft.reminderDone,
+            archivedAt = draft.archivedAt
+        )
         withContext(Dispatchers.IO) { vaultService.updateNote(updated) }
         uiState.value = uiState.value.copy(
             selectedNote = if (uiState.value.selectedNote?.id == draft.noteId) updated else uiState.value.selectedNote,
@@ -860,14 +1024,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 attachments = emptyList(),
                 pinned = draft.pinned,
                 expiresAt = draft.expiresAt,
-                readOnce = draft.readOnce
+                readOnce = draft.readOnce,
+                reminderAt = draft.reminderAt
             )
         }
         uiState.value = uiState.value.copy(newNoteDraft = null)
     }
 
     fun openNewNote() {
-        uiState.value = uiState.value.copy(screen = Screen.NewNote, error = null)
+        openNewNote(QuickCreateType.TEXT)
+    }
+
+    fun openNewNote(type: QuickCreateType) {
+        val draft = when (type) {
+            QuickCreateType.CHECKLIST -> NewNoteDraft(
+                checklist = listOf(
+                    ChecklistItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        text = "",
+                        checked = false
+                    )
+                )
+            )
+            else -> null
+        }
+        uiState.value = uiState.value.copy(
+            screen = Screen.NewNote,
+            error = null,
+            newNoteQuickCreate = type,
+            newNoteDraft = draft
+        )
         resetInactivityTimer()
     }
 
@@ -995,7 +1181,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 vaultService.unlockWithMasterKey(masterKey, VaultProfile.DECOY)
-                val notes = vaultService.listNotes()
+                val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         screen = Screen.Vault,
@@ -1004,6 +1190,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                         isBusy = false
                     )
+                    applyPendingReminderActionIfAny()
                     resetInactivityTimer()
                 }
             } catch (_: Exception) {
@@ -1024,7 +1211,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 vaultService.unlockWithMasterKey(masterKey, VaultProfile.REAL)
-                val notes = vaultService.listNotes()
+                val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         screen = Screen.Vault,
@@ -1033,6 +1220,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                         isBusy = false
                     )
+                    applyPendingReminderActionIfAny()
                     resetInactivityTimer()
                 }
             } catch (_: Exception) {
@@ -1078,6 +1266,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             val note = vaultService.readNote(id)
+            val revisions = vaultService.listNoteRevisions(id)
+            val notes = listCurrentNotes()
             withContext(Dispatchers.Main) {
                 if (note == null) {
                     uiState.value = uiState.value.copy(
@@ -1085,15 +1275,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         isBusy = false
                     )
                 } else {
-                    uiState.value = uiState.value.copy(
-                        selectedNote = note,
-                        screen = Screen.NoteDetail,
-                        error = null,
-                        isBusy = false,
-                        attachmentPreviews = emptyMap()
-                    )
+                val (linkedNotes, backlinks) = computeNoteConnections(note, notes)
+                uiState.value = uiState.value.copy(
+                    selectedNote = note,
+                    noteLinkedNotes = linkedNotes,
+                    noteBacklinks = backlinks,
+                    screen = Screen.NoteDetail,
+                    error = null,
+                    isBusy = false,
+                    selectedNoteIds = emptySet(),
+                    canUndoNoteEdit = false,
+                    canRedoNoteEdit = false,
+                    noteRevisions = revisions,
+                    attachmentPreviews = emptyMap()
+                )
                     resetInactivityTimer()
                 }
+            }
+        }
+    }
+
+    fun restoreNoteRevision(noteId: String, revisionId: String) {
+        if (noteId.isBlank() || revisionId.isBlank()) return
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = vaultService.restoreNoteRevision(noteId, revisionId)
+            val note = vaultService.readNote(noteId)
+            val notes = listCurrentNotes()
+            val revisions = vaultService.listNoteRevisions(noteId)
+            withContext(Dispatchers.Main) {
+                val (linkedNotes, backlinks) = if (note != null) {
+                    computeNoteConnections(note, notes)
+                } else {
+                    emptyList<Note>() to emptyList<Note>()
+                }
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = note,
+                    noteLinkedNotes = linkedNotes,
+                    noteBacklinks = backlinks,
+                    noteRevisions = revisions,
+                    error = if (ok) null else "Revision restore failed",
+                    isBusy = false
+                )
             }
         }
     }
@@ -1101,7 +1325,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun closeNoteDetail() {
         val note = uiState.value.selectedNote
         if (note?.readOnce == true) {
-            deleteNote(note.id)
+            deleteNotePermanently(note.id)
         } else {
             refreshNotes(Screen.Vault)
         }
@@ -1114,7 +1338,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         pinned: Boolean,
         attachments: List<Uri>,
         expiresAt: Long?,
-        readOnce: Boolean
+        readOnce: Boolean,
+        reminderAt: Long?
     ) {
         val hasContent = text.isNotBlank() || checklist.any { it.text.isNotBlank() } || attachments.isNotEmpty()
         if (!hasContent) {
@@ -1133,15 +1358,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 attachments = storedAttachments,
                 pinned = pinned,
                 expiresAt = expiresAt,
-                readOnce = readOnce
+                readOnce = readOnce,
+                reminderAt = reminderAt
             )
-            val notes = vaultService.listNotes()
+            val notes = listCurrentNotes()
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(
                     screen = Screen.Vault,
                     notes = notes,
                     error = null,
                     isBusy = false,
+                    selectedNoteIds = emptySet(),
+                    newNoteQuickCreate = QuickCreateType.TEXT,
                     newNoteDraft = null,
                     attachmentPreviews = emptyMap()
                 )
@@ -1153,14 +1381,191 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteNote(id: String) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            vaultService.deleteNote(id)
-            val notes = vaultService.listNotes()
+            clearReminderSchedulingFor(id)
+            if (uiState.value.showTrash) {
+                vaultService.deleteNotePermanently(id)
+            } else {
+                vaultService.moveNoteToTrash(id)
+            }
+            val notes = listCurrentNotes()
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(
                     screen = Screen.Vault,
                     notes = notes,
                     selectedNote = null,
+                    noteLinkedNotes = emptyList(),
+                    noteBacklinks = emptyList(),
+                    noteRevisions = emptyList(),
                     error = null,
+                    isBusy = false,
+                    selectedNoteIds = emptySet(),
+                    attachmentPreviews = emptyMap()
+                )
+                resetInactivityTimer()
+            }
+        }
+    }
+
+    fun toggleNoteSelection(id: String) {
+        val selected = uiState.value.selectedNoteIds.toMutableSet()
+        if (!selected.add(id)) {
+            selected.remove(id)
+        }
+        uiState.value = uiState.value.copy(selectedNoteIds = selected)
+    }
+
+    fun clearNoteSelection() {
+        if (uiState.value.selectedNoteIds.isEmpty()) return
+        uiState.value = uiState.value.copy(selectedNoteIds = emptySet())
+    }
+
+    fun bulkArchiveSelected() {
+        val selectedIds = uiState.value.selectedNoteIds
+        if (selectedIds.isEmpty()) return
+        val notesById = uiState.value.notes.associateBy { it.id }
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            selectedIds.forEach { id ->
+                val note = notesById[id] ?: return@forEach
+                if (note.trashedAt != null) return@forEach
+                if (note.archivedAt == null && note.reminderAt != null) {
+                    vaultService.setReminder(id, reminderAt = null, reminderDone = false, reminderRepeat = null)
+                    clearReminderSchedulingFor(id)
+                }
+                vaultService.setArchived(id, archived = true)
+            }
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNoteIds = emptySet(),
+                    isBusy = false,
+                    error = null
+                )
+            }
+        }
+    }
+
+    fun bulkDeleteSelected() {
+        val selectedIds = uiState.value.selectedNoteIds
+        if (selectedIds.isEmpty()) return
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            selectedIds.forEach { id ->
+                clearReminderSchedulingFor(id)
+                if (uiState.value.showTrash) {
+                    vaultService.deleteNotePermanently(id)
+                } else {
+                    vaultService.moveNoteToTrash(id)
+                }
+            }
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNoteIds = emptySet(),
+                    isBusy = false,
+                    error = null
+                )
+            }
+        }
+    }
+
+    fun bulkAddLabelSelected(label: String) {
+        val selectedIds = uiState.value.selectedNoteIds
+        val trimmed = label.trim()
+        if (selectedIds.isEmpty() || trimmed.isBlank()) return
+        val saved = appPreferences.addCustomLabel(trimmed)
+        uiState.value = uiState.value.copy(savedLabels = saved)
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            selectedIds.forEach { id ->
+                val note = vaultService.readNote(id) ?: return@forEach
+                if (note.trashedAt != null) return@forEach
+                vaultService.updateNote(note.copy(labels = (note.labels + trimmed).distinct()))
+            }
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNoteIds = emptySet(),
+                    isBusy = false,
+                    error = null
+                )
+            }
+        }
+    }
+
+    fun bulkSetReminderSelected(triggerAt: Long) {
+        val selectedIds = uiState.value.selectedNoteIds
+        if (selectedIds.isEmpty()) return
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            selectedIds.forEach { id ->
+                val note = vaultService.readNote(id) ?: return@forEach
+                if (note.trashedAt != null || note.archivedAt != null) return@forEach
+                val ok = vaultService.setReminder(id, reminderAt = triggerAt, reminderDone = false, reminderRepeat = null)
+                if (ok) {
+                    reminderScheduler.schedule(
+                        ReminderRequest(
+                            noteId = id,
+                            triggerAtEpochMillis = triggerAt,
+                            title = "Note reminder",
+                            preview = note.text.trim().take(64)
+                        )
+                    )
+                    appPreferences.upsertReminderSchedule(id, triggerAt)
+                }
+            }
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNoteIds = emptySet(),
+                    isBusy = false,
+                    error = null
+                )
+            }
+        }
+    }
+
+    fun restoreNoteFromTrash(id: String) {
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = vaultService.restoreNoteFromTrash(id)
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    screen = Screen.Vault,
+                    notes = notes,
+                    selectedNote = null,
+                    noteLinkedNotes = emptyList(),
+                    noteBacklinks = emptyList(),
+                    noteRevisions = emptyList(),
+                    error = if (ok) null else "Restore from trash failed",
+                    isBusy = false,
+                    attachmentPreviews = emptyMap()
+                )
+                resetInactivityTimer()
+            }
+        }
+    }
+
+    fun deleteNotePermanently(id: String) {
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            clearReminderSchedulingFor(id)
+            val ok = vaultService.deleteNotePermanently(id)
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    screen = Screen.Vault,
+                    notes = notes,
+                    selectedNote = null,
+                    noteLinkedNotes = emptyList(),
+                    noteBacklinks = emptyList(),
+                    noteRevisions = emptyList(),
+                    error = if (ok) null else "Permanent delete failed",
                     isBusy = false,
                     attachmentPreviews = emptyMap()
                 )
@@ -1226,7 +1631,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             val ok = vaultService.removeAttachment(noteId, attachmentId)
-            val notes = vaultService.listNotes()
+            val notes = listCurrentNotes()
             withContext(Dispatchers.Main) {
                 val selected = notes.firstOrNull { it.id == noteId }
                 uiState.value = uiState.value.copy(
@@ -1265,6 +1670,166 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         uiState.value = uiState.value.copy(activeLabel = label)
     }
 
+    fun setShowArchived(showArchived: Boolean) {
+        if (uiState.value.showArchived == showArchived && !uiState.value.showTrash) return
+        uiState.value = uiState.value.copy(showArchived = showArchived, showTrash = false)
+        refreshNotes(Screen.Vault)
+    }
+
+    fun setShowTrash(showTrash: Boolean) {
+        if (uiState.value.showTrash == showTrash) return
+        uiState.value = uiState.value.copy(
+            showTrash = showTrash,
+            showArchived = if (showTrash) false else uiState.value.showArchived
+        )
+        refreshNotes(Screen.Vault)
+    }
+
+    fun toggleArchived(noteId: String) {
+        val note = findNote(noteId) ?: return
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            if (note.archivedAt == null && note.reminderAt != null) {
+                vaultService.setReminder(noteId, reminderAt = null, reminderDone = false, reminderRepeat = null)
+                clearReminderSchedulingFor(noteId)
+            }
+            val ok = vaultService.setArchived(noteId, archived = note.archivedAt == null)
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                val selected = notes.firstOrNull { it.id == noteId }
+                if (ok && selected != null) {
+                    noteEditHistory.recordDraftChange(
+                        noteId = noteId,
+                        previous = noteToEditState(note),
+                        current = noteToEditState(selected)
+                    )
+                    updateEditHistoryFlags(noteId)
+                }
+                uiState.value = uiState.value.copy(
+                    screen = Screen.Vault,
+                    notes = notes,
+                    selectedNote = selected,
+                    error = if (ok) null else "Note archive update failed",
+                    isBusy = false
+                )
+                resetInactivityTimer()
+            }
+        }
+    }
+
+    fun setNoteReminder(noteId: String, reminderAt: Long) {
+        val previous = findNote(noteId) ?: return
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = vaultService.setReminder(
+                noteId,
+                reminderAt = reminderAt,
+                reminderDone = false,
+                reminderRepeat = previous.reminderRepeat
+            )
+            if (ok) {
+                val note = vaultService.readNote(noteId)
+                reminderScheduler.schedule(
+                    ReminderRequest(
+                        noteId = noteId,
+                        triggerAtEpochMillis = reminderAt,
+                        title = "Note reminder",
+                        preview = note?.text?.trim()?.take(64).orEmpty()
+                    )
+                )
+                appPreferences.upsertReminderSchedule(noteId, reminderAt)
+            }
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                val selected = notes.firstOrNull { it.id == noteId }
+                if (ok && selected != null) {
+                    noteEditHistory.recordDraftChange(
+                        noteId = noteId,
+                        previous = noteToEditState(previous),
+                        current = noteToEditState(selected)
+                    )
+                    updateEditHistoryFlags(noteId)
+                }
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = selected,
+                    error = if (ok) null else "Reminder update failed",
+                    isBusy = false
+                )
+            }
+        }
+    }
+
+    fun clearNoteReminder(noteId: String) {
+        val previous = findNote(noteId) ?: return
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = vaultService.setReminder(
+                noteId,
+                reminderAt = null,
+                reminderDone = false,
+                reminderRepeat = previous.reminderRepeat
+            )
+            if (ok) {
+                clearReminderSchedulingFor(noteId)
+            }
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                val selected = notes.firstOrNull { it.id == noteId }
+                if (ok && selected != null) {
+                    noteEditHistory.recordDraftChange(
+                        noteId = noteId,
+                        previous = noteToEditState(previous),
+                        current = noteToEditState(selected)
+                    )
+                    updateEditHistoryFlags(noteId)
+                }
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = selected,
+                    error = if (ok) null else "Reminder clear failed",
+                    isBusy = false
+                )
+            }
+        }
+    }
+
+    fun setNoteReminderRepeat(noteId: String, reminderRepeat: String?) {
+        val note = findNote(noteId) ?: return
+        setBusy(true)
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = vaultService.setReminder(
+                noteId,
+                reminderAt = note.reminderAt,
+                reminderDone = note.reminderDone,
+                reminderRepeat = reminderRepeat
+            )
+            val notes = listCurrentNotes()
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(
+                    notes = notes,
+                    selectedNote = notes.firstOrNull { it.id == noteId },
+                    error = if (ok) null else "Reminder repeat update failed",
+                    isBusy = false
+                )
+            }
+        }
+    }
+
+    fun handleReminderAction(action: String, noteId: String) {
+        val normalizedAction = action.trim().lowercase()
+        val normalizedNoteId = noteId.trim()
+        if (normalizedAction.isBlank() || normalizedNoteId.isBlank()) return
+        val unlocked = uiState.value.screen == Screen.Vault || uiState.value.screen == Screen.NoteDetail
+        if (!unlocked) {
+            appPreferences.setPendingReminderAction(normalizedAction, normalizedNoteId)
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            executeReminderAction(normalizedAction, normalizedNoteId)
+        }
+    }
+
     fun createStandaloneLabel(label: String) {
         val trimmed = label.trim()
         if (trimmed.isBlank()) return
@@ -1301,6 +1866,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun panicWipe() {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
+            appPreferences.getReminderSchedules().keys.forEach { noteId ->
+                reminderScheduler.cancel(noteId)
+            }
+            appPreferences.clearReminderSchedules()
+            appPreferences.clearPendingReminderAction()
             panicWipeService.wipeAll()
             withContext(Dispatchers.Main) {
                 clearInactivityTimer()
@@ -1330,15 +1900,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private suspend fun listCurrentNotes(): List<Note> {
+        return if (uiState.value.showTrash) {
+            vaultService.purgeOldTrash(retentionDays = 7)
+            vaultService.listTrashedNotes()
+        } else {
+            vaultService.listNotes(uiState.value.showArchived)
+        }
+    }
+
     private fun refreshNotes(targetScreen: Screen) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            val notes = vaultService.listNotes()
+            val notes = listCurrentNotes()
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(
                     screen = targetScreen,
                     notes = notes,
                     selectedNote = null,
+                    noteLinkedNotes = emptyList(),
+                    noteBacklinks = emptyList(),
+                    noteRevisions = emptyList(),
+                    selectedNoteIds = emptySet(),
                     error = null,
                     isBusy = false,
                     isDecoyEnabled = authController.isDecoyEnabled(),
@@ -1349,6 +1932,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
                     savedLabels = appPreferences.getCustomLabels(),
+                    newNoteQuickCreate = QuickCreateType.TEXT,
                     pendingNoteEdit = null,
                     newNoteDraft = null,
                     attachmentPreviews = emptyMap()
@@ -1358,16 +1942,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun persistNoteUpdate(note: Note) {
+    private fun persistNoteUpdate(note: Note, recordHistory: Boolean = true) {
+        val previous = findNote(note.id)
+        if (recordHistory && previous != null) {
+            noteEditHistory.recordDraftChange(
+                noteId = note.id,
+                previous = noteToEditState(previous),
+                current = noteToEditState(note)
+            )
+            updateEditHistoryFlags(note.id)
+        }
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             val ok = vaultService.updateNote(note)
-            val notes = vaultService.listNotes()
+            val notes = listCurrentNotes()
+            val revisions = if (uiState.value.selectedNote?.id == note.id) {
+                vaultService.listNoteRevisions(note.id)
+            } else {
+                uiState.value.noteRevisions
+            }
             withContext(Dispatchers.Main) {
                 val selected = if (uiState.value.selectedNote?.id == note.id) note else uiState.value.selectedNote
+                val (linkedNotes, backlinks) = if (selected != null) {
+                    computeNoteConnections(selected, notes)
+                } else {
+                    emptyList<Note>() to emptyList<Note>()
+                }
                 uiState.value = uiState.value.copy(
                     notes = notes,
                     selectedNote = selected,
+                    noteLinkedNotes = linkedNotes,
+                    noteBacklinks = backlinks,
+                    noteRevisions = revisions,
+                    selectedNoteIds = emptySet(),
                     error = if (ok) null else "Note update failed",
                     isBusy = false
                 )
@@ -1376,9 +1983,80 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun noteToEditState(note: Note): NoteEditState {
+        return NoteEditState(
+            text = note.text,
+            expiresAt = note.expiresAt,
+            labels = note.labels,
+            checklist = note.checklist,
+            reminderAt = note.reminderAt,
+            reminderDone = note.reminderDone,
+            archivedAt = note.archivedAt
+        )
+    }
+
+    private fun draftToState(draft: NoteEditDraft): NoteEditState {
+        return NoteEditState(
+            text = draft.text,
+            expiresAt = draft.expiresAt,
+            labels = draft.labels,
+            checklist = draft.checklist,
+            reminderAt = draft.reminderAt,
+            reminderDone = draft.reminderDone,
+            archivedAt = draft.archivedAt
+        )
+    }
+
+    private fun hasMetadataChange(current: NoteEditState, target: NoteEditState): Boolean {
+        return current.labels != target.labels ||
+            current.checklist != target.checklist ||
+            current.reminderAt != target.reminderAt ||
+            current.reminderDone != target.reminderDone ||
+            current.archivedAt != target.archivedAt
+    }
+
+    private fun applyEditState(note: Note, state: NoteEditState): Note {
+        return note.copy(
+            text = state.text,
+            expiresAt = state.expiresAt,
+            labels = state.labels,
+            checklist = state.checklist,
+            reminderAt = state.reminderAt,
+            reminderDone = state.reminderDone,
+            archivedAt = state.archivedAt
+        )
+    }
+
     private fun findNote(noteId: String): Note? {
         val state = uiState.value
         return state.selectedNote?.takeIf { it.id == noteId } ?: state.notes.firstOrNull { it.id == noteId }
+    }
+
+    private fun computeNoteConnections(selected: Note, notes: List<Note>): Pair<List<Note>, List<Note>> {
+        val linkTokens = wikiLinkRegex.findAll(selected.text)
+            .map { it.groupValues.getOrNull(1).orEmpty().trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val linked = notes.filter { candidate ->
+            candidate.id != selected.id && linkTokens.any { token ->
+                token.equals(candidate.id, ignoreCase = true) ||
+                    token.equals(noteTitle(candidate), ignoreCase = true)
+            }
+        }
+
+        val selectedTitle = noteTitle(selected)
+        val backlinks = notes.filter { candidate ->
+            candidate.id != selected.id && wikiLinkRegex.findAll(candidate.text).any { match ->
+                val token = match.groupValues.getOrNull(1).orEmpty().trim()
+                token.equals(selected.id, ignoreCase = true) ||
+                    token.equals(selectedTitle, ignoreCase = true)
+            }
+        }
+        return linked to backlinks
+    }
+
+    private fun noteTitle(note: Note): String {
+        return note.text.lineSequence().firstOrNull { it.trim().isNotBlank() }?.trim().orEmpty()
     }
 
     private fun setBusy(value: Boolean) {
@@ -1408,5 +2086,121 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun clearInactivityTimer() {
         inactivityJob?.cancel()
         inactivityJob = null
+    }
+
+    private fun updateEditHistoryFlags(noteId: String?) {
+        val id = noteId ?: run {
+            uiState.value = uiState.value.copy(canUndoNoteEdit = false, canRedoNoteEdit = false)
+            return
+        }
+        uiState.value = uiState.value.copy(
+            canUndoNoteEdit = noteEditHistory.canUndo(id),
+            canRedoNoteEdit = noteEditHistory.canRedo(id)
+        )
+    }
+
+    private fun clearEditHistory(noteId: String? = null) {
+        noteEditHistory.clear(noteId)
+    }
+
+    private fun clearReminderSchedulingFor(noteId: String) {
+        reminderScheduler.cancel(noteId)
+        appPreferences.removeReminderSchedule(noteId)
+    }
+
+    private fun nextRepeatTrigger(currentReminderAt: Long?, reminderRepeat: String?): Long? {
+        val current = currentReminderAt ?: return null
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = current }
+        return when (reminderRepeat?.trim()?.lowercase()) {
+            "daily" -> cal.apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }.timeInMillis
+            "weekly" -> cal.apply { add(java.util.Calendar.WEEK_OF_YEAR, 1) }.timeInMillis
+            "monthly" -> cal.apply { add(java.util.Calendar.MONTH, 1) }.timeInMillis
+            else -> null
+        }
+    }
+
+    private suspend fun executeReminderAction(action: String, noteId: String) {
+        when (action) {
+            ReminderConstants.ACTION_OPEN -> withContext(Dispatchers.Main) { openNote(noteId) }
+            ReminderConstants.ACTION_SNOOZE -> {
+                val triggerAt = System.currentTimeMillis() + 10 * 60_000L
+                val note = vaultService.readNote(noteId)
+                val ok = vaultService.setReminder(
+                    noteId,
+                    reminderAt = triggerAt,
+                    reminderDone = false,
+                    reminderRepeat = note?.reminderRepeat
+                )
+                if (ok) {
+                    reminderScheduler.schedule(
+                        ReminderRequest(
+                            noteId = noteId,
+                            triggerAtEpochMillis = triggerAt,
+                            title = "Note reminder",
+                            preview = note?.text?.trim()?.take(64).orEmpty()
+                        )
+                    )
+                    appPreferences.upsertReminderSchedule(noteId, triggerAt)
+                    val notes = listCurrentNotes()
+                    withContext(Dispatchers.Main) {
+                        uiState.value = uiState.value.copy(
+                            notes = notes,
+                            selectedNote = notes.firstOrNull { it.id == noteId },
+                            error = null
+                        )
+                    }
+                }
+            }
+            ReminderConstants.ACTION_DONE -> {
+                val note = vaultService.readNote(noteId)
+                val nextTrigger = nextRepeatTrigger(note?.reminderAt, note?.reminderRepeat)
+                val ok = if (nextTrigger != null) {
+                    vaultService.setReminder(
+                        noteId,
+                        reminderAt = nextTrigger,
+                        reminderDone = false,
+                        reminderRepeat = note?.reminderRepeat
+                    )
+                } else {
+                    vaultService.setReminder(
+                        noteId,
+                        reminderAt = null,
+                        reminderDone = true,
+                        reminderRepeat = note?.reminderRepeat
+                    )
+                }
+                if (ok) {
+                    if (nextTrigger == null) {
+                        clearReminderSchedulingFor(noteId)
+                    } else {
+                        reminderScheduler.schedule(
+                            ReminderRequest(
+                                noteId = noteId,
+                                triggerAtEpochMillis = nextTrigger,
+                                title = "Note reminder",
+                                preview = note?.text?.trim()?.take(64).orEmpty()
+                            )
+                        )
+                        appPreferences.upsertReminderSchedule(noteId, nextTrigger)
+                    }
+                    val notes = listCurrentNotes()
+                    withContext(Dispatchers.Main) {
+                        uiState.value = uiState.value.copy(
+                            notes = notes,
+                            selectedNote = notes.firstOrNull { it.id == noteId },
+                            error = null
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyPendingReminderActionIfAny() {
+        val pending = appPreferences.getPendingReminderAction() ?: return
+        appPreferences.clearPendingReminderAction()
+        viewModelScope.launch(Dispatchers.IO) {
+            executeReminderAction(pending.first, pending.second)
+        }
     }
 }

@@ -22,4 +22,22 @@ class RemoteMediaIdParserTest {
         val parsed = resolveRemoteMediaIdInput("   ")
         assertEquals("", parsed)
     }
+
+    @Test
+    fun rejectsTraversalPayloads() {
+        val parsed = resolveRemoteMediaIdInput("https://androidircx.com/api/media/download/../../etc/passwd")
+        assertEquals("", parsed)
+    }
+
+    @Test
+    fun rejectsSlashesInRawId() {
+        val parsed = resolveRemoteMediaIdInput("../media-token")
+        assertEquals("", parsed)
+    }
+
+    @Test
+    fun rejectsNonSafeCharacters() {
+        val parsed = resolveRemoteMediaIdInput("media-token?<script>alert(1)</script>")
+        assertEquals("", parsed)
+    }
 }

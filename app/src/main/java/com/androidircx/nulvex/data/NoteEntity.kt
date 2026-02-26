@@ -8,7 +8,10 @@ import androidx.room.PrimaryKey
     tableName = "notes",
     indices = [
         Index(value = ["expiresAt"]),
-        Index(value = ["deleted"])
+        Index(value = ["deleted"]),
+        Index(value = ["archivedAt"]),
+        Index(value = ["reminderAt"]),
+        Index(value = ["trashedAt"])
     ]
 )
 data class NoteEntity(
@@ -17,5 +20,11 @@ data class NoteEntity(
     val createdAt: Long,
     val expiresAt: Long?,
     val readOnce: Boolean,
-    val deleted: Boolean
+    val deleted: Boolean,
+    val archivedAt: Long? = null,
+    val reminderAt: Long? = null,
+    val reminderDone: Boolean = false,
+    val reminderRepeat: String? = null,
+    val trashedAt: Long? = null,
+    val updatedAt: Long = createdAt
 )

@@ -9,6 +9,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -153,5 +154,39 @@ class EncryptedBackupServiceTest {
 
         assertEquals(4, imported)
         verify { apiClient.download("download-path-a", "d-token", 999L) }
+    }
+
+    @Test
+    fun restoreFromEncryptedBytes_rejectsMalformedWrapperJson() = runTest {
+        val vaultService = mockk<VaultService>()
+        val sharedKeyStore = mockk<SharedKeyStore>()
+        val backupRegistryStore = mockk<BackupRegistryStore>()
+        val apiClient = mockk<LaravelMediaApiClient>()
+        val service = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore, apiClient)
+
+        val malformed = "not-json".toByteArray()
+        try {
+            service.restoreFromEncryptedBytes(malformed, keyId = "k1", merge = true)
+            fail("Expected malformed wrapper to throw")
+        } catch (_: Exception) {
+            // expected
+        }
+    }
+
+    @Test
+    fun restoreFromEncryptedBytes_rejectsMissingPayloadField() = runTest {
+        val vaultService = mockk<VaultService>()
+        val sharedKeyStore = mockk<SharedKeyStore>()
+        val backupRegistryStore = mockk<BackupRegistryStore>()
+        val apiClient = mockk<LaravelMediaApiClient>()
+        val service = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore, apiClient)
+
+        val missingPayload = """{"v":1,"kind":"backup"}""".toByteArray()
+        try {
+            service.restoreFromEncryptedBytes(missingPayload, keyId = "k1", merge = true)
+            fail("Expected missing payload to throw")
+        } catch (_: Exception) {
+            // expected
+        }
     }
 }

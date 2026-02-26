@@ -8,6 +8,8 @@ import com.androidircx.nulvex.data.VaultSessionManager
 import com.androidircx.nulvex.pro.EncryptedBackupService
 import com.androidircx.nulvex.pro.BackupRegistryStore
 import com.androidircx.nulvex.pro.SharedKeyStore
+import com.androidircx.nulvex.reminder.AlarmManagerNoteReminderScheduler
+import com.androidircx.nulvex.reminder.NoteReminderScheduler
 import com.androidircx.nulvex.security.VaultAuthController
 import com.androidircx.nulvex.security.VaultAuthService
 import com.androidircx.nulvex.security.PanicWipeService
@@ -25,6 +27,7 @@ object VaultServiceLocator {
     private lateinit var sharedKeyStore: SharedKeyStore
     private lateinit var backupRegistryStore: BackupRegistryStore
     private lateinit var encryptedBackupService: EncryptedBackupService
+    private lateinit var noteReminderScheduler: NoteReminderScheduler
 
     fun init(context: Context) {
         val appContext = context.applicationContext
@@ -39,6 +42,7 @@ object VaultServiceLocator {
         sharedKeyStore = SharedKeyStore(appContext)
         backupRegistryStore = BackupRegistryStore(appContext)
         encryptedBackupService = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore)
+        noteReminderScheduler = AlarmManagerNoteReminderScheduler(appContext)
     }
 
     fun sessionManager(): VaultSessionManager = sessionManager
@@ -52,4 +56,5 @@ object VaultServiceLocator {
     fun sharedKeyStore(): SharedKeyStore = sharedKeyStore
     fun backupRegistryStore(): BackupRegistryStore = backupRegistryStore
     fun encryptedBackupService(): EncryptedBackupService = encryptedBackupService
+    fun noteReminderScheduler(): NoteReminderScheduler = noteReminderScheduler
 }
