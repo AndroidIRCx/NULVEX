@@ -55,6 +55,7 @@ import com.androidircx.nulvex.billing.PurchaseUpdateStatus
 import com.androidircx.nulvex.i18n.sanitizeLanguageTag
 import com.androidircx.nulvex.reminder.ReminderConstants
 import com.androidircx.nulvex.i18n.tx
+import com.androidircx.nulvex.ui.resolveRemoteMediaIdInput
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,6 +63,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        const val ACTION_QUICK_CAPTURE = "com.androidircx.nulvex.action.QUICK_CAPTURE"
+    }
+
     private val vm: MainViewModel by viewModels()
     private val biometricStore by lazy { BiometricKeyStore(applicationContext) }
     private val decoyBiometricStore by lazy {
@@ -199,12 +204,21 @@ class MainActivity : AppCompatActivity() {
                     onUpdateThemeMode = vm::updateThemeMode,
                     onUpdateLanguage = ::updateLanguage,
                     onOpenNew = vm::openNewNote,
+                    onQuickCreate = vm::openNewNote,
                     onCreate = vm::createNote,
                     onOpenNote = vm::openNote,
+                    onOpenLinkedNote = vm::openNote,
+                    onToggleNoteSelection = vm::toggleNoteSelection,
+                    onClearNoteSelection = vm::clearNoteSelection,
+                    onBulkArchiveSelected = vm::bulkArchiveSelected,
+                    onBulkDeleteSelected = vm::bulkDeleteSelected,
+                    onBulkAddLabelSelected = vm::bulkAddLabelSelected,
+                    onBulkSetReminderSelected = vm::bulkSetReminderSelected,
                     onCloseNote = vm::closeNoteDetail,
                     onUpdateNoteText = vm::updateNoteText,
                     onSaveEditedNote = vm::saveEditedNote,
                     onShareNote = ::shareNoteFile,
+                    onExportNoteFile = ::exportNoteFileLocal,
                     onDelete = vm::deleteNote,
                     onTogglePinned = vm::togglePinned,
                     onToggleChecklistItem = vm::toggleChecklistItem,
@@ -218,11 +232,15 @@ class MainActivity : AppCompatActivity() {
                     onSearchQueryChange = vm::updateSearchQuery,
                     onSelectLabel = vm::updateActiveLabel,
                     onSetShowArchived = vm::setShowArchived,
+                    onSetShowTrash = vm::setShowTrash,
                     onLoadAttachmentPreview = vm::loadAttachmentPreview,
                     onRemoveAttachment = vm::removeAttachment,
                     onToggleArchived = vm::toggleArchived,
+                    onRestoreNoteFromTrash = vm::restoreNoteFromTrash,
                     onSetNoteReminder = vm::setNoteReminder,
+                    onSetNoteReminderRepeat = vm::setNoteReminderRepeat,
                     onClearNoteReminder = vm::clearNoteReminder,
+                    onRestoreNoteRevision = vm::restoreNoteRevision,
                     onClearError = vm::clearError,
                     onWatchAdToRemoveAds = {
                         adManager.showRewardedNoAds(this) { amount ->
@@ -591,6 +609,11 @@ class MainActivity : AppCompatActivity() {
             vm.uploadNoteShare(noteId)
             return
         }
+        exportNoteFileLocal(noteId)
+    }
+
+    private fun exportNoteFileLocal(noteId: String) {
+        val state = vm.uiState.value
         val keyId = state.sharedKeys.firstOrNull()?.id
         if (keyId.isNullOrBlank()) {
             vm.showError("Import at least one key in Keys Manager before sharing")
@@ -625,6 +648,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == ACTION_QUICK_CAPTURE) {
+            val screen = vm.uiState.value.screen
+            val unlocked = screen == com.androidircx.nulvex.ui.Screen.Vault ||
+                screen == com.androidircx.nulvex.ui.Screen.NoteDetail ||
+                screen == com.androidircx.nulvex.ui.Screen.NewNote
+            if (unlocked) {
+                vm.openNewNote()
+            }
+            return
+        }
         val reminderNoteId = intent?.getStringExtra(ReminderConstants.EXTRA_NOTE_ID)?.trim().orEmpty()
         val reminderAction = intent?.getStringExtra(ReminderConstants.EXTRA_ACTION)?.trim().orEmpty()
         if (reminderNoteId.isNotBlank() && reminderAction.isNotBlank()) {
@@ -636,8 +669,8 @@ class MainActivity : AppCompatActivity() {
         val scheme = data.scheme ?: return
         when {
             scheme == "https" && data.host == "androidircx.com" -> {
-                val path = data.path ?: return
-                val mediaId = path.substringAfterLast("/").takeIf { it.isNotBlank() } ?: return
+                val mediaId = resolveRemoteMediaIdInput(data.toString())
+                    .takeIf { it.isNotBlank() } ?: return
                 val typeHint = data.getQueryParameter("t")
                 val mime = when (typeHint) {
                     "keys" -> com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
@@ -930,11 +963,20 @@ fun GreetingPreview() {
             onChangeRealPin = { _, _, _ -> },
             onUpdateThemeMode = {},
             onOpenNew = {},
+            onQuickCreate = {},
             onCreate = { _, _, _, _, _, _, _, _ -> },
             onOpenNote = {},
+            onOpenLinkedNote = {},
+            onToggleNoteSelection = {},
+            onClearNoteSelection = {},
+            onBulkArchiveSelected = {},
+            onBulkDeleteSelected = {},
+            onBulkAddLabelSelected = {},
+            onBulkSetReminderSelected = {},
             onCloseNote = {},
             onUpdateNoteText = { _, _, _ -> },
             onShareNote = {},
+            onExportNoteFile = {},
             onDelete = {},
             onTogglePinned = {},
             onToggleChecklistItem = { _, _ -> },
@@ -947,9 +989,12 @@ fun GreetingPreview() {
             onSearchQueryChange = {},
             onSelectLabel = {},
             onSetShowArchived = {},
+            onSetShowTrash = {},
             onLoadAttachmentPreview = { _, _ -> },
             onRemoveAttachment = { _, _ -> },
             onToggleArchived = {},
+            onRestoreNoteFromTrash = {},
+            onSetNoteReminderRepeat = { _, _ -> },
             onClearError = {},
             onImportSharedKey = { _, _, _ -> },
             onDeleteSharedKey = {},

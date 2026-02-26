@@ -1,5 +1,6 @@
 package com.androidircx.nulvex.ui
 
+import com.androidircx.nulvex.data.ChecklistItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -112,5 +113,40 @@ class NoteEditHistoryTest {
         assertEquals(c, history.undo(noteId, current = d))
         assertEquals(b, history.undo(noteId, current = c))
         assertNull(history.undo(noteId, current = b))
+    }
+
+    @Test
+    fun `undo redo preserve labels checklist reminder and archive metadata`() {
+        val history = NoteEditHistory()
+        val noteId = "n-meta"
+        val checklistA = listOf(ChecklistItem(id = "c1", text = "a", checked = false))
+        val checklistB = listOf(ChecklistItem(id = "c1", text = "a", checked = true))
+        val a = NoteEditState(
+            text = "base",
+            expiresAt = null,
+            labels = listOf("work"),
+            checklist = checklistA,
+            reminderAt = null,
+            reminderDone = false,
+            archivedAt = null
+        )
+        val b = NoteEditState(
+            text = "base",
+            expiresAt = null,
+            labels = listOf("work", "urgent"),
+            checklist = checklistB,
+            reminderAt = 1234L,
+            reminderDone = false,
+            archivedAt = 999L
+        )
+
+        history.recordDraftChange(noteId, previous = null, current = a)
+        history.recordDraftChange(noteId, previous = a, current = b)
+
+        val undo = history.undo(noteId, current = b)
+        assertEquals(a, undo)
+
+        val redo = history.redo(noteId, current = a)
+        assertEquals(b, redo)
     }
 }

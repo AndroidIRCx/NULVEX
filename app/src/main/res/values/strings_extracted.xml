@@ -2,6 +2,8 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ddf04ed8ab">${attachments.size} attached</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_c8e870f1b3">${newAttachments.size} attached</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_56b1818e52">- 64-char hex string (32 bytes).</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_50786e9f1d">- Local backup: exports encrypted file to your phone storage.</string>
@@ -12,7 +14,7 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_56e6fb3c8c">- QR: show code on screen for scan.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_7334bc338c">- Remote backup (Pro): uploads encrypted blob to your media server.</string>
+    <string name="tx_auto_efd6156c4e">- Remote encrypted storage (Pro): uploads encrypted backup to Pro remote storage.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_193e8c1f07">- XChaCha key: 32-byte symmetric key used for fast encrypted payload exchange.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -32,21 +34,33 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_bf5af0ce5a">ADS REMOVED</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_4433ca1788">APPLY</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_ac2b7eb144">ARCHIVED</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_6b21fb791a">About</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_26d44dadb4">Active - separate fake vault</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_1a88fb4dae">Ad-free time</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_49de5b8db6">Add images</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_5bcf4db433">Add item</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_807674167b">Add label</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_a097df31ce">Add label to selected</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_281039f6d1">Ads are active</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_6a72085653">All</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_477b09cd66">All vault data will be permanently destroyed. This cannot be undone.</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_9f0d6e21b8">Always shows 6 dots regardless of actual PIN length</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_1d6db9d23a">Any date</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_a108012d1f">App information</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -57,12 +71,16 @@
     <string name="tx_auto_062f82fc51">Are you sure you want to delete this saved backup record? This action cannot be undone.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f2b6ce9d5a">Assign label</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_c33437b1cb">Attachment note</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_51d5d0a518">Attachment removal failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_6771ade6e8">Attachments</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_ffa0e2d086">Authenticate to enable biometric unlock</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_bd9c21f604">Authenticate to enable biometric unlock for decoy vault</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_569a081963">Authenticate to unlock your vault</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -82,6 +100,8 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_b52b36b726">Back</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_4eb5c84be0">Backlinks</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_dd96994d01">Backup</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_44545bb374">Backup ID and key are required</string>
@@ -92,9 +112,13 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_74b5fc843c">Backup restore failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_a3dd528f02">Backup restored ($imported notes)</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_c36da61970">Backup upload failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_2c5f895120">Backup uploaded (${result.sizeBytes} bytes)</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_33abaf2086">Best:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_1197e4d653">Biometric unlock</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -104,9 +128,13 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_78197d200d">CHANGE PIN</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_21075a0885">CLEAR REMINDER</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_dbc8742034">CLOSE</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_aecf0292da">COPY</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_1ccac4fe14">COPY LINK</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_51dacd2b3e">CREATE FIRST NOTE</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -140,9 +168,13 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_856041d2fe">Confirm new PIN</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_168230340f">Create label</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_fda40bf66b">Create your first encrypted note</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f55dd4d2bd">Create your vault</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_dd097a2297">Credentials</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_21017074b3">Credits accumulate - watch 3 ads to earn 3 shares.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -165,10 +197,24 @@
     <string name="tx_auto_ae1ef01432">Dark</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_dae92aa5db">Decoy PIN</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_97261bbae0">Decoy PIN (to enroll fingerprint)</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_3233723b56">Decoy PIN cannot be empty</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_ea6e0f470a">Decoy PINs do not match</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_5096abb506">Decoy fingerprint</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_72500d142a">Decoy fingerprint data is invalid</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_db32118948">Decoy fingerprint data is missing</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_b5da70e95e">Decoy fingerprint is not set up</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_69cdc2874e">Decoy fingerprint setup failed</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_c1688fd4a5">Decoy fingerprint unlock failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_19ae5bf71e">Decoy vault</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -180,7 +226,7 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_4ff7558eff">Delete key?</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_38d68f3b82">Delete note?</string>
+    <string name="tx_auto_afd1aa166b">Delete permanently?</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_8f43338b76">Disable to replace current vault notes</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -189,6 +235,8 @@
     <string name="tx_auto_574ff9b0c4">Display</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_e8857ba77d">Download link or media ID</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_17865bdb91">EDIT</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_62514a4b43">ENABLE</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -207,6 +255,8 @@
     <string name="tx_auto_3f2add2a61">Edit item</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_de7b6f1cc7">Empty note</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_e9e313e93b">Enable decoy fingerprint</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_3d70057dd6">Enable decoy vault</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
@@ -216,6 +266,8 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_df174a3f2f">Enabled</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_48495139ef">Enabled - long-press fingerprint to unlock decoy</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_973291015c">Encrypt key manager export with password</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt, app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_680deede3e">Encrypted note file ready for share</string>
@@ -224,7 +276,9 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_fc68a0be69">Enter PIN</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_74bbe75120">Expiring soon</string>
+    <string name="tx_auto_d69485108b">Enter password if the file was exported with encryption. Leave blank for unencrypted exports.</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_a131b70547">Enter your decoy PIN first</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ba8f571e0f">Expiry</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -243,6 +297,8 @@
     <string name="tx_auto_4934cd0ee2">Failed to import key: ${e.message ?:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_d31af70570">Failed to import local backup</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_cb3991369e">Failed to read incoming file</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_5e007b769f">Failed to share encrypted note file</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
@@ -282,7 +338,11 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f2d68805fe">HOLD TO WIPE</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_ec1f9fc9c1">Hide PIN length</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_d650e103e6">Hold to reorder</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_b034fe864d">IMPORT</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_6f97ddad62">IMPORT KEY</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -295,16 +355,28 @@
     <string name="tx_auto_20b7750795">Image note</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_09e871c98f">Images</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_bf4a9abb73">Import Backup</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_d8bb61a726">Import Keys</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_747c26a44e">Import Note</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt, app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_90d2863c8a">Import at least one key in Keys Manager before sharing</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_fe50789aa2">Import failed â wrong key or corrupted file</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_832f07642a">Import from Link</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_5dff3e91e7">Import password (if file encrypted)</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt, app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_2b45d32681">Imported $imported keys</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_d2fae92648">Imported keys</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_878bd32044">In both cases, decrypt requires the correct key.</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_4d29845223">Incorrect decoy PIN</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_4b631f6984">Info</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -312,9 +384,13 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_891f914925">Invalid PIN</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_57d7f743bb">Journal</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_a1d7598a33">Key QR</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_2b851e424e">Key created successfully.</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_6136353180">Key import failed â wrong password or corrupted file</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_5cbceec597">Key imported</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
@@ -326,6 +402,12 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_d2b926736d">Key manager exported</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_2159b19499">Key manager restore failed: ${e.message?.take(120) ?:</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_740c7f02fa">Key manager restored ($imported keys)</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_2620934de8">Key manager upload failed: ${e.message?.take(120) ?:</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_0dca24f2a9">Key not found</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_907e6daf88">Key payload written to NFC tag</string>
@@ -334,15 +416,25 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_9196e3c706">Keys Manager stores keys used for encrypted note sharing and backups.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_74341e3c27">Label</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_2228985493">Labels</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_b11d224eeb">Last 24h</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_5ef79d5b66">Last 30d</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_ed58f0fb0a">Last 7d</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_2be0284bc9">Lifetime remove-ads purchase is active.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_a36ef8aba2">Light</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_ee8c995f4d">Linked notes</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_606dadcb2e">Local backup exports</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_07bc8ed5b7">Local encrypted backup + optional Pro remote</string>
+    <string name="tx_auto_28cce5d442">Local encrypted backup + Pro remote encrypted storage</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_4cc2792f8f">Local encrypted backup exported</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -355,12 +447,20 @@
     <string name="tx_auto_211665d6d5">Manual import accepts:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f4b0a0436c">Manual key format help</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_e7aade28d6">Media ID or URL is required</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_1c960d0a27">Media ID:</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_17dc9a8374">Meeting</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_0af82e2eec">Merge with existing notes</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_d63b298259">Military-grade encryption</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_f404dab458">Missing product details</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_ccad2b7d37">Move to trash?</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_1992d5e8d5">NEXT</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -392,11 +492,17 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_5fced7559a">New notes will use this expiry setting</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_d044282472">Newest</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_bf6f49fbbe">Next expiry:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_528a26b2ac">No keys available</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_bc8de452ed">No keys available. Go to Settings â Keys Manager to import a shared key first.</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_cd0af6cfca">No matches</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_36a6cc02f7">No reminder/expiry events</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_1c34fbf5fa">No revisions yet</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_d38f99b2da">No settings match your search.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -404,21 +510,35 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_2c924e3088">Note</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_3e5867fdcf">Note archive update failed</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_9068cace45">Note cannot be empty</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_96e07f1d26">Note imported</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_8f79e05b93">Note not found</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_c6198b3a4f">Note reminder</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_58a44e7999">Note share upload failed: ${e.message?.take(120) ?:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_0414dd753f">Note unavailable</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_64bb14ed40">Note update failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_b5a0b83710">Note uploaded</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_70440046a3">Notes</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f44c939a32">Notes are deleted after first read</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_cfe5f3facf">Nothing to preview</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ba59200e3e">Nulvex</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_9ce3bd4224">OK</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_387d7a59db">ON</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_59ee69ec5d">OPEN &amp; BURN</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -427,8 +547,6 @@
     <string name="tx_auto_7d0b9872e2">Offline secure vault</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_e8660e0f96">Offline-first secure vault</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_c47bb88fdb">Oldest</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_787e133289">One-time products from Google Play.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -448,11 +566,19 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_64b0a2db24">PIN is required for fingerprint setup</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_1779864412">PINNED</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_57dab6684b">PINs do not match</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_eb22640fb2">PREVIEW</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_a2c7d87649">Panic button</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_8a00e639f8">Panic wipe</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_408255ed02">Password (optional)</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_06cb6a3bee">Permanent delete failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_9b1feb2a4d">Permanently removes banner and rewarded ad prompts.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -466,13 +592,11 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_2c1715d17a">Pro Features required</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_76c7b01b2c">Pro remote backup is active</string>
+    <string name="tx_auto_b6b7272087">Pro remote encrypted storage is active</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\billing\PlayBillingCoordinator.kt -->
     <string name="tx_auto_0663dde59b">Product is not available yet. Try again in a moment.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\billing\PlayBillingCoordinator.kt -->
     <string name="tx_auto_b7457a211d">Purchase failed: ${result.debugMessage}</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\billing\PlayBillingCoordinator.kt -->
-    <string name="tx_auto_09b8f19da7">Purchase offer is unavailable</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_5628467f84">Purchase options</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -490,13 +614,23 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ec5983537b">QR/NFC help</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_9a21a4162c">REDO</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_c6057fcb70">REMINDER</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f966288b8e">REMOVE</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_c9e5a9582c">RESTORE FROM REMOTE</string>
+    <string name="tx_auto_6a8135bcdb">RESTORE</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_f3190fa0e9">RESTORE FROM REMOTE ENCRYPTED STORAGE</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_ce6dc4d7d5">RESTORE KEYS FROM REMOTE ENCRYPTED STORAGE</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_26858c2b7c">RESTORE PURCHASES</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_396b8286ad">RESTORE SELECTED SAVED BACKUP</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_4852d24066">Randomly shuffles digits on each unlock to prevent fingerprint tracing</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_cdb83dafb0">Re-encrypts your entire vault</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -510,9 +644,23 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_8b5c617bb6">Rekeying vault...</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_10eb6b781f">Remote backup uploads encrypted blobs (Pro).</string>
+    <string name="tx_auto_b87a1929f7">Reminder</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_3cac75ad3a">Reminder clear failed</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_89933dbaac">Reminder repeat update failed</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_eb03be8abf">Reminder update failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_dda90019b0">Remote media backup requires Pro</string>
+    <string name="tx_auto_21d7c53dc9">Remote encrypted storage link or ID</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_6fe164cfde">Remote encrypted storage requires Pro</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_179046ee1c">Remote encrypted storage uploads (Pro).</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_fe468ee0ab">Remote import complete ($imported notes)</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_6656d37c1e">Remote import failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_e963907dac">Remove</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -525,6 +673,10 @@
     <string name="tx_auto_76ecba1f27">Remove item</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_ffd0e68437">Restore complete ($imported notes)</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_bb4ab6f0de">Restore from trash failed</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
+    <string name="tx_auto_98c6765707">Revision restore failed</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_9964f5c928">Rewards &amp; Ads</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -538,7 +690,7 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_9106ca2738">SELECTED</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_84583d4200">SHARE LINK</string>
+    <string name="tx_auto_fd757c9090">SET REMINDER</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f6a5e511fb">SHARE SELECTED KEY</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -548,7 +700,9 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_37480e0d40">Save item</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_1b55a61e3d">Saved remote backups</string>
+    <string name="tx_auto_b70e05dfbd">Saved remote encrypted storage backups</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_fbec5218e0">Scramble PIN pad</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_bce0641417">Search</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -559,6 +713,8 @@
     <string name="tx_auto_f25ce1b8a3">Security</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_295367000d">Select a key in Keys Manager first.</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_7e489d07a5">Select the shared key used to encrypt this file:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_6f4f8f467f">Selected expiry:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -591,8 +747,14 @@
     <string name="tx_auto_69e7945c88">Swipe right to pin, swipe left to delete</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_bc0792d8dc">System</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_cdcf532ac8">TEMPLATES</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_5757f0932b">Tag does not support NDEF</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_2d8e74343e">Text note</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_5f676615b2">The note will stay in Trash for 7 days.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_a797e30923">Theme</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -606,15 +768,21 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ffd32ba4f2">Too many attempts. Try again in {seconds}s</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_55ad592786">UNDO</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_d392c5b971">UNLIMITED</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_908843169e">UNLOCK</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_5d0ca14d0e">UNLOCK WITH FINGERPRINT</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_8f14b62ffe">UPLOAD TO REMOTE MEDIA SERVER</string>
+    <string name="tx_auto_6dd904d829">UPLOAD KEYS TO REMOTE ENCRYPTED STORAGE</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_f9d19cb8e1">UPLOAD TO REMOTE ENCRYPTED STORAGE</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_63f112e395">Unable to initialize fingerprint</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
+    <string name="tx_auto_1edf1ce8a0">Unable to initialize fingerprint for decoy</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_73df89eab2">Unable to read file</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\billing\PlayBillingCoordinator.kt -->
@@ -630,11 +798,13 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_07cafe7721">Use your fingerprint to unlock quickly. Your PIN remains the master key.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_41df83a6d1">Used to share notes via the secure API</string>
+    <string name="tx_auto_12af637ca6">Used to share notes via remote encrypted storage</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ebdcfd3fbe">Vault defaults</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_f5db5a468e">Version ${BuildConfig.VERSION_NAME}</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_91f86581f1">Version history</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_2040bc7d17">WATCH AD - 10 MIN NO ADS</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -658,11 +828,13 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_8fff039853">YES</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
+    <string name="tx_auto_c3ffd4fb78">Your encrypted note is available at:</string>
+    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ba21717e3f">Your notes are encrypted with XChaCha20-Poly1305 and post-quantum ready key exchange.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_036b0518fb">Your offline-first secure vault. No cloud, no tracking, no compromise.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_1122fa2b49">Your vault is ready</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_9fe38dd4a4">{count} notes</string>
+    <string name="tx_auto_bc67a440ab">{count} selected</string>
 </resources>

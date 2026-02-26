@@ -37,6 +37,7 @@ class NoteRepositoryTest {
 
         every { mockCrypto.encrypt(any(), any()) } returns fakeCiphertext
         every { mockCrypto.decrypt(any(), any()) } returns fakePlaintext
+        coEvery { mockDao.setUpdatedAt(any(), any()) } returns 1
     }
 
     @Test
@@ -50,6 +51,7 @@ class NoteRepositoryTest {
         coVerify { mockDao.upsert(capture(entitySlot)) }
         assertArrayEquals(fakeCiphertext, entitySlot.captured.ciphertext)
         assertFalse(entitySlot.captured.deleted)
+        assertNull(entitySlot.captured.trashedAt)
     }
 
     @Test
@@ -150,6 +152,8 @@ class NoteRepositoryTest {
     fun `updateNote re-encrypts and overwrites ciphertext`() = runTest {
         val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false)
         coEvery { mockDao.getById("1") } returns entity
+        coEvery { mockDao.insertRevision(any()) } returns 1L
+        coEvery { mockDao.pruneRevisions("1", any()) } returns 0
         coEvery { mockDao.overwriteCiphertext(any(), any()) } returns 1
 
         val note = Note(
@@ -160,6 +164,8 @@ class NoteRepositoryTest {
         val result = repo.updateNote(note, noteKey)
 
         assertTrue(result)
+        coVerify { mockDao.insertRevision(any()) }
+        coVerify { mockDao.pruneRevisions("1", any()) }
         coVerify { mockDao.overwriteCiphertext("1", fakeCiphertext) }
     }
 
@@ -175,6 +181,71 @@ class NoteRepositoryTest {
         val result = repo.updateNote(note, noteKey)
 
         assertFalse(result)
+    }
+
+    @Test
+    fun `listRevisions decrypts revision snapshots`() = runTest {
+        val revision = NoteRevisionEntity(
+            id = "r1",
+            noteId = "n1",
+            ciphertextSnapshot = fakeCiphertext,
+            expiresAt = null,
+            readOnce = false,
+            archivedAt = null,
+            reminderAt = null,
+            reminderDone = false,
+            createdAt = 1234L
+        )
+        coEvery { mockDao.listRevisions("n1", 20) } returns listOf(revision)
+
+        val revisions = repo.listRevisions("n1", noteKey)
+
+        assertEquals(1, revisions.size)
+        assertEquals("r1", revisions.first().id)
+        assertEquals("hello", revisions.first().note.text)
+    }
+
+    @Test
+    fun `restoreRevision restores selected snapshot`() = runTest {
+        val current = NoteEntity(
+            id = "n1",
+            ciphertext = fakeCiphertext,
+            createdAt = 1000L,
+            expiresAt = null,
+            readOnce = false,
+            deleted = false
+        )
+        val revision = NoteRevisionEntity(
+            id = "r1",
+            noteId = "n1",
+            ciphertextSnapshot = fakeCiphertext,
+            expiresAt = 5000L,
+            readOnce = true,
+            archivedAt = 7000L,
+            reminderAt = 9000L,
+            reminderDone = true,
+            createdAt = 2000L
+        )
+        coEvery { mockDao.getById("n1") } returns current
+        coEvery { mockDao.getRevisionById("n1", "r1") } returns revision
+        coEvery { mockDao.insertRevision(any()) } returns 1L
+        coEvery { mockDao.pruneRevisions("n1", any()) } returns 0
+        coEvery {
+            mockDao.restoreFromRevision(
+                id = "n1",
+                ciphertext = fakeCiphertext,
+                expiresAt = 5000L,
+                readOnce = true,
+                archivedAt = 7000L,
+                reminderAt = 9000L,
+                reminderDone = true
+            )
+        } returns 1
+
+        val restored = repo.restoreRevision("n1", "r1", noteKey)
+
+        assertTrue(restored)
+        coVerify { mockDao.restoreFromRevision("n1", fakeCiphertext, 5000L, true, 7000L, 9000L, true) }
     }
 
     @Test
@@ -200,6 +271,30 @@ class NoteRepositoryTest {
 
         coVerify(exactly = 0) { mockDao.overwriteCiphertext(any(), any()) }
         coVerify(exactly = 0) { mockDao.softDelete(any()) }
+    }
+
+    @Test
+    fun `moveNoteToTrash marks trashedAt and clears archive reminder metadata`() = runTest {
+        val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false)
+        coEvery { mockDao.getById("1") } returns entity
+        coEvery { mockDao.setTrashedAt(eq("1"), any()) } returns 1
+
+        val ok = repo.moveNoteToTrash("1")
+
+        assertTrue(ok)
+        coVerify { mockDao.setTrashedAt(eq("1"), any()) }
+    }
+
+    @Test
+    fun `restoreFromTrash clears trashedAt`() = runTest {
+        val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false, trashedAt = 123L)
+        coEvery { mockDao.getById("1") } returns entity
+        coEvery { mockDao.setTrashedAt("1", null) } returns 1
+
+        val ok = repo.restoreFromTrash("1")
+
+        assertTrue(ok)
+        coVerify { mockDao.setTrashedAt("1", null) }
     }
 
     @Test
@@ -231,11 +326,11 @@ class NoteRepositoryTest {
         val entity = NoteEntity("1", fakeCiphertext, 1000L, null, false, false)
         val reminderAt = System.currentTimeMillis() + 120_000L
         coEvery { mockDao.getById("1") } returns entity
-        coEvery { mockDao.setReminder("1", reminderAt, false) } returns 1
+        coEvery { mockDao.setReminder("1", reminderAt, false, null) } returns 1
 
-        val result = repo.setReminder("1", reminderAt = reminderAt, reminderDone = false)
+        val result = repo.setReminder("1", reminderAt = reminderAt, reminderDone = false, reminderRepeat = null)
 
         assertTrue(result)
-        coVerify { mockDao.setReminder("1", reminderAt, false) }
+        coVerify { mockDao.setReminder("1", reminderAt, false, null) }
     }
 }

@@ -1,8 +1,15 @@
 package com.androidircx.nulvex.ui
 
+import com.androidircx.nulvex.data.ChecklistItem
+
 data class NoteEditState(
     val text: String,
-    val expiresAt: Long?
+    val expiresAt: Long?,
+    val labels: List<String> = emptyList(),
+    val checklist: List<ChecklistItem> = emptyList(),
+    val reminderAt: Long? = null,
+    val reminderDone: Boolean = false,
+    val archivedAt: Long? = null
 )
 
 class NoteEditHistory(

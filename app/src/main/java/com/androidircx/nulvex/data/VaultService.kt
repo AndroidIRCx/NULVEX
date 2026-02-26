@@ -33,7 +33,8 @@ class VaultService(
         expiresAt: Long? = null,
         readOnce: Boolean = false,
         reminderAt: Long? = null,
-        reminderDone: Boolean = false
+        reminderDone: Boolean = false,
+        reminderRepeat: String? = null
     ): String {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
@@ -48,7 +49,8 @@ class VaultService(
             expiresAt = expiresAt,
             readOnce = readOnce,
             reminderAt = reminderAt,
-            reminderDone = reminderDone
+            reminderDone = reminderDone,
+            reminderRepeat = reminderRepeat
         )
     }
 
@@ -82,19 +84,58 @@ class VaultService(
         return repo.listNotes(session.noteKey, archived)
     }
 
+    suspend fun listTrashedNotes(): List<Note> {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        return repo.listTrashedNotes(session.noteKey)
+    }
+
     suspend fun updateNote(note: Note): Boolean {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
         return repo.updateNote(note, session.noteKey)
     }
 
-    suspend fun deleteNote(id: String) {
+    suspend fun listNoteRevisions(noteId: String, limit: Int = 20): List<NoteRevision> {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        val note = repo.getNoteById(id, session.noteKey)
-        if (note != null) {
-            deleteNoteInternal(note, session)
-        }
+        return repo.listRevisions(noteId, session.noteKey, limit)
+    }
+
+    suspend fun restoreNoteRevision(noteId: String, revisionId: String): Boolean {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        return repo.restoreRevision(noteId, revisionId, session.noteKey)
+    }
+
+    suspend fun deleteNote(id: String) {
+        moveNoteToTrash(id)
+    }
+
+    suspend fun moveNoteToTrash(id: String): Boolean {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        return repo.moveNoteToTrash(id)
+    }
+
+    suspend fun restoreNoteFromTrash(id: String): Boolean {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        return repo.restoreFromTrash(id)
+    }
+
+    suspend fun deleteNotePermanently(id: String): Boolean {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val note = repo.getNoteById(id, session.noteKey) ?: return false
+        deleteNoteInternal(note, session)
+        return true
+    }
+
+    suspend fun purgeOldTrash(retentionDays: Long = 7L): Int {
+        val session = requireSession()
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        return repo.purgeOldTrash(retentionDays = retentionDays)
     }
 
     suspend fun setArchived(id: String, archived: Boolean): Boolean {
@@ -103,10 +144,10 @@ class VaultService(
         return repo.setArchived(id, archived)
     }
 
-    suspend fun setReminder(id: String, reminderAt: Long?, reminderDone: Boolean): Boolean {
+    suspend fun setReminder(id: String, reminderAt: Long?, reminderDone: Boolean, reminderRepeat: String?): Boolean {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.setReminder(id, reminderAt, reminderDone)
+        return repo.setReminder(id, reminderAt, reminderDone, reminderRepeat)
     }
 
     suspend fun sweepExpired(vacuum: Boolean = false) {
@@ -171,10 +212,12 @@ class VaultService(
                 put("text", note.text)
                 put("pinned", note.pinned)
                 put("createdAt", note.createdAt)
+                put("updatedAt", note.updatedAt)
                 put("expiresAt", note.expiresAt ?: JSONObject.NULL)
                 put("readOnce", note.readOnce)
                 put("reminderAt", note.reminderAt ?: JSONObject.NULL)
                 put("reminderDone", note.reminderDone)
+                put("reminderRepeat", note.reminderRepeat ?: JSONObject.NULL)
             }
 
             val checklistArray = JSONArray()
@@ -230,10 +273,12 @@ class VaultService(
             put("text", note.text)
             put("pinned", note.pinned)
             put("createdAt", note.createdAt)
+            put("updatedAt", note.updatedAt)
             put("expiresAt", note.expiresAt ?: JSONObject.NULL)
             put("readOnce", note.readOnce)
             put("reminderAt", note.reminderAt ?: JSONObject.NULL)
             put("reminderDone", note.reminderDone)
+            put("reminderRepeat", note.reminderRepeat ?: JSONObject.NULL)
         }
         val checklistArray = JSONArray()
         note.checklist.forEach { item ->
@@ -296,11 +341,14 @@ class VaultService(
             val text = noteObj.optString("text", "")
             val pinned = noteObj.optBoolean("pinned", false)
             val createdAt = noteObj.optLong("createdAt", System.currentTimeMillis())
+            val updatedAt = noteObj.optLong("updatedAt", createdAt)
             val expiresAt = noteObj.optLong("expiresAt").takeIf { noteObj.has("expiresAt") && !noteObj.isNull("expiresAt") }
             val readOnce = noteObj.optBoolean("readOnce", false)
             val reminderAt = noteObj.optLong("reminderAt")
                 .takeIf { noteObj.has("reminderAt") && !noteObj.isNull("reminderAt") }
             val reminderDone = noteObj.optBoolean("reminderDone", false)
+            val reminderRepeat = noteObj.optString("reminderRepeat", "")
+                .ifBlank { null }
 
             val checklist = mutableListOf<ChecklistItem>()
             val checklistArray = noteObj.optJSONArray("checklist") ?: JSONArray()
@@ -365,12 +413,15 @@ class VaultService(
                     id = noteId,
                     ciphertext = ciphertext,
                     createdAt = createdAt,
+                    updatedAt = updatedAt,
                     expiresAt = expiresAt,
                     readOnce = readOnce,
                     deleted = false,
                     archivedAt = null,
                     reminderAt = reminderAt,
-                    reminderDone = reminderDone
+                    reminderDone = reminderDone,
+                    reminderRepeat = reminderRepeat,
+                    trashedAt = null
                 )
             )
             imported++

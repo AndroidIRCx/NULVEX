@@ -38,7 +38,8 @@ class NoteDaoTest {
         readOnce: Boolean = false,
         archivedAt: Long? = null,
         reminderAt: Long? = null,
-        reminderDone: Boolean = false
+        reminderDone: Boolean = false,
+        trashedAt: Long? = null
     ) = NoteEntity(
         id = id,
         ciphertext = ciphertext,
@@ -48,7 +49,8 @@ class NoteDaoTest {
         deleted = deleted,
         archivedAt = archivedAt,
         reminderAt = reminderAt,
-        reminderDone = reminderDone
+        reminderDone = reminderDone,
+        trashedAt = trashedAt
     )
 
     @Test
@@ -89,10 +91,12 @@ class NoteDaoTest {
         dao.upsert(note("active2"))
         dao.upsert(note("deleted1", deleted = true))
         dao.upsert(note("archived", archivedAt = System.currentTimeMillis()))
+        dao.upsert(note("trashed", trashedAt = System.currentTimeMillis()))
         val active = dao.listActive()
         assertEquals(2, active.size)
         assertTrue(active.none { it.deleted })
         assertTrue(active.none { it.archivedAt != null })
+        assertTrue(active.none { it.trashedAt != null })
     }
 
     @Test
@@ -106,6 +110,19 @@ class NoteDaoTest {
 
         assertEquals(2, archived.size)
         assertTrue(archived.all { it.archivedAt != null && !it.deleted })
+    }
+
+    @Test
+    fun listTrashedReturnsOnlyTrashedAndNonDeletedNotes() = runTest {
+        dao.upsert(note("active"))
+        dao.upsert(note("trashed1", trashedAt = System.currentTimeMillis()))
+        dao.upsert(note("trashed2", trashedAt = System.currentTimeMillis()))
+        dao.upsert(note("trashed-deleted", trashedAt = System.currentTimeMillis(), deleted = true))
+
+        val trashed = dao.listTrashed()
+
+        assertEquals(2, trashed.size)
+        assertTrue(trashed.all { it.trashedAt != null && !it.deleted })
     }
 
     @Test
@@ -222,7 +239,7 @@ class NoteDaoTest {
     fun setReminderPersistsReminderFields() = runTest {
         dao.upsert(note("n1"))
         val ts = System.currentTimeMillis() + 60_000L
-        dao.setReminder("n1", ts, reminderDone = false)
+        dao.setReminder("n1", ts, reminderDone = false, reminderRepeat = null)
         val result = dao.getById("n1")
         assertEquals(ts, result!!.reminderAt)
         assertFalse(result.reminderDone)
@@ -240,5 +257,121 @@ class NoteDaoTest {
 
         assertEquals(1, due.size)
         assertEquals("due", due[0].id)
+    }
+
+    @Test
+    fun revisionsInsertAndListByCreatedAtDesc() = runTest {
+        dao.insertRevision(
+            NoteRevisionEntity(
+                id = "r1",
+                noteId = "n1",
+                ciphertextSnapshot = byteArrayOf(1),
+                expiresAt = null,
+                readOnce = false,
+                archivedAt = null,
+                reminderAt = null,
+                reminderDone = false,
+                createdAt = 100L
+            )
+        )
+        dao.insertRevision(
+            NoteRevisionEntity(
+                id = "r2",
+                noteId = "n1",
+                ciphertextSnapshot = byteArrayOf(2),
+                expiresAt = null,
+                readOnce = false,
+                archivedAt = null,
+                reminderAt = null,
+                reminderDone = false,
+                createdAt = 200L
+            )
+        )
+
+        val revisions = dao.listRevisions("n1", 20)
+
+        assertEquals(2, revisions.size)
+        assertEquals("r2", revisions[0].id)
+        assertEquals("r1", revisions[1].id)
+    }
+
+    @Test
+    fun revisionsPruneKeepsLatestN() = runTest {
+        (1..3).forEach { i ->
+            dao.insertRevision(
+                NoteRevisionEntity(
+                    id = "r$i",
+                    noteId = "n1",
+                    ciphertextSnapshot = byteArrayOf(i.toByte()),
+                    expiresAt = null,
+                    readOnce = false,
+                    archivedAt = null,
+                    reminderAt = null,
+                    reminderDone = false,
+                    createdAt = i.toLong()
+                )
+            )
+        }
+
+        dao.pruneRevisions("n1", keep = 2)
+        val revisions = dao.listRevisions("n1", 20)
+
+        assertEquals(2, revisions.size)
+        assertEquals(listOf("r3", "r2"), revisions.map { it.id })
+    }
+
+    @Test
+    fun restoreFromRevisionUpdatesNoteFields() = runTest {
+        dao.upsert(note("n1"))
+        val snapshot = byteArrayOf(9, 8, 7)
+
+        dao.restoreFromRevision(
+            id = "n1",
+            ciphertext = snapshot,
+            expiresAt = 123L,
+            readOnce = true,
+            archivedAt = 456L,
+            reminderAt = 789L,
+            reminderDone = true
+        )
+
+        val result = dao.getById("n1")
+        assertNotNull(result)
+        assertArrayEquals(snapshot, result!!.ciphertext)
+        assertEquals(123L, result.expiresAt)
+        assertTrue(result.readOnce)
+        assertEquals(456L, result.archivedAt)
+        assertEquals(789L, result.reminderAt)
+        assertTrue(result.reminderDone)
+    }
+
+    @Test
+    fun sqlInjectionLikeIdIsTreatedAsLiteralValue() = runTest {
+        val injectionLikeId = "' OR 1=1 --"
+        dao.upsert(note("safe-1"))
+        dao.upsert(note(injectionLikeId))
+
+        val exact = dao.getById(injectionLikeId)
+        val other = dao.getById("safe-1")
+
+        assertNotNull(exact)
+        assertEquals(injectionLikeId, exact!!.id)
+        assertNotNull(other)
+        assertEquals("safe-1", other!!.id)
+    }
+
+    @Test
+    fun sqlInjectionLikeIdDoesNotAffectOtherRowsOnUpdateQueries() = runTest {
+        val injectionLikeId = "' OR 1=1 --"
+        dao.upsert(note("safe-1", reminderAt = null, reminderDone = false))
+        dao.upsert(note(injectionLikeId, reminderAt = null, reminderDone = false))
+
+        val targetTs = System.currentTimeMillis() + 60_000L
+        dao.setReminder(injectionLikeId, targetTs, reminderDone = false, reminderRepeat = null)
+
+        val injected = dao.getById(injectionLikeId)
+        val safe = dao.getById("safe-1")
+        assertEquals(targetTs, injected!!.reminderAt)
+        assertNull(safe!!.reminderAt)
     }
 }

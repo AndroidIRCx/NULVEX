@@ -16,7 +16,14 @@ class AlarmManagerNoteReminderScheduler(
         val triggerAt = request.triggerAtEpochMillis
         if (triggerAt <= 0L) return
         val pendingIntent = buildReminderPendingIntent(context, request.noteId, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+        try {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+        } catch (_: SecurityException) {
+            // On newer Android versions exact alarms can require explicit user-granted permission.
+            runCatching {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            }
+        }
     }
 
     override fun cancel(noteId: String) {
