@@ -62,10 +62,8 @@
         <item quantity="few">%d beleške</item>
         <item quantity="other">%dbeleški</item>
     </plurals>
-<string name="tx_auto_ddf04ed8ab">${attachments.size} priloga</string>
-    
-    <string name="tx_auto_c8e870f1b3">${newAttachments.size} priloga</string>
-    
+
+
     <string name="tx_auto_56b1818e52">- Heksadecimalni niz od 64 znaka (32 bajta).</string>
     
     <string name="tx_auto_50786e9f1d">- Lokalna rezervna kopija: izvozi šifrovanu datoteku u memoriju telefona.</string>
@@ -177,9 +175,7 @@
     <string name="tx_auto_a3dd528f02">Bekap vraćen ($imported notes)</string>
     
     <string name="tx_auto_c36da61970">Otpremanje rezervne kopije nije uspelo</string>
-    
-    <string name="tx_auto_2c5f895120">Rezervna kopija je otpremljena (${result.sizeBytes} bajtova)</string>
-    
+
     <string name="tx_auto_33abaf2086">Najbolje:</string>
     
     <string name="tx_auto_1197e4d653">Biometrijsko otključavanje</string>
@@ -349,15 +345,10 @@
     <string name="tx_auto_602150d20e">Izvoz menadžera ključeva nije uspeo</string>
     
     <string name="tx_auto_ce73019a7a">Izvoz lokalne rezervne kopije nije uspeo</string>
-    
-    <string name="tx_auto_3bacfe97fe">Generisanje OpenPGP ključa nije uspelo: ${e.message \?:</string>
-    
-    <string name="tx_auto_dacaeedcae">Generisanje XChaCha ključa nije uspelo: ${e.message \?:</string>
-    
+
+
     <string name="tx_auto_fd280bf747">Uvoz menadžera ključeva nije uspeo</string>
-    
-    <string name="tx_auto_4934cd0ee2">Uvoz ključa nije uspeo: ${e.message \?:</string>
-    
+
     <string name="tx_auto_d31af70570">Uvoz lokalne rezervne kopije nije uspeo</string>
     
     <string name="tx_auto_cb3991369e">Neuspešno čitanje dolaznog fajla</string>
@@ -463,13 +454,9 @@
     <string name="tx_auto_05ea70658d">Oznaka ključa</string>
     
     <string name="tx_auto_d2b926736d">Menadžer ključeva je izvezen</string>
-    
-    <string name="tx_auto_2159b19499">Vraćanje menadžera ključeva nije uspelo: ${e.message\?.take(120) \?:</string>
-    
+
     <string name="tx_auto_740c7f02fa">Menadžer ključeva vraćen ($imported keys)</string>
-    
-    <string name="tx_auto_2620934de8">Otpremanje menadžera ključeva nije uspelo: ${e.message\?.take(120) \?:</string>
-    
+
     <string name="tx_auto_0dca24f2a9">Ključ nije pronađen</string>
     
     <string name="tx_auto_907e6daf88">Podaci ključa su upisani na NFC oznaku</string>
@@ -581,9 +568,7 @@
     <string name="tx_auto_8f79e05b93">Beleška nije pronađena</string>
     
     <string name="tx_auto_c6198b3a4f">Podsetnik za belešku</string>
-    
-    <string name="tx_auto_58a44e7999">Otpremanje deljene beleške nije uspelo: ${e.message\?.take(120) \?:</string>
-    
+
     <string name="tx_auto_0414dd753f">Beleška nije dostupna</string>
     
     <string name="tx_auto_64bb14ed40">Ažuriranje beleške nije uspelo</string>
@@ -657,9 +642,7 @@
     <string name="tx_auto_b6b7272087">Pro udaljeno enkriptovano skladište je aktivno</string>
     
     <string name="tx_auto_0663dde59b">Proizvod još nije dostupan. Pokušajte ponovo za trenutak</string>
-    
-    <string name="tx_auto_b7457a211d">Kupovina nije uspela: ${result.debugMessage}</string>
-    
+
     <string name="tx_auto_5628467f84">Opcije kupovine</string>
     
     <string name="tx_auto_007b579e1e">QR kod</string>
@@ -823,11 +806,8 @@
     <string name="tx_auto_951f495b34">Ovu radnju nije moguće poništiti</string>
     
     <string name="tx_auto_85671297f3">Ova beleška je podešena za jednokratno čitanje. Biće trajno uništena nakon što je zatvorite</string>
-    
-    <string name="tx_auto_dc95278592">Previše pokušaja. Pokušajte ponovo za ${lockoutMs / 1000}s</string>
-    
-    <string name="tx_auto_cac5ca5aac">Previše pokušaja. Pokušajte ponovo za ${secs}s</string>
-    
+
+
     <string name="tx_auto_ffd32ba4f2">Previše pokušaja. Pokušajte ponovo za {seconds}s</string>
     
     <string name="tx_auto_55ad592786">OPOZOVI</string>
@@ -863,9 +843,7 @@
     <string name="tx_auto_12af637ca6">Koristi se za deljenje beleški putem udaljenog enkriptovanog skladišta</string>
     
     <string name="tx_auto_ebdcfd3fbe">Podrazumevana podešavanja sefa</string>
-    
-    <string name="tx_auto_f5db5a468e">Verzija ${BuildConfig.VERSION_NAME}</string>
-    
+
     <string name="tx_auto_91f86581f1">Istorija verzija</string>
     
     <string name="tx_auto_2040bc7d17">POGLEDAJ OGLAS – 10 MIN BEZ OGLASA</string>

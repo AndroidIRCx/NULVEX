@@ -8,6 +8,7 @@ import com.androidircx.nulvex.crypto.XChaCha20Poly1305NoteCrypto
 import com.androidircx.nulvex.security.VaultKeyManager
 import com.androidircx.nulvex.security.VaultProfile
 import com.androidircx.nulvex.security.wipe
+import com.androidircx.nulvex.sync.SyncPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -38,7 +39,7 @@ class VaultService(
     ): String {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.saveNote(
+        val noteId = repo.saveNote(
             id = id,
             text = text,
             checklist = checklist,
@@ -52,6 +53,8 @@ class VaultService(
             reminderDone = reminderDone,
             reminderRepeat = reminderRepeat
         )
+        enqueueSyncOperation(entityId = noteId, opType = "upsert", baseRevision = null)
+        return noteId
     }
 
     suspend fun unlock(pin: CharArray, profile: VaultProfile = VaultProfile.REAL) {
@@ -93,7 +96,9 @@ class VaultService(
     suspend fun updateNote(note: Note): Boolean {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.updateNote(note, session.noteKey)
+        val ok = repo.updateNote(note, session.noteKey)
+        if (ok) enqueueSyncOperation(entityId = note.id, opType = "upsert", baseRevision = note.updatedAt.toString())
+        return ok
     }
 
     suspend fun listNoteRevisions(noteId: String, limit: Int = 20): List<NoteRevision> {
@@ -115,13 +120,17 @@ class VaultService(
     suspend fun moveNoteToTrash(id: String): Boolean {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.moveNoteToTrash(id)
+        val ok = repo.moveNoteToTrash(id)
+        if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
+        return ok
     }
 
     suspend fun restoreNoteFromTrash(id: String): Boolean {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.restoreFromTrash(id)
+        val ok = repo.restoreFromTrash(id)
+        if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
+        return ok
     }
 
     suspend fun deleteNotePermanently(id: String): Boolean {
@@ -129,6 +138,7 @@ class VaultService(
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
         val note = repo.getNoteById(id, session.noteKey) ?: return false
         deleteNoteInternal(note, session)
+        enqueueSyncOperation(entityId = id, opType = "delete", baseRevision = note.updatedAt.toString())
         return true
     }
 
@@ -141,13 +151,17 @@ class VaultService(
     suspend fun setArchived(id: String, archived: Boolean): Boolean {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.setArchived(id, archived)
+        val ok = repo.setArchived(id, archived)
+        if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
+        return ok
     }
 
     suspend fun setReminder(id: String, reminderAt: Long?, reminderDone: Boolean, reminderRepeat: String?): Boolean {
         val session = requireSession()
         val repo = NoteRepository(session.database.noteDao(), noteCrypto)
-        return repo.setReminder(id, reminderAt, reminderDone, reminderRepeat)
+        val ok = repo.setReminder(id, reminderAt, reminderDone, reminderRepeat)
+        if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
+        return ok
     }
 
     suspend fun sweepExpired(vacuum: Boolean = false) {
@@ -427,6 +441,62 @@ class VaultService(
             imported++
         }
         return imported
+    }
+
+    private suspend fun enqueueSyncOperation(entityId: String, opType: String, baseRevision: String?) {
+        runCatching {
+            val session = sessionManager.getActive() ?: return
+            val profile = sessionManager.getActiveProfile()?.id ?: VaultProfile.REAL.id
+            val prefs = SyncPreferences(sessionManager.context)
+            val deviceId = prefs.getOrCreateDeviceId()
+            val stateStore = SyncStateStore(session.database.syncStateDao())
+            val payload = buildSyncPayload(
+                note = session.database.noteDao().getById(entityId),
+                entityId = entityId,
+                opType = opType
+            )
+            stateStore.enqueueOutbox(
+                deviceId = deviceId,
+                profile = profile,
+                entityType = "note",
+                entityId = entityId,
+                opType = opType,
+                baseRevision = baseRevision,
+                envelopeCiphertext = payload
+            )
+        }
+    }
+
+    private fun buildSyncPayload(note: NoteEntity?, entityId: String, opType: String): ByteArray {
+        val now = System.currentTimeMillis()
+        val payload = JSONObject().apply {
+            put("v", 1)
+            put("entity_id", entityId)
+            put("op_type", opType)
+            put("ts", now)
+            if (note == null && opType == "delete") {
+                put("deleted", true)
+            }
+        }
+        if (note != null) {
+            payload.put(
+                "note",
+                JSONObject().apply {
+                    put("ciphertext_b64", Base64.encodeToString(note.ciphertext, Base64.NO_WRAP))
+                    put("created_at", note.createdAt)
+                    put("updated_at", note.updatedAt)
+                    put("expires_at", note.expiresAt ?: JSONObject.NULL)
+                    put("read_once", note.readOnce)
+                    put("deleted", note.deleted)
+                    put("archived_at", note.archivedAt ?: JSONObject.NULL)
+                    put("reminder_at", note.reminderAt ?: JSONObject.NULL)
+                    put("reminder_done", note.reminderDone)
+                    put("reminder_repeat", note.reminderRepeat ?: JSONObject.NULL)
+                    put("trashed_at", note.trashedAt ?: JSONObject.NULL)
+                }
+            )
+        }
+        return payload.toString().toByteArray(Charsets.UTF_8)
     }
 
     private suspend fun deleteNoteInternal(note: Note, session: VaultSession) {

@@ -11,6 +11,7 @@ import com.androidircx.nulvex.reminder.ReminderNotificationHelper
 import com.androidircx.nulvex.reminder.ReminderRequest
 import com.androidircx.nulvex.security.AppPreferences
 import com.androidircx.nulvex.work.SelfDestructWorker
+import com.androidircx.nulvex.work.SyncWorkScheduler
 import com.google.android.gms.ads.MobileAds
 import java.util.concurrent.TimeUnit
 
@@ -21,6 +22,7 @@ class NulvexApp : Application() {
         VaultServiceLocator.init(this)
         MobileAds.initialize(this)
         scheduleSelfDestructWork()
+        SyncWorkScheduler.schedule(this)
         ReminderNotificationHelper.ensureChannel(this)
         reschedulePersistedReminders()
     }

@@ -190,7 +190,7 @@ tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerificat
     sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
     executionData.setFrom(files(jacocoDebugExec, jacocoDebugAltExec))
 
-    val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.05"
+    val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.08"
 
     violationRules {
         rule {
@@ -289,7 +289,7 @@ if (txPullOnBuild) {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
     implementation("com.google.firebase:firebase-analytics")
 
     implementation(libs.androidx.core.ktx)

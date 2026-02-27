@@ -246,6 +246,18 @@ def has_translatable_entries(xml_content: str) -> bool:
     )
 
 
+def sanitize_translation_xml(xml_content: str) -> str:
+    # Drop dynamic/interpolated strings that contain Kotlin template markers.
+    # These must be represented as parameterized Android resources in source,
+    # not translated as raw `${...}` literal snapshots.
+    return re.sub(
+        r'^\s*<string\s+name="tx_auto_[^"]*">[^<]*\$\{[^<]*</string>\s*$',
+        "",
+        xml_content,
+        flags=re.MULTILINE,
+    )
+
+
 def pull_translations(root: pathlib.Path, token: str, project_name: str, org_slug: str | None, resource_slug: str):
     _, project_id = resolve_context(token, project_name, org_slug)
     resource_id = ensure_resource(token, project_id, resource_slug)
@@ -276,6 +288,7 @@ def pull_translations(root: pathlib.Path, token: str, project_name: str, org_slu
         created = post_json("/resource_translations_async_downloads", token, payload)
         download_id = created["data"]["id"]
         xml_content = fetch_download_content(token, download_id)
+        xml_content = sanitize_translation_xml(xml_content)
 
         lang_code = language.replace("l:", "")
         qualifier = android_qualifier(lang_code)

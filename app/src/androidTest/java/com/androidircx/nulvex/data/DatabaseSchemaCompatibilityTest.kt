@@ -36,13 +36,28 @@ class DatabaseSchemaCompatibilityTest {
                 DatabaseMigrations.MIGRATION_3_4,
                 DatabaseMigrations.MIGRATION_4_5,
                 DatabaseMigrations.MIGRATION_5_6,
-                DatabaseMigrations.MIGRATION_6_7
+                DatabaseMigrations.MIGRATION_6_7,
+                DatabaseMigrations.MIGRATION_7_8
             )
             .allowMainThreadQueries()
             .build()
 
         val notes = db!!.noteDao().listActive()
         assertTrue(notes.isEmpty())
+
+        val sqliteDb = db!!.openHelper.writableDatabase
+        fun tableExists(name: String): Boolean {
+            sqliteDb.query(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",
+                arrayOf(name)
+            ).use { cursor ->
+                cursor.moveToFirst()
+                return cursor.getInt(0) == 1
+            }
+        }
+        assertTrue(tableExists("sync_outbox"))
+        assertTrue(tableExists("sync_cursor"))
+        assertTrue(tableExists("sync_conflicts"))
 
         MigrationTestHarness.deleteIfExists(context, dbName)
     }

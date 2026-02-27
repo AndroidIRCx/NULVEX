@@ -538,7 +538,7 @@ class NulvexUiTest {
         )
 
         rule.onNodeWithText("PINNED").assertIsDisplayed()
-        rule.onNodeWithText("READ ONCE").assertIsDisplayed()
+        rule.onNodeWithText("Read once", ignoreCase = true).assertIsDisplayed()
         rule.onNodeWithText("EXPIRING").assertIsDisplayed()
         rule.onNodeWithText("REMINDER").assertIsDisplayed()
         rule.onNodeWithText("2 IMG").assertIsDisplayed()
