@@ -23,7 +23,8 @@ object NulvexDatabaseFactory {
                 DatabaseMigrations.MIGRATION_3_4,
                 DatabaseMigrations.MIGRATION_4_5,
                 DatabaseMigrations.MIGRATION_5_6,
-                DatabaseMigrations.MIGRATION_6_7
+                DatabaseMigrations.MIGRATION_6_7,
+                DatabaseMigrations.MIGRATION_7_8
             )
             .build()
     }

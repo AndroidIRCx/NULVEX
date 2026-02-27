@@ -47,6 +47,9 @@ jobs:
       - name: Run unit tests
         run: ./gradlew test :app:jacocoDebugUnitTestReport :app:jacocoDebugUnitTestCoverageVerification --no-daemon --stacktrace
 
+      - name: Check hardcoded UI strings
+        run: python scripts/i18n/check_hardcoded_strings.py
+
       - name: Upload JaCoCo HTML report
         if: always()
         uses: actions/upload-artifact@v4

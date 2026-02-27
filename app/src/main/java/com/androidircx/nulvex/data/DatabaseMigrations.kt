@@ -59,4 +59,57 @@ object DatabaseMigrations {
             db.execSQL("ALTER TABLE notes ADD COLUMN reminderRepeat TEXT")
         }
     }
+
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS sync_outbox (
+                    opId TEXT NOT NULL PRIMARY KEY,
+                    deviceId TEXT NOT NULL,
+                    profile TEXT NOT NULL,
+                    entityType TEXT NOT NULL,
+                    entityId TEXT NOT NULL,
+                    opType TEXT NOT NULL,
+                    baseRevision TEXT,
+                    envelopeCiphertext BLOB NOT NULL,
+                    clientTs INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    attemptCount INTEGER NOT NULL DEFAULT 0,
+                    nextAttemptAt INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_outbox_nextAttemptAt ON sync_outbox(nextAttemptAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_outbox_profile_createdAt ON sync_outbox(profile, createdAt)")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS sync_cursor (
+                    profile TEXT NOT NULL PRIMARY KEY,
+                    cursorToken TEXT NOT NULL,
+                    updatedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS sync_conflicts (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    profile TEXT NOT NULL,
+                    entityId TEXT NOT NULL,
+                    localRevision TEXT,
+                    remoteRevision TEXT,
+                    remoteOpId TEXT,
+                    resolutionPolicy TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    resolvedAt INTEGER
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_conflicts_profile_entityId ON sync_conflicts(profile, entityId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_conflicts_resolvedAt ON sync_conflicts(resolvedAt)")
+        }
+    }
 }

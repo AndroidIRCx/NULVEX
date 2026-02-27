@@ -1,9 +1,5 @@
 <resources>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_ddf04ed8ab">${attachments.size} attached</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_c8e870f1b3">${newAttachments.size} attached</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_56b1818e52">- 64-char hex string (32 bytes).</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_50786e9f1d">- Local backup: exports encrypted file to your phone storage.</string>
@@ -115,8 +111,6 @@
     <string name="tx_auto_a3dd528f02">Backup restored ($imported notes)</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_c36da61970">Backup upload failed</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_2c5f895120">Backup uploaded (${result.sizeBytes} bytes)</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_33abaf2086">Best:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -287,14 +281,8 @@
     <string name="tx_auto_602150d20e">Failed to export key manager</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_ce73019a7a">Failed to export local backup</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_3bacfe97fe">Failed to generate OpenPGP key: ${e.message ?:</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_dacaeedcae">Failed to generate XChaCha key: ${e.message ?:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_fd280bf747">Failed to import key manager</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_4934cd0ee2">Failed to import key: ${e.message ?:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_d31af70570">Failed to import local backup</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
@@ -402,11 +390,7 @@
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
     <string name="tx_auto_d2b926736d">Key manager exported</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_2159b19499">Key manager restore failed: ${e.message?.take(120) ?:</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_740c7f02fa">Key manager restored ($imported keys)</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_2620934de8">Key manager upload failed: ${e.message?.take(120) ?:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_0dca24f2a9">Key not found</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\MainActivity.kt -->
@@ -519,8 +503,6 @@
     <string name="tx_auto_8f79e05b93">Note not found</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
     <string name="tx_auto_c6198b3a4f">Note reminder</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_58a44e7999">Note share upload failed: ${e.message?.take(120) ?:</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_0414dd753f">Note unavailable</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
@@ -595,8 +577,6 @@
     <string name="tx_auto_b6b7272087">Pro remote encrypted storage is active</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\billing\PlayBillingCoordinator.kt -->
     <string name="tx_auto_0663dde59b">Product is not available yet. Try again in a moment.</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\billing\PlayBillingCoordinator.kt -->
-    <string name="tx_auto_b7457a211d">Purchase failed: ${result.debugMessage}</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_5628467f84">Purchase options</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -761,10 +741,6 @@
     <string name="tx_auto_951f495b34">This action cannot be undone.</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_85671297f3">This note is set to read-once. It will be permanently destroyed after you close it.</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_dc95278592">Too many attempts. Try again in ${lockoutMs / 1000}s</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainViewModel.kt -->
-    <string name="tx_auto_cac5ca5aac">Too many attempts. Try again in ${secs}s</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ffd32ba4f2">Too many attempts. Try again in {seconds}s</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
@@ -801,8 +777,6 @@
     <string name="tx_auto_12af637ca6">Used to share notes via remote encrypted storage</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_ebdcfd3fbe">Vault defaults</string>
-    <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
-    <string name="tx_auto_f5db5a468e">Version ${BuildConfig.VERSION_NAME}</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_91f86581f1">Version history</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->

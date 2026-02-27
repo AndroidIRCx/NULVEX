@@ -14,6 +14,9 @@ import com.androidircx.nulvex.security.VaultAuthController
 import com.androidircx.nulvex.security.VaultAuthService
 import com.androidircx.nulvex.security.PanicWipeService
 import com.androidircx.nulvex.security.AppPreferences
+import com.androidircx.nulvex.sync.LaravelSyncApiClient
+import com.androidircx.nulvex.sync.SyncApi
+import com.androidircx.nulvex.sync.SyncPreferences
 
 object VaultServiceLocator {
     private lateinit var sessionManager: VaultSessionManager
@@ -28,6 +31,8 @@ object VaultServiceLocator {
     private lateinit var backupRegistryStore: BackupRegistryStore
     private lateinit var encryptedBackupService: EncryptedBackupService
     private lateinit var noteReminderScheduler: NoteReminderScheduler
+    private lateinit var syncPreferences: SyncPreferences
+    private lateinit var syncApi: SyncApi
 
     fun init(context: Context) {
         val appContext = context.applicationContext
@@ -43,6 +48,8 @@ object VaultServiceLocator {
         backupRegistryStore = BackupRegistryStore(appContext)
         encryptedBackupService = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore)
         noteReminderScheduler = AlarmManagerNoteReminderScheduler(appContext)
+        syncPreferences = SyncPreferences(appContext)
+        syncApi = LaravelSyncApiClient()
     }
 
     fun sessionManager(): VaultSessionManager = sessionManager
@@ -57,4 +64,6 @@ object VaultServiceLocator {
     fun backupRegistryStore(): BackupRegistryStore = backupRegistryStore
     fun encryptedBackupService(): EncryptedBackupService = encryptedBackupService
     fun noteReminderScheduler(): NoteReminderScheduler = noteReminderScheduler
+    fun syncPreferences(): SyncPreferences = syncPreferences
+    fun syncApi(): SyncApi = syncApi
 }

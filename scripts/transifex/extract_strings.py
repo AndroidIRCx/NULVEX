@@ -40,6 +40,10 @@ def looks_user_facing(text: str) -> bool:
         return False
     if "com.androidircx" in t or ".fileprovider" in t:
         return False
+    # Skip Kotlin template/interpolated literals; these are dynamic runtime messages
+    # and should be translated via parameterized resources, not extracted as raw text.
+    if "${" in t:
+        return False
     if re.fullmatch(r"[A-Za-z0-9_./:+-]+", t) and t.islower():
         return False
     return any(c.isalpha() for c in t)

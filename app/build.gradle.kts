@@ -190,7 +190,7 @@ tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerificat
     sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
     executionData.setFrom(files(jacocoDebugExec, jacocoDebugAltExec))
 
-    val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.05"
+    val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.08"
 
     violationRules {
         rule {
