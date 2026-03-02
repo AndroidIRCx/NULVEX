@@ -276,7 +276,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Failed to import key: ${e.message ?: "unknown error"}")
+                        error = appContext.tx("Failed to import key: {reason}")
+                            .replace("{reason}", e.message ?: "unknown error")
                     )
                 }
             }
@@ -308,7 +309,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
                         error = null,
-                        backupStatus = appContext.tx("Backup uploaded (${result.sizeBytes} bytes)"),
+                        backupStatus = appContext.tx("Backup uploaded ({count} bytes)")
+                            .replace("{count}", result.sizeBytes.toString()),
                         lastBackupMediaId = result.mediaId,
                         backupRecords = encryptedBackupService.listBackupRecords()
                     )
@@ -355,7 +357,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         isBusy = false,
                         notes = notes,
                         error = null,
-                        backupStatus = appContext.tx("Restore complete ($imported notes)")
+                        backupStatus = appContext.tx("Restore complete ({count} notes)")
+                            .replace("{count}", imported.toString())
                     )
                 }
             } catch (_: Exception) {
@@ -388,7 +391,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         isBusy = false,
                         notes = notes,
                         error = null,
-                        backupStatus = appContext.tx("Restore complete ($imported notes)")
+                        backupStatus = appContext.tx("Restore complete ({count} notes)")
+                            .replace("{count}", imported.toString())
                     )
                 }
             } catch (_: Exception) {
@@ -417,7 +421,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.Main) {
             uiState.value = uiState.value.copy(
                 notes = notes,
-                backupStatus = appContext.tx("Restore complete ($imported notes)")
+                backupStatus = appContext.tx("Restore complete ({count} notes)")
+                    .replace("{count}", imported.toString())
             )
         }
         return imported
@@ -450,7 +455,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Note share upload failed: ${e.message?.take(120) ?: "unknown error"}")
+                        error = appContext.tx("Note share upload failed: {reason}")
+                            .replace("{reason}", e.message?.take(120) ?: "unknown error")
                     )
                 }
             }
@@ -481,7 +487,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Key manager upload failed: ${e.message?.take(120) ?: "unknown error"}")
+                        error = appContext.tx("Key manager upload failed: {reason}")
+                            .replace("{reason}", e.message?.take(120) ?: "unknown error")
                     )
                 }
             }
@@ -507,14 +514,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         isBusy = false,
                         error = null,
                         sharedKeys = sharedKeyStore.listKeys(),
-                        backupStatus = appContext.tx("Key manager restored ($imported keys)")
+                        backupStatus = appContext.tx("Key manager restored ({count} keys)")
+                            .replace("{count}", imported.toString())
                     )
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Key manager restore failed: ${e.message?.take(120) ?: "unknown error"}")
+                        error = appContext.tx("Key manager restore failed: {reason}")
+                            .replace("{reason}", e.message?.take(120) ?: "unknown error")
                     )
                 }
             }
@@ -537,7 +546,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             uiState.value = uiState.value.copy(backupStatus = "")
             uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("XChaCha key generated"))
         } catch (e: Exception) {
-            uiState.value = uiState.value.copy(error = appContext.tx("Failed to generate XChaCha key: ${e.message ?: "unknown error"}"))
+            uiState.value = uiState.value.copy(
+                error = appContext.tx("Failed to generate XChaCha key: {reason}")
+                    .replace("{reason}", e.message ?: "unknown error")
+            )
         }
     }
 
@@ -547,7 +559,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             uiState.value = uiState.value.copy(backupStatus = "")
             uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("OpenPGP key generated"))
         } catch (e: Exception) {
-            uiState.value = uiState.value.copy(error = appContext.tx("Failed to generate OpenPGP key: ${e.message ?: "unknown error"}"))
+            uiState.value = uiState.value.copy(
+                error = appContext.tx("Failed to generate OpenPGP key: {reason}")
+                    .replace("{reason}", e.message ?: "unknown error")
+            )
         }
     }
 
@@ -570,7 +585,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun importSharedKeyPayload(payload: String, source: String): Boolean {
         return try {
             sharedKeyStore.importTransferPayload(payload, source)
-            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("Key imported via $source"))
+            uiState.value = uiState.value.copy(
+                sharedKeys = sharedKeyStore.listKeys(),
+                backupStatus = appContext.tx("Key imported via {source}").replace("{source}", source)
+            )
             true
         } catch (_: Exception) {
             false
@@ -896,7 +914,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                         backupStatus = when (mimeType) {
                             com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME -> appContext.tx("Note imported")
-                            else -> appContext.tx("Backup restored ($imported notes)")
+                            else -> appContext.tx("Backup restored ({count} notes)")
+                                .replace("{count}", imported.toString())
                         }
                     )
                 }
@@ -924,7 +943,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         notes = notes,
                         pendingImport = null,
                         error = null,
-                        backupStatus = appContext.tx("Remote import complete ($imported notes)")
+                        backupStatus = appContext.tx("Remote import complete ({count} notes)")
+                            .replace("{count}", imported.toString())
                     )
                 }
             } catch (_: Exception) {
@@ -946,7 +966,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         pendingImport = null,
                         sharedKeys = sharedKeyStore.listKeys(),
                         error = null,
-                        backupStatus = appContext.tx("Imported $imported keys")
+                        backupStatus = appContext.tx("Imported {count} keys")
+                            .replace("{count}", imported.toString())
                     )
                 }
             } catch (_: Exception) {
@@ -969,7 +990,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         pendingImport = null,
                         sharedKeys = sharedKeyStore.listKeys(),
                         error = null,
-                        backupStatus = appContext.tx("Imported $imported keys")
+                        backupStatus = appContext.tx("Imported {count} keys")
+                            .replace("{count}", imported.toString())
                     )
                 }
             } catch (_: Exception) {

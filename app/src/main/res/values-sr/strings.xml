@@ -60,31 +60,13 @@
     <plurals name="notes_count">
         <item quantity="one">%d beleška</item>
         <item quantity="few">%d beleške</item>
-        <item quantity="other">%dbeleški</item>
+        <item quantity="other">%d beleški</item>
     </plurals>
-
-
-    <string name="tx_auto_56b1818e52">- Heksadecimalni niz od 64 znaka (32 bajta).</string>
+<string name="tx_auto_3459c738d9">## Dnevnik\n\nRaspoloženje:\nŠta se desilo danas:\nŠta sam naučio:\nSledeći korak:</string>
     
-    <string name="tx_auto_50786e9f1d">- Lokalna rezervna kopija: izvozi šifrovanu datoteku u memoriju telefona.</string>
+    <string name="tx_auto_45a687cc6c">## Sastanak\n\n- Dnevni red:\n- Odluke:\n- Akcione stavke:\n- Praćenje:</string>
     
-    <string name="tx_auto_fddb5357fc">- NFC: upisuje podatke ključa na NFC oznaku.</string>
-    
-    <string name="tx_auto_4799e970cd">- OpenPGP ključ: generisani ili uvezeni PGP materijal ključa.</string>
-    
-    <string name="tx_auto_56e6fb3c8c">- QR: prikaži kod na ekranu za skeniranje.</string>
-    
-    <string name="tx_auto_efd6156c4e">- Udaljeno enkriptovano skladište (Pro): otprema enkriptovani bekap na Pro udaljeno skladište.</string>
-    
-    <string name="tx_auto_193e8c1f07">- XChaCha ključ: 32-bajtni simetrični ključ za brzu razmenu šifrovanih podataka.</string>
-    
-    <string name="tx_auto_ce53bb4107">- base64 niz koji se dekodira na tačno 32 bajta, ili</string>
-    
-    <string name="tx_auto_bb03d8ddb3">1) OpenPGP armored blokovi ključa (BEGIN PGP ... END PGP)</string>
-    
-    <string name="tx_auto_9564089402">2) XChaCha ključ kao:</string>
-    
-    <string name="tx_auto_c5132c077b">Lažni sef se otvara kada unesete drugi PIN</string>
+    <string name="tx_auto_442890c4d9">Mamac sef se otvara kada uneseš drugačiji PIN. Koristi ga za verodostojno poricanje pod prinudom.</string>
     
     <string name="tx_auto_c72633f673">AKTIVNO</string>
     
@@ -158,6 +140,10 @@
     
     <string name="tx_auto_512956e152">Uništi belešku</string>
     
+    <string name="tx_auto_a4ef026e10">KUPI PRO FUNKCIJE</string>
+    
+    <string name="tx_auto_6095e748fa">KUPI UKLANJANJE REKLAMA</string>
+    
     <string name="tx_auto_b52b36b726">Nazad</string>
     
     <string name="tx_auto_4eb5c84be0">Povratne veze</string>
@@ -168,15 +154,15 @@
     
     <string name="tx_auto_aa37e24927">Pomoć za rezervnu kopiju</string>
     
-    <string name="tx_auto_b98a38265c">Režimi rezervne kopije:</string>
-    
     <string name="tx_auto_74b5fc843c">Vraćanje rezervne kopije nije uspelo</string>
     
-    <string name="tx_auto_a3dd528f02">Bekap vraćen ($imported notes)</string>
+    <string name="tx_auto_a0d9954d7c">Bekap vraćen ({count} beleški)</string>
     
     <string name="tx_auto_c36da61970">Otpremanje rezervne kopije nije uspelo</string>
-
-    <string name="tx_auto_33abaf2086">Najbolje:</string>
+    
+    <string name="tx_auto_45395ca3f5">Bekap otpremljen ({count} bajtova)</string>
+    
+    <string name="tx_auto_69d484d44e">Najbolje: {count}</string>
     
     <string name="tx_auto_1197e4d653">Biometrijsko otključavanje</string>
     
@@ -345,10 +331,15 @@
     <string name="tx_auto_602150d20e">Izvoz menadžera ključeva nije uspeo</string>
     
     <string name="tx_auto_ce73019a7a">Izvoz lokalne rezervne kopije nije uspeo</string>
-
-
+    
+    <string name="tx_auto_cd18966f5e">Neuspešno generisanje OpenPGP ključa: {reason}</string>
+    
+    <string name="tx_auto_ee4e9da931">Neuspešno generisanje XChaCha ključa: {reason}</string>
+    
     <string name="tx_auto_fd280bf747">Uvoz menadžera ključeva nije uspeo</string>
-
+    
+    <string name="tx_auto_cd226d1aa3">Neuspešan uvoz ključa: {reason}</string>
+    
     <string name="tx_auto_d31af70570">Uvoz lokalne rezervne kopije nije uspeo</string>
     
     <string name="tx_auto_cb3991369e">Neuspešno čitanje dolaznog fajla</string>
@@ -371,15 +362,13 @@
     
     <string name="tx_auto_b38c676fcb">Neuspešno otključavanje sa otiskom prsta</string>
     
+    <string name="tx_auto_5a74b53970">Prvi zadatak</string>
+    
     <string name="tx_auto_46c295ccbd">GENERIŠI PGP</string>
     
     <string name="tx_auto_7a8a444410">GENERIŠI XCHACHA</string>
     
     <string name="tx_auto_890bdcbb7b">ZAPOČNI</string>
-    
-    <string name="tx_auto_421acde4c0">Generiši PGP kreira novi OpenPGP par ključeva sačuvan u trezoru ključeva aplikacije.</string>
-    
-    <string name="tx_auto_9931361eeb">Generiši XChaCha kreira novi nasumični 32-bajtni simetrični ključ.</string>
     
     <string name="tx_auto_d4926ac6d3">Generiši pomoć</string>
     
@@ -427,7 +416,7 @@
     
     <string name="tx_auto_d2fae92648">Uvezeni ključevi</string>
     
-    <string name="tx_auto_878bd32044">U oba slučaja, dešifrovanje zahteva odgovarajući ključ.</string>
+    <string name="tx_auto_c42d7d8f0d">Uvezeno {count} ključeva</string>
     
     <string name="tx_auto_4d29845223">Pogrešan mamac PIN</string>
     
@@ -447,23 +436,25 @@
     
     <string name="tx_auto_5cbceec597">Ključ je uvezen</string>
     
-    <string name="tx_auto_67cdada69e">Ključ je uvezen putem $source</string>
+    <string name="tx_auto_515877f624">Ključ uvezen putem {source}</string>
     
     <string name="tx_auto_46e7d4b841">Polje za ključ je prazno</string>
     
     <string name="tx_auto_05ea70658d">Oznaka ključa</string>
     
     <string name="tx_auto_d2b926736d">Menadžer ključeva je izvezen</string>
-
-    <string name="tx_auto_740c7f02fa">Menadžer ključeva vraćen ($imported keys)</string>
-
+    
+    <string name="tx_auto_28e53a5fd1">Vraćanje menadžera ključeva nije uspelo: {reason}</string>
+    
+    <string name="tx_auto_7f5a4b4a8c">Menadžer ključeva vraćen ({count} ključeva)</string>
+    
+    <string name="tx_auto_6a673ec7c3">Otpremanje menadžera ključeva nije uspelo: {reason}</string>
+    
     <string name="tx_auto_0dca24f2a9">Ključ nije pronađen</string>
     
     <string name="tx_auto_907e6daf88">Podaci ključa su upisani na NFC oznaku</string>
     
     <string name="tx_auto_40bbe0f95c">Menadžer ključeva</string>
-    
-    <string name="tx_auto_9196e3c706">Menadžer ključeva čuva ključeve za deljenje šifrovanih beleški i rezervne kopije.</string>
     
     <string name="tx_auto_74341e3c27">Oznaka</string>
     
@@ -481,7 +472,7 @@
     
     <string name="tx_auto_ee8c995f4d">Povezane beleške</string>
     
-    <string name="tx_auto_606dadcb2e">Izvozi lokalnih rezervnih kopija</string>
+    <string name="tx_auto_530dccfc9a">Lokalni bekap izvozi {ext}. Udaljeno enkriptovano skladište otprema (Pro).</string>
     
     <string name="tx_auto_28cce5d442">Lokalni enkriptovani bekap + Pro udaljeno enkriptovano skladište</string>
     
@@ -493,13 +484,11 @@
     
     <string name="tx_auto_b4ce617e87">Ručni uvoz (OpenPGP armored ili XChaCha ključ)</string>
     
-    <string name="tx_auto_211665d6d5">Ručni uvoz prihvata:</string>
-    
     <string name="tx_auto_f4b0a0436c">Pomoć za ručni format ključa</string>
     
     <string name="tx_auto_e7aade28d6">Media ID ili URL je obavezan</string>
     
-    <string name="tx_auto_1c960d0a27">Media ID:</string>
+    <string name="tx_auto_50fde7667d">Media ID: {id}</string>
     
     <string name="tx_auto_17dc9a8374">Sastanak</string>
     
@@ -541,7 +530,13 @@
     
     <string name="tx_auto_5fced7559a">Nove beleške će koristiti ovo podešavanje za isticanje</string>
     
-    <string name="tx_auto_bf6f49fbbe">Sledeće isticanje:</string>
+    <string name="tx_auto_2f03e1f1f3">Sledeći istek: istekao</string>
+    
+    <string name="tx_auto_0c0f56c90f">Sledeći istek: {value}d</string>
+    
+    <string name="tx_auto_6778dc623d">Sledeći istek: {value}h</string>
+    
+    <string name="tx_auto_5ea696547a">Sledeći istek: {value}m</string>
     
     <string name="tx_auto_528a26b2ac">Nema dostupnih ključeva</string>
     
@@ -568,7 +563,9 @@
     <string name="tx_auto_8f79e05b93">Beleška nije pronađena</string>
     
     <string name="tx_auto_c6198b3a4f">Podsetnik za belešku</string>
-
+    
+    <string name="tx_auto_5d94be3725">Otpremanje deljene beleške nije uspelo: {reason}</string>
+    
     <string name="tx_auto_0414dd753f">Beleška nije dostupna</string>
     
     <string name="tx_auto_64bb14ed40">Ažuriranje beleške nije uspelo</string>
@@ -591,6 +588,8 @@
     
     <string name="tx_auto_6c84d1f0e8">OTVORI OPCIJE KUPOVINE</string>
     
+    <string name="tx_auto_bd5302381a">U VLASNIŠTVU</string>
+    
     <string name="tx_auto_7d0b9872e2">Bezbedan sef van mreže</string>
     
     <string name="tx_auto_e8660e0f96">Bezbedan sef sa radom bez interneta</string>
@@ -606,6 +605,8 @@
     <string name="tx_auto_d133e77c40">OpenPGP ključ je generisan</string>
     
     <string name="tx_auto_8d7bf5bf13">Ostalo</string>
+    
+    <string name="tx_auto_b62ff5ccd1">U vlasništvu</string>
     
     <string name="tx_auto_e2a48c8e7c">PANIK BRISANJE</string>
     
@@ -631,6 +632,8 @@
     
     <string name="tx_auto_a94cf5385e">Zakači na vrh</string>
     
+    <string name="tx_auto_f9312169ef">Zakačeno</string>
+    
     <string name="tx_auto_bafdc6b714">Primarni PIN</string>
     
     <string name="tx_auto_be59312954">Pro funkcije (doživotno)</string>
@@ -642,7 +645,7 @@
     <string name="tx_auto_b6b7272087">Pro udaljeno enkriptovano skladište je aktivno</string>
     
     <string name="tx_auto_0663dde59b">Proizvod još nije dostupan. Pokušajte ponovo za trenutak</string>
-
+    
     <string name="tx_auto_5628467f84">Opcije kupovine</string>
     
     <string name="tx_auto_007b579e1e">QR kod</string>
@@ -685,8 +688,6 @@
     
     <string name="tx_auto_421cf1fea4">Beleške za jednokratno čitanje brišu se nakon pregleda</string>
     
-    <string name="tx_auto_2b8e95e150">Primalac ga uvozi putem QR skenera ili NFC čitanja.</string>
-    
     <string name="tx_auto_8b5c617bb6">Ponovno šifrovanje sefa...</string>
     
     <string name="tx_auto_b87a1929f7">Podsetnik</string>
@@ -697,13 +698,13 @@
     
     <string name="tx_auto_eb03be8abf">Ažuriranje podsetnika nije uspelo</string>
     
+    <string name="tx_auto_b8e3a22f3e">Podsetnik: {value}</string>
+    
     <string name="tx_auto_21d7c53dc9">Link ili ID udaljenog enkriptovanog skladišta</string>
     
     <string name="tx_auto_6fe164cfde">Udaljeno enkriptovano skladište zahteva Pro</string>
     
-    <string name="tx_auto_179046ee1c">Udaljeno enkriptovano skladište zahteva (Pro)</string>
-    
-    <string name="tx_auto_fe468ee0ab">Udaljeni uvoz završen ($imported notes)</string>
+    <string name="tx_auto_38a0f59212">Udaljeni uvoz završen ({count} beleški)</string>
     
     <string name="tx_auto_6656d37c1e">Udaljeni uvoz nije uspeo</string>
     
@@ -717,7 +718,7 @@
     
     <string name="tx_auto_76ecba1f27">Ukloni stavku</string>
     
-    <string name="tx_auto_ffd0e68437">Vraćanje je završeno ($imported beleški)</string>
+    <string name="tx_auto_3ff3369164">Vraćanje završeno ({count} beleški)</string>
     
     <string name="tx_auto_bb4ab6f0de">Vraćanje iz otpada nije uspelo</string>
     
@@ -739,8 +740,6 @@
     
     <string name="tx_auto_f6a5e511fb">PODELI IZABRANI KLJUČ</string>
     
-    <string name="tx_auto_a4d69ce779">PODELI IZABRANI KLJUČ omogućava prenos izabranog ključa drugom Nulvex korisniku.</string>
-    
     <string name="tx_auto_431de839c3">PRESKOČI</string>
     
     <string name="tx_auto_37480e0d40">Sačuvaj stavku</string>
@@ -755,17 +754,21 @@
     
     <string name="tx_auto_9a6f37a7bf">Pretraži podešavanja</string>
     
+    <string name="tx_auto_d03e3cb134">Drugi zadatak</string>
+    
     <string name="tx_auto_f25ce1b8a3">Bezbednost</string>
     
     <string name="tx_auto_295367000d">Najpre izaberite ključ u Menadžeru ključeva</string>
     
     <string name="tx_auto_7e489d07a5">Izaberi deljeni ključ koji je korišćen za enkripciju ovog fajla:</string>
     
-    <string name="tx_auto_6f4f8f467f">Izabrano isticanje:</string>
+    <string name="tx_auto_609bee26fb">Izabrani istek: {value}</string>
     
     <string name="tx_auto_10726131d1">Samouništavajuće beleške</string>
     
     <string name="tx_auto_a75ee8482a">Srpski</string>
+    
+    <string name="tx_auto_43b6a5aafc">Servis:\nKorisničko ime:\nLozinka:\nRezervni kod:\nBeleške:</string>
     
     <string name="tx_auto_7097c9bd90">Postavi lažni PIN</string>
     
@@ -782,8 +785,6 @@
     <string name="tx_auto_694e948348">Podeli ključ</string>
     
     <string name="tx_auto_adc4e96a47">Sortiraj</string>
-    
-    <string name="tx_auto_1da9586645">Izvori (manual/qr/nfc) se automatski označavaju prema načinu uvoza ključa.</string>
     
     <string name="tx_auto_eb7deb2269">Nizovi – gledajte više puta da sakupite više minuta bez oglasa</string>
     
@@ -803,12 +804,15 @@
     
     <string name="tx_auto_a797e30923">Tema</string>
     
+    <string name="tx_auto_d4d5fca69f">Treći zadatak</string>
+    
     <string name="tx_auto_951f495b34">Ovu radnju nije moguće poništiti</string>
     
     <string name="tx_auto_85671297f3">Ova beleška je podešena za jednokratno čitanje. Biće trajno uništena nakon što je zatvorite</string>
-
-
+    
     <string name="tx_auto_ffd32ba4f2">Previše pokušaja. Pokušajte ponovo za {seconds}s</string>
+    
+    <string name="tx_auto_5225551fde">Pokušaj drugačiju pretragu ili filter oznaka.</string>
     
     <string name="tx_auto_55ad592786">OPOZOVI</string>
     
@@ -832,19 +836,21 @@
     
     <string name="tx_auto_2c9c1f7914">Nedostupno</string>
     
+    <string name="tx_auto_2d2a4b3f57">Bez oznake</string>
+    
     <string name="tx_auto_1526a17ee7">Otključaj</string>
     
     <string name="tx_auto_704d8bd62e">Otključava neograničene kredite za deljenje. Ne uklanja oglase. Rezervna kopija i još funkcija uskoro stižu</string>
-    
-    <string name="tx_auto_6a22a0a2b4">Koristite ga za verodostojno poricanje pod prinudom</string>
     
     <string name="tx_auto_07cafe7721">Koristite otisak prsta za brzo otključavanje. Vaš PIN ostaje glavni ključ</string>
     
     <string name="tx_auto_12af637ca6">Koristi se za deljenje beleški putem udaljenog enkriptovanog skladišta</string>
     
     <string name="tx_auto_ebdcfd3fbe">Podrazumevana podešavanja sefa</string>
-
+    
     <string name="tx_auto_91f86581f1">Istorija verzija</string>
+    
+    <string name="tx_auto_7a4a5b083d">Verzija {version}</string>
     
     <string name="tx_auto_2040bc7d17">POGLEDAJ OGLAS – 10 MIN BEZ OGLASA</string>
     
@@ -876,5 +882,21 @@
     
     <string name="tx_auto_1122fa2b49">Vaš sef je spreman</string>
     
+    <string name="tx_auto_af6321ca7a">nepoznata greška</string>
+    
+    <string name="tx_auto_3e0c07a17f">putem {source} - {format} - {fingerprint}</string>
+    
+    <string name="tx_auto_a3ce6fcd3c">{count} slika</string>
+    
+    <string name="tx_auto_eafb4cf5ef">{count} priloga</string>
+    
+    <string name="tx_auto_fbdbd3aed0">{count} za spaljivanje</string>
+    
+    <string name="tx_auto_cb3620eb30">{count} ističe</string>
+    
     <string name="tx_auto_bc67a440ab">{count} izabrano</string>
+    
+    <string name="tx_auto_2dc2b0de3b">Preostalo {time}</string>
+    
+    <string name="tx_auto_7e09c0135c">{time} {label}: {title}</string>
 </resources>
