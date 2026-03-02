@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.androidircx.nulvex.i18n.sanitizeLanguageTag
+import com.androidircx.nulvex.i18n.tx
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -13,6 +14,7 @@ import com.androidircx.nulvex.security.AppPreferences
 import com.androidircx.nulvex.work.SelfDestructWorker
 import com.androidircx.nulvex.work.SyncWorkScheduler
 import com.google.android.gms.ads.MobileAds
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import java.util.concurrent.TimeUnit
 
 class NulvexApp : Application() {
@@ -21,6 +23,8 @@ class NulvexApp : Application() {
         applySavedLanguage()
         VaultServiceLocator.init(this)
         MobileAds.initialize(this)
+        FirebaseCrashlytics.getInstance().setCustomKey("app_locale", AppPreferences(this).getLanguageTag())
+        warmUpPlayIntegrity()
         scheduleSelfDestructWork()
         SyncWorkScheduler.schedule(this)
         ReminderNotificationHelper.ensureChannel(this)
@@ -55,10 +59,16 @@ class NulvexApp : Application() {
                 ReminderRequest(
                     noteId = noteId,
                     triggerAtEpochMillis = triggerAt,
-                    title = "Note reminder",
+                    title = tx("Note reminder"),
                     preview = ""
                 )
             )
         }
+    }
+
+    private fun warmUpPlayIntegrity() {
+        val playIntegrity = VaultServiceLocator.playIntegrityService()
+        if (!playIntegrity.isConfigured()) return
+        playIntegrity.prepare()
     }
 }

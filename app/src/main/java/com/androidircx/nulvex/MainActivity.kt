@@ -10,6 +10,7 @@ import android.nfc.Tag
 import android.nfc.tech.Ndef
 import android.nfc.tech.NdefFormatable
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -94,9 +95,9 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val bytes = vm.buildLocalEncryptedBackupPayload(keyId)
                     contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
-                    withContext(Dispatchers.Main) { vm.setBackupStatus("Local encrypted backup exported") }
+                    withContext(Dispatchers.Main) { vm.setBackupStatus(tx("Local encrypted backup exported")) }
                 } catch (_: Exception) {
-                    withContext(Dispatchers.Main) { vm.showError("Failed to export local backup") }
+                    withContext(Dispatchers.Main) { vm.showError(tx("Failed to export local backup")) }
                 }
             }
         }
@@ -111,7 +112,7 @@ class MainActivity : AppCompatActivity() {
                         ?: throw IllegalStateException("Unable to read file")
                     vm.restoreLocalEncryptedBackupPayload(bytes, keyId, pendingLocalBackupImportMerge)
                 } catch (_: Exception) {
-                    withContext(Dispatchers.Main) { vm.showError("Failed to import local backup") }
+                    withContext(Dispatchers.Main) { vm.showError(tx("Failed to import local backup")) }
                 }
             }
         }
@@ -126,9 +127,9 @@ class MainActivity : AppCompatActivity() {
                         password = pendingKeyManagerExportPassword
                     )
                     contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
-                    withContext(Dispatchers.Main) { vm.setBackupStatus("Key manager exported") }
+                    withContext(Dispatchers.Main) { vm.setBackupStatus(tx("Key manager exported")) }
                 } catch (_: Exception) {
-                    withContext(Dispatchers.Main) { vm.showError("Failed to export key manager") }
+                    withContext(Dispatchers.Main) { vm.showError(tx("Failed to export key manager")) }
                 }
             }
         }
@@ -141,9 +142,9 @@ class MainActivity : AppCompatActivity() {
                     val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: throw IllegalStateException("Unable to read file")
                     val imported = vm.importKeyManagerStorage(bytes, pendingKeyManagerImportPassword)
-                    withContext(Dispatchers.Main) { vm.setBackupStatus("Imported $imported keys") }
+                    withContext(Dispatchers.Main) { vm.setBackupStatus(tx("Imported $imported keys")) }
                 } catch (_: Exception) {
-                    withContext(Dispatchers.Main) { vm.showError("Failed to import key manager") }
+                    withContext(Dispatchers.Main) { vm.showError(tx("Failed to import key manager")) }
                 }
             }
         }
@@ -331,7 +332,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startBiometricEnrollment(pin: String) {
         if (pin.isBlank()) {
-            vm.showError("PIN is required for fingerprint setup")
+            vm.showError(tx("PIN is required for fingerprint setup"))
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
@@ -339,7 +340,7 @@ class MainActivity : AppCompatActivity() {
                 .verifyRealPin(pin.toCharArray())
             withContext(Dispatchers.Main) {
                 if (!ok) {
-                    vm.showError("Current PIN is incorrect")
+                    vm.showError(tx("Current PIN is incorrect"))
                     return@withContext
                 }
                 val canAuth = BiometricManager.from(this@MainActivity).canAuthenticate(
@@ -347,13 +348,13 @@ class MainActivity : AppCompatActivity() {
                         BiometricManager.Authenticators.DEVICE_CREDENTIAL
                 )
                 if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
-                    vm.showError("Fingerprint or device credential is not available")
+                    vm.showError(tx("Fingerprint or device credential is not available"))
                     return@withContext
                 }
                 val cipher = try {
                     biometricStore.getEncryptCipher()
                 } catch (_: Exception) {
-                    vm.showError("Unable to initialize fingerprint")
+                    vm.showError(tx("Unable to initialize fingerprint"))
                     return@withContext
                 }
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -371,7 +372,7 @@ class MainActivity : AppCompatActivity() {
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             val authCipher = result.cryptoObject?.cipher ?: run {
-                                vm.showError("Fingerprint setup failed")
+                                vm.showError(tx("Fingerprint setup failed"))
                                 return
                             }
                             val masterKey = VaultKeyManager(applicationContext)
@@ -393,19 +394,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun startBiometricUnlock() {
         if (!biometricStore.hasEncryptedKey()) {
-            vm.showError("Fingerprint is not set up")
+            vm.showError(tx("Fingerprint is not set up"))
             return
         }
         val pair = biometricStore.getEncryptedMasterKey()
         if (pair == null) {
-            vm.showError("Fingerprint data is missing")
+            vm.showError(tx("Fingerprint data is missing"))
             return
         }
         val (iv, ct) = pair
         val cipher = try {
             biometricStore.getDecryptCipher(iv)
         } catch (_: Exception) {
-            vm.showError("Fingerprint data is invalid")
+            vm.showError(tx("Fingerprint data is invalid"))
             return
         }
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -420,7 +421,7 @@ class MainActivity : AppCompatActivity() {
         val prompt = BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 val authCipher = result.cryptoObject?.cipher ?: run {
-                    vm.showError("Fingerprint unlock failed")
+                    vm.showError(tx("Fingerprint unlock failed"))
                     return
                 }
                 val masterKey = authCipher.doFinal(ct)
@@ -441,14 +442,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun startDecoyBiometricEnrollment(decoyPin: String) {
         if (decoyPin.isBlank()) {
-            vm.showError("Enter your decoy PIN first")
+            vm.showError(tx("Enter your decoy PIN first"))
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
             val profile = VaultServiceLocator.vaultAuthService().resolveProfile(decoyPin.toCharArray())
             withContext(Dispatchers.Main) {
                 if (profile != VaultProfile.DECOY) {
-                    vm.showError("Incorrect decoy PIN")
+                    vm.showError(tx("Incorrect decoy PIN"))
                     return@withContext
                 }
                 val canAuth = BiometricManager.from(this@MainActivity).canAuthenticate(
@@ -456,13 +457,13 @@ class MainActivity : AppCompatActivity() {
                         BiometricManager.Authenticators.DEVICE_CREDENTIAL
                 )
                 if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
-                    vm.showError("Fingerprint or device credential is not available")
+                    vm.showError(tx("Fingerprint or device credential is not available"))
                     return@withContext
                 }
                 val cipher = try {
                     decoyBiometricStore.getEncryptCipher()
                 } catch (_: Exception) {
-                    vm.showError("Unable to initialize fingerprint for decoy")
+                    vm.showError(tx("Unable to initialize fingerprint for decoy"))
                     return@withContext
                 }
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -480,7 +481,7 @@ class MainActivity : AppCompatActivity() {
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             val authCipher = result.cryptoObject?.cipher ?: run {
-                                vm.showError("Decoy fingerprint setup failed")
+                                vm.showError(tx("Decoy fingerprint setup failed"))
                                 return
                             }
                             val masterKey = VaultKeyManager(applicationContext, VaultProfile.DECOY)
@@ -502,19 +503,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun startDecoyBiometricUnlock() {
         if (!decoyBiometricStore.hasEncryptedKey()) {
-            vm.showError("Decoy fingerprint is not set up")
+            vm.showError(tx("Decoy fingerprint is not set up"))
             return
         }
         val pair = decoyBiometricStore.getEncryptedMasterKey()
         if (pair == null) {
-            vm.showError("Decoy fingerprint data is missing")
+            vm.showError(tx("Decoy fingerprint data is missing"))
             return
         }
         val (iv, ct) = pair
         val cipher = try {
             decoyBiometricStore.getDecryptCipher(iv)
         } catch (_: Exception) {
-            vm.showError("Decoy fingerprint data is invalid")
+            vm.showError(tx("Decoy fingerprint data is invalid"))
             return
         }
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -529,7 +530,7 @@ class MainActivity : AppCompatActivity() {
         val prompt = BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 val authCipher = result.cryptoObject?.cipher ?: run {
-                    vm.showError("Decoy fingerprint unlock failed")
+                    vm.showError(tx("Decoy fingerprint unlock failed"))
                     return
                 }
                 val masterKey = authCipher.doFinal(ct)
@@ -564,16 +565,16 @@ class MainActivity : AppCompatActivity() {
             .addOnSuccessListener { barcode ->
                 val raw = barcode.rawValue?.trim().orEmpty()
                 if (raw.isBlank()) {
-                    vm.showError("QR code is empty")
+                    vm.showError(tx("QR code is empty"))
                     return@addOnSuccessListener
                 }
                 val importedPayload = vm.importSharedKeyPayload(raw, "qr")
                 if (!importedPayload) {
-                    vm.importSharedKey("QR imported key", "qr", raw)
+                    vm.importSharedKey(tx("QR imported key"), "qr", raw)
                 }
             }
             .addOnFailureListener {
-                vm.showError("QR scan failed")
+                vm.showError(tx("QR scan failed"))
             }
     }
 
@@ -616,7 +617,7 @@ class MainActivity : AppCompatActivity() {
         val state = vm.uiState.value
         val keyId = state.sharedKeys.firstOrNull()?.id
         if (keyId.isNullOrBlank()) {
-            vm.showError("Import at least one key in Keys Manager before sharing")
+            vm.showError(tx("Import at least one key in Keys Manager before sharing"))
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
@@ -632,11 +633,11 @@ class MainActivity : AppCompatActivity() {
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     startActivity(Intent.createChooser(send, tx("Share encrypted Nulvex note")))
-                    vm.setBackupStatus("Encrypted note file ready for share")
+                    vm.setBackupStatus(tx("Encrypted note file ready for share"))
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
-                    vm.showError("Failed to share encrypted note file")
+                    vm.showError(tx("Failed to share encrypted note file"))
                 }
             }
         }
@@ -644,7 +645,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startNfcKeyShare(payload: String) {
         pendingNfcSharePayload = payload
-        vm.setBackupStatus("NFC share armed. Touch another NFC tag to write the key.")
+        vm.setBackupStatus(tx("NFC share armed. Touch another NFC tag to write the key."))
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
@@ -691,7 +692,7 @@ class MainActivity : AppCompatActivity() {
                             vm.setPendingImport(com.androidircx.nulvex.ui.PendingImport.LocalFile(bytes, mimeType))
                         }
                     } catch (_: Exception) {
-                        withContext(Dispatchers.Main) { vm.showError("Failed to read incoming file") }
+                        withContext(Dispatchers.Main) { vm.showError(tx("Failed to read incoming file")) }
                     }
                 }
             }
@@ -737,7 +738,7 @@ class MainActivity : AppCompatActivity() {
             val wrote = writePayloadToNfcTag(intent, pendingShare)
             if (wrote) {
                 pendingNfcSharePayload = null
-                vm.setBackupStatus("Key payload written to NFC tag")
+                vm.setBackupStatus(tx("Key payload written to NFC tag"))
             }
             return
         }
@@ -748,13 +749,18 @@ class MainActivity : AppCompatActivity() {
         ) {
             return
         }
-        val raw = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES) ?: return
+        val raw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, android.os.Parcelable::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
+        } ?: return
         val messages = raw.mapNotNull { it as? NdefMessage }
         for (message in messages) {
             for (record in message.records) {
                 val text = parseNdefText(record) ?: continue
                 if (text.isNotBlank()) {
-                    vm.importSharedKey("NFC imported key", "nfc", text)
+                    vm.importSharedKey(tx("NFC imported key"), "nfc", text)
                     return
                 }
             }
@@ -762,7 +768,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun writePayloadToNfcTag(intent: Intent, payload: String): Boolean {
-        val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG) ?: return false
+        val tag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+        } ?: return false
         val message = NdefMessage(arrayOf(createTextRecord(payload)))
         return try {
             val ndef = Ndef.get(tag)
@@ -770,12 +781,12 @@ class MainActivity : AppCompatActivity() {
                 ndef.connect()
                 if (!ndef.isWritable) {
                     ndef.close()
-                    vm.showError("NFC tag is read-only")
+                    vm.showError(tx("NFC tag is read-only"))
                     return false
                 }
                 if (ndef.maxSize < message.toByteArray().size) {
                     ndef.close()
-                    vm.showError("NFC tag capacity is too small")
+                    vm.showError(tx("NFC tag capacity is too small"))
                     return false
                 }
                 ndef.writeNdefMessage(message)
@@ -783,7 +794,7 @@ class MainActivity : AppCompatActivity() {
                 true
             } else {
                 val formatable = NdefFormatable.get(tag) ?: run {
-                    vm.showError("Tag does not support NDEF")
+                    vm.showError(tx("Tag does not support NDEF"))
                     return false
                 }
                 formatable.connect()
@@ -792,7 +803,7 @@ class MainActivity : AppCompatActivity() {
                 true
             }
         } catch (_: Exception) {
-            vm.showError("Failed to write NFC tag")
+            vm.showError(tx("Failed to write NFC tag"))
             false
         }
     }
@@ -852,7 +863,7 @@ class MainActivity : AppCompatActivity() {
                     val offer = details.oneTimePurchaseOfferDetailsList?.firstOrNull()
                     BillingProductInfo(
                         productId = details.productId,
-                        formattedPrice = offer?.formattedPrice ?: "Unavailable",
+                        formattedPrice = offer?.formattedPrice ?: tx("Unavailable"),
                         offerToken = offer?.offerToken
                     )
                 }
@@ -878,8 +889,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun launchPurchase(productId: String, offerToken: String): Pair<Boolean, String> {
-            val client = billingClient ?: return false to "Google Play Billing is not ready"
-            val details = productDetailsById[productId] ?: return false to "Missing product details"
+            val client = billingClient ?: return false to tx("Google Play Billing is not ready")
+            val details = productDetailsById[productId] ?: return false to tx("Missing product details")
             val productParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
                 .setProductDetails(details)
             // setOfferToken is required for INAPP products with purchase options (billing library 7+)

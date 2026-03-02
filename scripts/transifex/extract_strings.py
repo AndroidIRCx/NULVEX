@@ -32,6 +32,14 @@ def looks_user_facing(text: str) -> bool:
         return False
     if len(t) < 2:
         return False
+    if t == "DEPRECATION":
+        return False
+    if "${" in t:
+        return False
+    if "BuildConfig." in t:
+        return False
+    if re.fullmatch(r"\{[A-Za-z0-9_]+\}", t):
+        return False
     if "http://" in t or "https://" in t:
         return False
     if "application/" in t:

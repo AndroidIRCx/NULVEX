@@ -17,6 +17,7 @@ import com.androidircx.nulvex.security.AppPreferences
 import com.androidircx.nulvex.sync.LaravelSyncApiClient
 import com.androidircx.nulvex.sync.SyncApi
 import com.androidircx.nulvex.sync.SyncPreferences
+import com.androidircx.nulvex.security.PlayIntegrityService
 
 object VaultServiceLocator {
     private lateinit var sessionManager: VaultSessionManager
@@ -33,6 +34,7 @@ object VaultServiceLocator {
     private lateinit var noteReminderScheduler: NoteReminderScheduler
     private lateinit var syncPreferences: SyncPreferences
     private lateinit var syncApi: SyncApi
+    private lateinit var playIntegrityService: PlayIntegrityService
 
     fun init(context: Context) {
         val appContext = context.applicationContext
@@ -50,6 +52,7 @@ object VaultServiceLocator {
         noteReminderScheduler = AlarmManagerNoteReminderScheduler(appContext)
         syncPreferences = SyncPreferences(appContext)
         syncApi = LaravelSyncApiClient()
+        playIntegrityService = PlayIntegrityService(appContext)
     }
 
     fun sessionManager(): VaultSessionManager = sessionManager
@@ -66,4 +69,5 @@ object VaultServiceLocator {
     fun noteReminderScheduler(): NoteReminderScheduler = noteReminderScheduler
     fun syncPreferences(): SyncPreferences = syncPreferences
     fun syncApi(): SyncApi = syncApi
+    fun playIntegrityService(): PlayIntegrityService = playIntegrityService
 }

@@ -78,6 +78,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
@@ -103,7 +104,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -120,7 +120,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Palette
@@ -136,7 +136,6 @@ import com.androidircx.nulvex.BuildConfig
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
 import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -164,6 +163,7 @@ import com.androidircx.nulvex.ui.theme.ThemeMode
 import kotlin.math.max
 import android.net.Uri
 import android.content.Intent
+import android.content.ClipData
 import android.provider.OpenableColumns
 import android.graphics.Bitmap
 import android.app.Activity
@@ -462,7 +462,8 @@ fun MainScreen(
         }
         ErrorBar(state, onClearError)
         if (state.noteShareUrl.isNotBlank()) {
-            val clipboard = LocalClipboardManager.current
+            val clipboard = androidx.compose.ui.platform.LocalClipboard.current
+            val scope = rememberCoroutineScope()
             AlertDialog(
                 onDismissRequest = onClearNoteShareUrl,
                 title = { Text(tx("Note uploaded")) },
@@ -479,7 +480,13 @@ fun MainScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        clipboard.setText(AnnotatedString(state.noteShareUrl))
+                        scope.launch {
+                            clipboard.setClipEntry(
+                                androidx.compose.ui.platform.ClipEntry(
+                                    ClipData.newPlainText("note_share_url", state.noteShareUrl)
+                                )
+                            )
+                        }
                         onClearNoteShareUrl()
                     }) { Text(tx("COPY LINK")) }
                 },
@@ -638,6 +645,7 @@ private fun AppBackground(content: @Composable () -> Unit) {
  * Only rendered when [state.isAdFree] is false.
  */
 @Composable
+@Suppress("DEPRECATION")
 private fun BannerAdSection(adUnitId: String, onRemoveAds: () -> Unit) {
     Column {
         AndroidView(
@@ -647,7 +655,7 @@ private fun BannerAdSection(adUnitId: String, onRemoveAds: () -> Unit) {
                     val widthPx = ctx.resources.displayMetrics.widthPixels.toFloat()
                     val adWidthDp = (widthPx / density).toInt()
                     setAdSize(
-                        AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, adWidthDp)
+                        com.google.android.gms.ads.AdSize.getPortraitAnchoredAdaptiveBannerAdSize(ctx, adWidthDp)
                     )
                     this.adUnitId = adUnitId
                     loadAd(AdRequest.Builder().build())
@@ -1692,21 +1700,21 @@ private fun SwipeableNoteCard(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.EndToStart -> {
-                    onDelete()
-                    false // Don't actually dismiss, show confirmation dialog
-                }
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    onTogglePinned(note.id)
-                    false // Reset after action
-                }
-                SwipeToDismissBoxValue.Settled -> false
+    val dismissState = rememberSwipeToDismissBoxState()
+
+    LaunchedEffect(dismissState.currentValue) {
+        when (dismissState.currentValue) {
+            SwipeToDismissBoxValue.EndToStart -> {
+                onDelete()
+                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
             }
+            SwipeToDismissBoxValue.StartToEnd -> {
+                onTogglePinned(note.id)
+                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+            }
+            SwipeToDismissBoxValue.Settled -> Unit
         }
-    )
+    }
 
     SwipeToDismissBox(
         state = dismissState,
@@ -1798,8 +1806,10 @@ private fun SettingsScreen(
     onBuildQrKeyTransferPayload: (String) -> String? = { null },
     onStartNfcKeyShare: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val clipboard = LocalClipboardManager.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var decoyPin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var decoyBiometricPin by remember { mutableStateOf("") }
@@ -1830,7 +1840,6 @@ private fun SettingsScreen(
     var confirmDeleteBackupId by remember { mutableStateOf<String?>(null) }
     var lastHandledStatus by remember { mutableStateOf("") }
     val settingsScroll = rememberScrollState()
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val normalizedQuery = settingsSearch.trim().lowercase()
 
     fun matchesSection(vararg terms: String): Boolean {
@@ -1919,7 +1928,7 @@ private fun SettingsScreen(
         val status = state.backupStatus
         if (status.isBlank() || status == lastHandledStatus) return@LaunchedEffect
         if (status == "XChaCha key generated" || status == "OpenPGP key generated") {
-            generationSuccessDialog = "Key created successfully."
+            generationSuccessDialog = context.tx("Key created successfully.")
             lastHandledStatus = status
         }
     }
@@ -2567,7 +2576,7 @@ private fun SettingsScreen(
                     IconButton(onClick = {
                         infoDialogText = "info_keys_manager_overview"
                     }) {
-                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("What is Keys Manager?"), tint = Brass)
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = tx("What is Keys Manager?"), tint = Brass)
                     }
                 }
                 OutlinedTextField(
@@ -2596,7 +2605,7 @@ private fun SettingsScreen(
                     IconButton(onClick = {
                         infoDialogText = "info_manual_import"
                     }) {
-                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("Manual format help"), tint = Moss)
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = tx("Manual format help"), tint = Moss)
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -2633,7 +2642,7 @@ private fun SettingsScreen(
                     IconButton(onClick = {
                         infoDialogText = "info_generate_help"
                     }) {
-                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("Generate help"), tint = Moss)
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = tx("Generate help"), tint = Moss)
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -2659,7 +2668,7 @@ private fun SettingsScreen(
                     IconButton(onClick = {
                         infoDialogText = "info_qr_nfc_exchange"
                     }) {
-                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("QR/NFC help"), tint = Moss)
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = tx("QR/NFC help"), tint = Moss)
                     }
                 }
 
@@ -2822,7 +2831,7 @@ private fun SettingsScreen(
                     IconButton(onClick = {
                         infoDialogText = "info_backup_modes"
                     }) {
-                        Icon(Icons.Filled.HelpOutline, contentDescription = tx("Backup help"), tint = Brass)
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = tx("Backup help"), tint = Brass)
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -2914,10 +2923,19 @@ private fun SettingsScreen(
                                 )
                             }
                             TextButton(onClick = { selectedBackupRecordId = backup.id }) {
-                                Text(if (selected) tx("SELECTED") else tx("SELECT"), color = Brass)
-                            }
+                            Text(if (selected) tx("SELECTED") else tx("SELECT"), color = Brass)
+                        }
                             TextButton(onClick = {
-                                clipboard.setText(AnnotatedString("https://androidircx.com/api/media/download/${backup.downloadPathId}"))
+                                scope.launch {
+                                    clipboard.setClipEntry(
+                                        androidx.compose.ui.platform.ClipEntry(
+                                            ClipData.newPlainText(
+                                                "backup_download_url",
+                                                "https://androidircx.com/api/media/download/${backup.downloadPathId}"
+                                            )
+                                        )
+                                    )
+                                }
                             }) { Text(tx("COPY"), color = Moss) }
                             TextButton(onClick = { confirmDeleteBackupId = backup.id }) { Text(tx("DELETE"), color = Ember) }
                         }
@@ -3145,7 +3163,7 @@ private fun PurchaseScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        if (state.isAdFree) "Owned" else state.removeAdsPrice,
+                        if (state.isAdFree) tx("Owned") else state.removeAdsPrice,
                         color = if (state.isAdFree) Moss else Brass,
                         fontWeight = FontWeight.Bold
                     )
@@ -3156,7 +3174,7 @@ private fun PurchaseScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (state.isAdFree) "OWNED" else "BUY REMOVE ADS")
+                        Text(if (state.isAdFree) tx("OWNED") else tx("BUY REMOVE ADS"))
                     }
                 }
             }
@@ -3176,7 +3194,7 @@ private fun PurchaseScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        if (state.hasProFeatures) "Owned" else state.proFeaturesPrice,
+                        if (state.hasProFeatures) tx("Owned") else state.proFeaturesPrice,
                         color = if (state.hasProFeatures) Moss else Brass,
                         fontWeight = FontWeight.Bold
                     )
@@ -3187,7 +3205,7 @@ private fun PurchaseScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (state.hasProFeatures) "OWNED" else "BUY PRO FEATURES")
+                        Text(if (state.hasProFeatures) tx("OWNED") else tx("BUY PRO FEATURES"))
                     }
                 }
             }
@@ -3726,7 +3744,7 @@ private fun EmptySearchState() {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Try a different search or label filter.",
+                text = tx("Try a different search or label filter."),
                 color = onSurface.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.bodyLarge
             )
@@ -3910,21 +3928,21 @@ private fun NewNoteScreen(
     val templates = listOf(
         NoteTemplate(
             name = tx("Meeting"),
-            content = "## Meeting\n\n- Agenda:\n- Decisions:\n- Action items:\n- Follow-up:"
+            content = "## ${tx("Meeting")}\n\n- ${tx("Agenda")}:\n- ${tx("Decisions")}:\n- ${tx("Action items")}:\n- ${tx("Follow-up")}:"
         ),
         NoteTemplate(
             name = tx("Checklist"),
             content = "",
-            checklist = listOf("First task", "Second task", "Third task")
+            checklist = listOf(tx("First task"), tx("Second task"), tx("Third task"))
         ),
         NoteTemplate(
             name = tx("Journal"),
-            content = "## Journal\n\nMood:\nWhat happened today:\nWhat I learned:\nNext step:"
+            content = "## ${tx("Journal")}\n\n${tx("Mood")}:\n${tx("What happened today")}:\n${tx("What I learned")}:\n${tx("Next step")}:"
         ),
         NoteTemplate(
             name = tx("Credentials"),
-            content = "Service:\nUsername:\nPassword:\nBackup code:\nNotes:",
-            labels = listOf("security")
+            content = "${tx("Service")}:\n${tx("Username")}:\n${tx("Password")}:\n${tx("Backup code")}:\n${tx("Notes")}:",
+            labels = listOf(tx("security"))
         )
     )
 
@@ -5224,12 +5242,11 @@ private fun PendingImportDialog(
         ?: state.sharedKeys.firstOrNull()?.label
         ?: tx("No keys available")
 
-    val isKeysFile = import is PendingImport.LocalFile &&
-        (import as PendingImport.LocalFile).mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
-    val isRemoteKeysFile = import is PendingImport.RemoteMedia &&
-        (import as PendingImport.RemoteMedia).mime == com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
-    val isNoteShare = import is PendingImport.LocalFile &&
-        (import as PendingImport.LocalFile).mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME
+    val localImport = import as? PendingImport.LocalFile
+    val remoteImport = import as? PendingImport.RemoteMedia
+    val isKeysFile = localImport?.mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+    val isRemoteKeysFile = remoteImport?.mime == com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+    val isNoteShare = localImport?.mimeType == com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME
     val noKeys = state.sharedKeys.isEmpty() && !isKeysFile && !isRemoteKeysFile
 
     AlertDialog(
@@ -5239,7 +5256,7 @@ private fun PendingImportDialog(
                 when {
                     isKeysFile || isRemoteKeysFile -> tx("Import Keys")
                     isNoteShare -> tx("Import Note")
-                    import is PendingImport.RemoteMedia -> tx("Import from Link")
+                    remoteImport != null -> tx("Import from Link")
                     else -> tx("Import Backup")
                 },
                 color = onSurface
@@ -5247,9 +5264,9 @@ private fun PendingImportDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (import is PendingImport.RemoteMedia) {
+                if (remoteImport != null) {
                     Text(
-                        tx("Media ID:") + " " + import.mediaId.take(16) + "…",
+                        tx("Media ID:") + " " + remoteImport.mediaId.take(16) + "…",
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.6f)
                     )
@@ -5297,16 +5314,16 @@ private fun PendingImportDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    when {
-                        isKeysFile && import is PendingImport.LocalFile ->
-                            onImportKeyManager(import.bytes, password.ifBlank { null })
-                        isRemoteKeysFile && import is PendingImport.RemoteMedia ->
-                            onImportRemoteKeyManager(import.mediaId, password.ifBlank { null })
-                        import is PendingImport.LocalFile ->
-                            onImportFile(import.bytes, import.mimeType, selectedKeyId, mergeMode || isNoteShare)
-                        import is PendingImport.RemoteMedia ->
-                            onImportRemote(import.mediaId, selectedKeyId, mergeMode)
-                        else -> onDismiss()
+                    if (isKeysFile) {
+                        onImportKeyManager(localImport.bytes, password.ifBlank { null })
+                    } else if (isRemoteKeysFile) {
+                        onImportRemoteKeyManager(remoteImport.mediaId, password.ifBlank { null })
+                    } else if (localImport != null) {
+                        onImportFile(localImport.bytes, localImport.mimeType, selectedKeyId, mergeMode || isNoteShare)
+                    } else if (remoteImport != null) {
+                        onImportRemote(remoteImport.mediaId, selectedKeyId, mergeMode)
+                    } else {
+                        onDismiss()
                     }
                 },
                 enabled = !state.isBusy && (isKeysFile || isRemoteKeysFile || !noKeys),

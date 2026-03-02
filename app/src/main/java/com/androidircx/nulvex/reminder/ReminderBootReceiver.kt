@@ -3,6 +3,7 @@ package com.androidircx.nulvex.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.androidircx.nulvex.i18n.tx
 import com.androidircx.nulvex.security.AppPreferences
 
 class ReminderBootReceiver : BroadcastReceiver() {
@@ -25,7 +26,7 @@ class ReminderBootReceiver : BroadcastReceiver() {
                 ReminderRequest(
                     noteId = noteId,
                     triggerAtEpochMillis = triggerAt,
-                    title = "Reminder",
+                    title = context.tx("Reminder"),
                     preview = ""
                 )
             )

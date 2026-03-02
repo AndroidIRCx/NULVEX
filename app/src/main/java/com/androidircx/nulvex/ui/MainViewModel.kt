@@ -11,6 +11,7 @@ import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
 import com.androidircx.nulvex.data.NoteRevision
+import com.androidircx.nulvex.i18n.tx
 import com.androidircx.nulvex.pro.BackupRecord
 import com.androidircx.nulvex.pro.SharedKeyInfo
 import com.androidircx.nulvex.reminder.ReminderConstants
@@ -119,6 +120,7 @@ sealed class Screen {
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+    private val appContext = getApplication<Application>()
     private val authController = VaultServiceLocator.vaultAuthController()
     private val vaultService = VaultServiceLocator.vaultService()
     private val panicWipeService = VaultServiceLocator.panicWipeService()
@@ -254,7 +256,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importSharedKey(label: String, source: String, rawKey: String) {
         if (rawKey.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Key input is empty")
+            uiState.value = uiState.value.copy(error = appContext.tx("Key input is empty"))
             return
         }
         setBusy(true)
@@ -265,7 +267,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
                         error = null,
-                        backupStatus = "Key imported",
+                        backupStatus = appContext.tx("Key imported"),
                         sharedKeys = sharedKeyStore.listKeys(),
                         backupRecords = encryptedBackupService.listBackupRecords()
                     )
@@ -274,7 +276,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Failed to import key: ${e.message ?: "unknown error"}"
+                        error = appContext.tx("Failed to import key: ${e.message ?: "unknown error"}")
                     )
                 }
             }
@@ -291,11 +293,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun uploadEncryptedBackup(keyId: String) {
         if (!uiState.value.hasProFeatures) {
-            uiState.value = uiState.value.copy(error = "Pro Features required")
+            uiState.value = uiState.value.copy(error = appContext.tx("Pro Features required"))
             return
         }
         if (keyId.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Choose a key first")
+            uiState.value = uiState.value.copy(error = appContext.tx("Choose a key first"))
             return
         }
         setBusy(true)
@@ -306,7 +308,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
                         error = null,
-                        backupStatus = "Backup uploaded (${result.sizeBytes} bytes)",
+                        backupStatus = appContext.tx("Backup uploaded (${result.sizeBytes} bytes)"),
                         lastBackupMediaId = result.mediaId,
                         backupRecords = encryptedBackupService.listBackupRecords()
                     )
@@ -315,7 +317,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Backup upload failed"
+                        error = appContext.tx("Backup upload failed")
                     )
                 }
             }
@@ -330,11 +332,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         downloadExpires: Long? = null
     ) {
         if (!uiState.value.hasProFeatures) {
-            uiState.value = uiState.value.copy(error = "Pro Features required")
+            uiState.value = uiState.value.copy(error = appContext.tx("Pro Features required"))
             return
         }
         if (mediaId.isBlank() || keyId.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Backup ID and key are required")
+            uiState.value = uiState.value.copy(error = appContext.tx("Backup ID and key are required"))
             return
         }
         setBusy(true)
@@ -353,14 +355,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         isBusy = false,
                         notes = notes,
                         error = null,
-                        backupStatus = "Restore complete ($imported notes)"
+                        backupStatus = appContext.tx("Restore complete ($imported notes)")
                     )
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Backup restore failed"
+                        error = appContext.tx("Backup restore failed")
                     )
                 }
             }
@@ -369,11 +371,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun restoreEncryptedBackupRecord(recordId: String, merge: Boolean) {
         if (!uiState.value.hasProFeatures) {
-            uiState.value = uiState.value.copy(error = "Pro Features required")
+            uiState.value = uiState.value.copy(error = appContext.tx("Pro Features required"))
             return
         }
         if (recordId.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Choose saved backup")
+            uiState.value = uiState.value.copy(error = appContext.tx("Choose saved backup"))
             return
         }
         setBusy(true)
@@ -386,14 +388,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         isBusy = false,
                         notes = notes,
                         error = null,
-                        backupStatus = "Restore complete ($imported notes)"
+                        backupStatus = appContext.tx("Restore complete ($imported notes)")
                     )
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Backup restore failed"
+                        error = appContext.tx("Backup restore failed")
                     )
                 }
             }
@@ -415,7 +417,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.Main) {
             uiState.value = uiState.value.copy(
                 notes = notes,
-                backupStatus = "Restore complete ($imported notes)"
+                backupStatus = appContext.tx("Restore complete ($imported notes)")
             )
         }
         return imported
@@ -430,7 +432,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun uploadNoteShare(noteId: String) {
         val keyId = uiState.value.sharedKeys.firstOrNull()?.id
         if (keyId.isNullOrBlank()) {
-            uiState.value = uiState.value.copy(error = "Import at least one key in Keys Manager before sharing")
+            uiState.value = uiState.value.copy(error = appContext.tx("Import at least one key in Keys Manager before sharing"))
             return
         }
         setBusy(true)
@@ -448,7 +450,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Note share upload failed: ${e.message?.take(120) ?: "unknown error"}"
+                        error = appContext.tx("Note share upload failed: ${e.message?.take(120) ?: "unknown error"}")
                     )
                 }
             }
@@ -461,7 +463,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun uploadKeyManagerToApi(encrypted: Boolean, password: String?) {
         if (!uiState.value.hasProFeatures) {
-            uiState.value = uiState.value.copy(error = "Pro Features required")
+            uiState.value = uiState.value.copy(error = appContext.tx("Pro Features required"))
             return
         }
         setBusy(true)
@@ -479,7 +481,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Key manager upload failed: ${e.message?.take(120) ?: "unknown error"}"
+                        error = appContext.tx("Key manager upload failed: ${e.message?.take(120) ?: "unknown error"}")
                     )
                 }
             }
@@ -488,11 +490,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun restoreKeyManagerFromApi(mediaId: String, password: String?) {
         if (!uiState.value.hasProFeatures) {
-            uiState.value = uiState.value.copy(error = "Pro Features required")
+            uiState.value = uiState.value.copy(error = appContext.tx("Pro Features required"))
             return
         }
         if (mediaId.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Media ID or URL is required")
+            uiState.value = uiState.value.copy(error = appContext.tx("Media ID or URL is required"))
             return
         }
         setBusy(true)
@@ -505,14 +507,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         isBusy = false,
                         error = null,
                         sharedKeys = sharedKeyStore.listKeys(),
-                        backupStatus = "Key manager restored ($imported keys)"
+                        backupStatus = appContext.tx("Key manager restored ($imported keys)")
                     )
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Key manager restore failed: ${e.message?.take(120) ?: "unknown error"}"
+                        error = appContext.tx("Key manager restore failed: ${e.message?.take(120) ?: "unknown error"}")
                     )
                 }
             }
@@ -531,21 +533,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun generateXChaChaKey(label: String) {
         try {
-            sharedKeyStore.generateXChaChaKey(label.ifBlank { "XChaCha key" })
+            sharedKeyStore.generateXChaChaKey(label.ifBlank { appContext.tx("XChaCha key") })
             uiState.value = uiState.value.copy(backupStatus = "")
-            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = "XChaCha key generated")
+            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("XChaCha key generated"))
         } catch (e: Exception) {
-            uiState.value = uiState.value.copy(error = "Failed to generate XChaCha key: ${e.message ?: "unknown error"}")
+            uiState.value = uiState.value.copy(error = appContext.tx("Failed to generate XChaCha key: ${e.message ?: "unknown error"}"))
         }
     }
 
     fun generatePgpKey(label: String) {
         try {
-            sharedKeyStore.generatePgpKey(label.ifBlank { "OpenPGP key" })
+            sharedKeyStore.generatePgpKey(label.ifBlank { appContext.tx("OpenPGP key") })
             uiState.value = uiState.value.copy(backupStatus = "")
-            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = "OpenPGP key generated")
+            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("OpenPGP key generated"))
         } catch (e: Exception) {
-            uiState.value = uiState.value.copy(error = "Failed to generate OpenPGP key: ${e.message ?: "unknown error"}")
+            uiState.value = uiState.value.copy(error = appContext.tx("Failed to generate OpenPGP key: ${e.message ?: "unknown error"}"))
         }
     }
 
@@ -568,7 +570,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun importSharedKeyPayload(payload: String, source: String): Boolean {
         return try {
             sharedKeyStore.importTransferPayload(payload, source)
-            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = "Key imported via $source")
+            uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("Key imported via $source"))
             true
         } catch (_: Exception) {
             false
@@ -608,7 +610,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val current = uiState.value
         if (now < current.lockoutUntil) {
             val secs = (current.lockoutUntil - now) / 1000L
-            uiState.value = current.copy(error = "Too many attempts. Try again in ${secs}s")
+            uiState.value = current.copy(
+                error = appContext.tx("Too many attempts. Try again in {seconds}s")
+                    .replace("{seconds}", secs.toString())
+            )
             return
         }
         setBusy(true)
@@ -627,7 +632,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val errorMsg = if (newLockoutUntil > 0L)
                         "Too many attempts. Try again in ${lockoutMs / 1000}s"
                     else
-                        "Invalid PIN"
+                        appContext.tx("Invalid PIN")
                     appPreferences.setWrongAttempts(attempts)
                     appPreferences.setLockoutUntil(newLockoutUntil)
                     uiState.value = uiState.value.copy(
@@ -701,7 +706,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     notes = notes,
                     selectedNote = selected,
                     savedLabels = appPreferences.getCustomLabels(),
-                    error = if (ok) null else "Note update failed",
+                    error = if (ok) null else appContext.tx("Note update failed"),
                     isBusy = false
                 )
                 resetInactivityTimer()
@@ -875,7 +880,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importIncomingFile(bytes: ByteArray, mimeType: String, keyId: String, merge: Boolean) {
         if (keyId.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Choose a key first")
+            uiState.value = uiState.value.copy(error = appContext.tx("Choose a key first"))
             return
         }
         setBusy(true)
@@ -890,14 +895,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         pendingImport = null,
                         error = null,
                         backupStatus = when (mimeType) {
-                            com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME -> "Note imported"
-                            else -> "Backup restored ($imported notes)"
+                            com.androidircx.nulvex.pro.NulvexFileTypes.NOTE_SHARE_MIME -> appContext.tx("Note imported")
+                            else -> appContext.tx("Backup restored ($imported notes)")
                         }
                     )
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
-                    uiState.value = uiState.value.copy(isBusy = false, error = "Import failed — wrong key or corrupted file")
+                    uiState.value = uiState.value.copy(isBusy = false, error = appContext.tx("Import failed — wrong key or corrupted file"))
                 }
             }
         }
@@ -905,7 +910,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importIncomingRemote(mediaId: String, keyId: String, merge: Boolean) {
         if (keyId.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Choose a key first")
+            uiState.value = uiState.value.copy(error = appContext.tx("Choose a key first"))
             return
         }
         setBusy(true)
@@ -919,12 +924,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         notes = notes,
                         pendingImport = null,
                         error = null,
-                        backupStatus = "Remote import complete ($imported notes)"
+                        backupStatus = appContext.tx("Remote import complete ($imported notes)")
                     )
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
-                    uiState.value = uiState.value.copy(isBusy = false, error = "Remote import failed")
+                    uiState.value = uiState.value.copy(isBusy = false, error = appContext.tx("Remote import failed"))
                 }
             }
         }
@@ -941,12 +946,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         pendingImport = null,
                         sharedKeys = sharedKeyStore.listKeys(),
                         error = null,
-                        backupStatus = "Imported $imported keys"
+                        backupStatus = appContext.tx("Imported $imported keys")
                     )
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
-                    uiState.value = uiState.value.copy(isBusy = false, error = "Key import failed — wrong password or corrupted file")
+                    uiState.value = uiState.value.copy(isBusy = false, error = appContext.tx("Key import failed — wrong password or corrupted file"))
                 }
             }
         }
@@ -964,14 +969,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         pendingImport = null,
                         sharedKeys = sharedKeyStore.listKeys(),
                         error = null,
-                        backupStatus = "Imported $imported keys"
+                        backupStatus = appContext.tx("Imported $imported keys")
                     )
                 }
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = "Key import failed — wrong password or corrupted file"
+                        error = appContext.tx("Key import failed — wrong password or corrupted file")
                     )
                 }
             }
@@ -1077,11 +1082,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateDecoyPin(pin: String, confirm: String) {
         if (pin.isBlank()) {
-            uiState.value = uiState.value.copy(error = "Decoy PIN cannot be empty")
+            uiState.value = uiState.value.copy(error = appContext.tx("Decoy PIN cannot be empty"))
             return
         }
         if (pin != confirm) {
-            uiState.value = uiState.value.copy(error = "Decoy PINs do not match")
+            uiState.value = uiState.value.copy(error = appContext.tx("Decoy PINs do not match"))
             return
         }
         setBusy(true)
@@ -1196,7 +1201,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
-                        error = "Fingerprint unlock failed",
+                        error = appContext.tx("Fingerprint unlock failed"),
                         isBusy = false
                     )
                 }
@@ -1226,7 +1231,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
-                        error = "Fingerprint unlock failed",
+                        error = appContext.tx("Fingerprint unlock failed"),
                         isBusy = false
                     )
                 }
@@ -1236,11 +1241,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun changeRealPin(oldPin: String, newPin: String, confirm: String) {
         if (oldPin.isBlank() || newPin.isBlank()) {
-            uiState.value = uiState.value.copy(error = "PIN fields cannot be empty")
+            uiState.value = uiState.value.copy(error = appContext.tx("PIN fields cannot be empty"))
             return
         }
         if (newPin != confirm) {
-            uiState.value = uiState.value.copy(error = "New PINs do not match")
+            uiState.value = uiState.value.copy(error = appContext.tx("New PINs do not match"))
             return
         }
         setBusy(true)
@@ -1255,7 +1260,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     uiState.value.copy(
                         isBusy = false,
-                        error = "Current PIN is incorrect"
+                        error = appContext.tx("Current PIN is incorrect")
                     )
                 }
             }
@@ -1271,7 +1276,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.Main) {
                 if (note == null) {
                     uiState.value = uiState.value.copy(
-                        error = "Note not found",
+                        error = appContext.tx("Note not found"),
                         isBusy = false
                     )
                 } else {
@@ -1315,7 +1320,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     noteLinkedNotes = linkedNotes,
                     noteBacklinks = backlinks,
                     noteRevisions = revisions,
-                    error = if (ok) null else "Revision restore failed",
+                    error = if (ok) null else appContext.tx("Revision restore failed"),
                     isBusy = false
                 )
             }
@@ -1343,7 +1348,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     ) {
         val hasContent = text.isNotBlank() || checklist.any { it.text.isNotBlank() } || attachments.isNotEmpty()
         if (!hasContent) {
-            uiState.value = uiState.value.copy(error = "Note cannot be empty")
+            uiState.value = uiState.value.copy(error = appContext.tx("Note cannot be empty"))
             return
         }
         setBusy(true)
@@ -1510,7 +1515,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         ReminderRequest(
                             noteId = id,
                             triggerAtEpochMillis = triggerAt,
-                            title = "Note reminder",
+                            title = appContext.tx("Note reminder"),
                             preview = note.text.trim().take(64)
                         )
                     )
@@ -1542,7 +1547,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     noteLinkedNotes = emptyList(),
                     noteBacklinks = emptyList(),
                     noteRevisions = emptyList(),
-                    error = if (ok) null else "Restore from trash failed",
+                    error = if (ok) null else appContext.tx("Restore from trash failed"),
                     isBusy = false,
                     attachmentPreviews = emptyMap()
                 )
@@ -1565,7 +1570,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     noteLinkedNotes = emptyList(),
                     noteBacklinks = emptyList(),
                     noteRevisions = emptyList(),
-                    error = if (ok) null else "Permanent delete failed",
+                    error = if (ok) null else appContext.tx("Permanent delete failed"),
                     isBusy = false,
                     attachmentPreviews = emptyMap()
                 )
@@ -1637,7 +1642,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 uiState.value = uiState.value.copy(
                     notes = notes,
                     selectedNote = selected,
-                    error = if (ok) null else "Attachment removal failed",
+                    error = if (ok) null else appContext.tx("Attachment removal failed"),
                     isBusy = false,
                     attachmentPreviews = uiState.value.attachmentPreviews - attachmentId
                 )
@@ -1709,7 +1714,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     screen = Screen.Vault,
                     notes = notes,
                     selectedNote = selected,
-                    error = if (ok) null else "Note archive update failed",
+                    error = if (ok) null else appContext.tx("Note archive update failed"),
                     isBusy = false
                 )
                 resetInactivityTimer()
@@ -1733,7 +1738,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ReminderRequest(
                         noteId = noteId,
                         triggerAtEpochMillis = reminderAt,
-                        title = "Note reminder",
+                        title = appContext.tx("Note reminder"),
                         preview = note?.text?.trim()?.take(64).orEmpty()
                     )
                 )
@@ -1753,7 +1758,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 uiState.value = uiState.value.copy(
                     notes = notes,
                     selectedNote = selected,
-                    error = if (ok) null else "Reminder update failed",
+                    error = if (ok) null else appContext.tx("Reminder update failed"),
                     isBusy = false
                 )
             }
@@ -1787,7 +1792,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 uiState.value = uiState.value.copy(
                     notes = notes,
                     selectedNote = selected,
-                    error = if (ok) null else "Reminder clear failed",
+                    error = if (ok) null else appContext.tx("Reminder clear failed"),
                     isBusy = false
                 )
             }
@@ -1809,7 +1814,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 uiState.value = uiState.value.copy(
                     notes = notes,
                     selectedNote = notes.firstOrNull { it.id == noteId },
-                    error = if (ok) null else "Reminder repeat update failed",
+                    error = if (ok) null else appContext.tx("Reminder repeat update failed"),
                     isBusy = false
                 )
             }
@@ -1975,7 +1980,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     noteBacklinks = backlinks,
                     noteRevisions = revisions,
                     selectedNoteIds = emptySet(),
-                    error = if (ok) null else "Note update failed",
+                    error = if (ok) null else appContext.tx("Note update failed"),
                     isBusy = false
                 )
                 resetInactivityTimer()
@@ -2136,7 +2141,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         ReminderRequest(
                             noteId = noteId,
                             triggerAtEpochMillis = triggerAt,
-                            title = "Note reminder",
+                            title = appContext.tx("Note reminder"),
                             preview = note?.text?.trim()?.take(64).orEmpty()
                         )
                     )
@@ -2177,7 +2182,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             ReminderRequest(
                                 noteId = noteId,
                                 triggerAtEpochMillis = nextTrigger,
-                                title = "Note reminder",
+                                title = appContext.tx("Note reminder"),
                                 preview = note?.text?.trim()?.take(64).orEmpty()
                             )
                         )

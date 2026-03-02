@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
     jacoco
 }
 
@@ -25,6 +26,11 @@ if (versionPropsFile.exists()) {
 }
 val versionCodeValue = versionProps.getProperty("versionCode")?.toIntOrNull() ?: 1
 val versionNameValue = versionProps.getProperty("versionName") ?: "1.0"
+val playIntegrityCloudProjectNumber =
+    (findProperty("playIntegrityCloudProjectNumber") as String?)
+        ?.trim()
+        ?.ifBlank { "0" }
+        ?: "0"
 
 val keystorePropsFile = rootProject.file("secrets/keystore.properties")
 val keystoreProps = Properties()
@@ -44,6 +50,7 @@ android {
         targetSdk = 36
         versionCode = versionCodeValue
         versionName = versionNameValue
+        buildConfigField("long", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "${playIntegrityCloudProjectNumber}L")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -290,6 +297,7 @@ if (txPullOnBuild) {
 
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
+    implementation("com.google.firebase:firebase-crashlytics")
     implementation("com.google.firebase:firebase-analytics")
 
     implementation(libs.androidx.core.ktx)
@@ -314,6 +322,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.play.services.ads)
     implementation(libs.play.services.code.scanner)
+    implementation(libs.play.integrity)
     implementation(libs.billing.ktx)
     implementation(libs.bouncycastle.bcprov)
     implementation(libs.bouncycastle.bcpg)
