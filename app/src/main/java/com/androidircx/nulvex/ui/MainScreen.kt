@@ -1139,11 +1139,11 @@ private fun UnlockScreen(
     }
 }
 
-private enum class SortMode(val label: String) {
-    RECENTLY_EDITED("Recently edited"),
-    EXPIRING_SOON("Expiring soon"),
-    REMINDER_DUE("Reminder due"),
-    PINNED_FIRST("Pinned first")
+private enum class SortMode {
+    RECENTLY_EDITED,
+    EXPIRING_SOON,
+    REMINDER_DUE,
+    PINNED_FIRST
 }
 
 private enum class CreatedRangeFilter {
@@ -1239,6 +1239,8 @@ private fun VaultScreen(
         val sectionGap = if (compact) 10.dp else 12.dp
         val listTopPadding = if (compact) 16.dp else 20.dp
         val onSurface = MaterialTheme.colorScheme.onSurface
+        val unlabeledGroupName = tx("Unlabeled")
+        val pinnedGroupLabel = tx("Pinned")
 
         val sortedNotes = state.notes
             .filter { note ->
@@ -1384,7 +1386,7 @@ private fun VaultScreen(
                     VaultBadge(text = stringResource(R.string.notes_badge_streak_prefix) + " $currentStreak", tint = Moss)
                 }
                 if (bestStreak > 1) {
-                    VaultBadge(text = tx("Best:") + " $bestStreak", tint = Sand)
+                    VaultBadge(text = tx("Best: {count}").replace("{count}", bestStreak.toString()), tint = Sand)
                 }
             }
 
@@ -1408,7 +1410,10 @@ private fun VaultScreen(
                         dayEvents.forEach { event ->
                             val title = event.third.text.lineSequence().firstOrNull { it.trim().isNotBlank() }?.trim().orEmpty()
                             Text(
-                                text = "${timeFmt.format(java.util.Date(event.first))}  ${event.second}: ${if (title.isBlank()) event.third.id else title}",
+                                text = tx("{time} {label}: {title}")
+                                    .replace("{time}", timeFmt.format(java.util.Date(event.first)))
+                                    .replace("{label}", event.second)
+                                    .replace("{title}", if (title.isBlank()) event.third.id else title),
                                 color = onSurface.copy(alpha = 0.85f),
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -1434,10 +1439,10 @@ private fun VaultScreen(
                     )
                     VaultBadge(text = notesBadge, tint = Sand)
                     if (readOnceCount > 0) {
-                        VaultBadge(text = "$readOnceCount ${tx("burn")}", tint = Brass)
+                        VaultBadge(text = tx("{count} burn").replace("{count}", readOnceCount.toString()), tint = Brass)
                     }
                     if (expiringCount > 0) {
-                        VaultBadge(text = "$expiringCount ${tx("expiring")}", tint = Ember)
+                        VaultBadge(text = tx("{count} expiring").replace("{count}", expiringCount.toString()), tint = Ember)
                     }
                 }
 
@@ -1457,7 +1462,7 @@ private fun VaultScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            sortLabels[sortMode] ?: tx(sortMode.label),
+                            sortLabels.getValue(sortMode),
                             style = MaterialTheme.typography.labelMedium,
                             color = onSurface.copy(alpha = 0.7f)
                         )
@@ -1470,7 +1475,7 @@ private fun VaultScreen(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        sortLabels[mode] ?: tx(mode.label),
+                                        sortLabels.getValue(mode),
                                         color = if (mode == sortMode) Brass else onSurface
                                     )
                                 },
@@ -1510,7 +1515,7 @@ private fun VaultScreen(
             ) {
                 if (groupByLabel) {
                     val grouped = sortedNotes
-                        .groupBy { it.labels.firstOrNull()?.trim().orEmpty().ifBlank { "Unlabeled" } }
+                        .groupBy { it.labels.firstOrNull()?.trim().orEmpty().ifBlank { unlabeledGroupName } }
                         .toSortedMap()
                     grouped.forEach { (groupName, notesInGroup) ->
                         item(key = "group_header_$groupName") { SectionLabel(groupName) }
@@ -1536,7 +1541,7 @@ private fun VaultScreen(
                     }
                 } else {
                     if (sortMode == SortMode.PINNED_FIRST && pinnedNotes.isNotEmpty()) {
-                        item(key = "pinned_header") { SectionLabel("Pinned") }
+                        item(key = "pinned_header") { SectionLabel(pinnedGroupLabel) }
                     }
                     val notesToRender = if (sortMode == SortMode.PINNED_FIRST) {
                         pinnedNotes + otherNotes
@@ -1860,6 +1865,8 @@ private fun SettingsScreen(
     }
 
     val showAds = matchesSection(
+        tx("Rewards & Ads"),
+        tx("Remove ads and earn share credits"),
         "rewards",
         "ads",
         "credits",
@@ -1870,8 +1877,19 @@ private fun SettingsScreen(
         "purchase",
         "pro"
     )
-    val showDisplay = matchesSection("display", "theme", "appearance", "dark", "light", "system")
+    val showDisplay = matchesSection(
+        tx("Display"),
+        tx("Appearance and theme"),
+        "display",
+        "theme",
+        "appearance",
+        "dark",
+        "light",
+        "system"
+    )
     val showVaultDefaults = matchesSection(
+        tx("Vault defaults"),
+        tx("Auto-lock and note behavior"),
         "vault defaults",
         "auto-lock",
         "timeout",
@@ -1880,6 +1898,8 @@ private fun SettingsScreen(
         "read-once"
     )
     val showSecurity = matchesSection(
+        tx("Security"),
+        tx("Authentication and encryption"),
         "security",
         "fingerprint",
         "biometric",
@@ -1888,6 +1908,8 @@ private fun SettingsScreen(
         "encryption"
     )
     val showDanger = decoyVisible && matchesSection(
+        tx("Danger zone"),
+        tx("Decoy vault and destructive actions"),
         "danger zone",
         "decoy",
         "decoy pin",
@@ -1896,6 +1918,8 @@ private fun SettingsScreen(
         "plausible deniability"
     )
     val showKeys = matchesSection(
+        tx("Keys Manager"),
+        tx("OpenPGP + XChaCha key storage"),
         "keys",
         "pgp",
         "xchacha",
@@ -1904,13 +1928,24 @@ private fun SettingsScreen(
         "key manager"
     )
     val showBackup = matchesSection(
+        tx("Backup"),
+        tx("Local encrypted backup + Pro remote encrypted storage"),
         "backup",
         "restore",
         "encrypted backup",
         "local backup",
         "remote encrypted storage"
     )
-    val showAbout = matchesSection("about", "version", "nulvex", "offline", "xchacha20", "kyber768")
+    val showAbout = matchesSection(
+        tx("About"),
+        tx("Offline-first secure vault"),
+        "about",
+        "version",
+        "nulvex",
+        "offline",
+        "xchacha20",
+        "kyber768"
+    )
     val hasVisibleSections = showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys || showBackup || showAbout
 
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -2000,7 +2035,11 @@ private fun SettingsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(tx("Ad-free time"), color = onSurface)
                             Text(
-                                if (adFreeActive) "${formatRemaining(remainingMs)} ${tx("remaining")}" else tx("Ads are active"),
+                                if (adFreeActive) {
+                                    tx("{time} remaining").replace("{time}", formatRemaining(remainingMs))
+                                } else {
+                                    tx("Ads are active")
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (adFreeActive) Moss else onSurface.copy(alpha = 0.6f)
                             )
@@ -2433,8 +2472,7 @@ private fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    tx("A decoy vault opens when you enter a different PIN.") + " " +
-                        tx("Use it for plausible deniability under coercion."),
+                    tx("A decoy vault opens when you enter a different PIN. Use it for plausible deniability under coercion."),
                     style = MaterialTheme.typography.bodySmall,
                     color = onSurface.copy(alpha = 0.6f)
                 )
@@ -2769,7 +2807,11 @@ private fun SettingsScreen(
                                     "nfc" -> tx("nfc")
                                     else -> key.source
                                 }
-                                Text("${tx("via")} $sourceLabel - ${key.format} - ${key.fingerprint}",
+                                Text(
+                                    tx("via {source} - {format} - {fingerprint}")
+                                        .replace("{source}", sourceLabel)
+                                        .replace("{format}", key.format)
+                                        .replace("{fingerprint}", key.fingerprint),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = onSurface.copy(alpha = 0.6f),
                                     maxLines = 1,
@@ -2794,10 +2836,7 @@ private fun SettingsScreen(
                     }
                 }
                 if (state.backupStatus.isNotBlank()) {
-                    val localizedStatus = when (state.backupStatus) {
-                        "Encrypted note file ready for share" -> tx("Encrypted note file ready for share")
-                        else -> tx(state.backupStatus)
-                    }
+                    val localizedStatus = localizeRuntimeMessage(state.backupStatus)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         localizedStatus,
@@ -2821,9 +2860,8 @@ private fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        tx("Local backup exports") +
-                            " ${com.androidircx.nulvex.pro.NulvexFileTypes.BACKUP_EXT}. " +
-                            tx("Remote encrypted storage uploads (Pro)."),
+                        tx("Local backup exports {ext}. Remote encrypted storage uploads (Pro).")
+                            .replace("{ext}", com.androidircx.nulvex.pro.NulvexFileTypes.BACKUP_EXT),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f)
@@ -2949,10 +2987,7 @@ private fun SettingsScreen(
                     ) { Text(tx("RESTORE SELECTED SAVED BACKUP")) }
                 }
                 if (state.backupStatus.isNotBlank()) {
-                    val localizedStatus = when (state.backupStatus) {
-                        "Encrypted note file ready for share" -> tx("Encrypted note file ready for share")
-                        else -> tx(state.backupStatus)
-                    }
+                    val localizedStatus = localizeRuntimeMessage(state.backupStatus)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(localizedStatus, style = MaterialTheme.typography.bodySmall, color = Moss)
                 }
@@ -2976,10 +3011,11 @@ private fun SettingsScreen(
                     color = onSurface.copy(alpha = 0.6f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                    Text(tx("Version ${BuildConfig.VERSION_NAME}"),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = onSurface.copy(alpha = 0.5f)
-                    )
+                Text(
+                    tx("Version {version}").replace("{version}", BuildConfig.VERSION_NAME),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = onSurface.copy(alpha = 0.5f)
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(tx("XChaCha20-Poly1305 + ML-KEM-768"),
                     style = MaterialTheme.typography.labelSmall,
@@ -3474,14 +3510,14 @@ private fun VaultBadge(text: String, tint: Color) {
 @Composable
 private fun formatExpiryBadge(expiresAt: Long): String {
     val remaining = expiresAt - System.currentTimeMillis()
-    if (remaining <= 0L) return "${tx("Next expiry:")} ${tx("overdue")}"
+    if (remaining <= 0L) return tx("Next expiry: overdue")
     val minutes = max(1, remaining / 60_000L)
     val hours = remaining / 3_600_000L
     val days = remaining / 86_400_000L
     return when {
-        days >= 1 -> "${tx("Next expiry:")} ${days}d"
-        hours >= 1 -> "${tx("Next expiry:")} ${hours}h"
-        else -> "${tx("Next expiry:")} ${minutes}m"
+        days >= 1 -> tx("Next expiry: {value}d").replace("{value}", days.toString())
+        hours >= 1 -> tx("Next expiry: {value}h").replace("{value}", hours.toString())
+        else -> tx("Next expiry: {value}m").replace("{value}", minutes.toString())
     }
 }
 
@@ -3693,7 +3729,7 @@ private fun NoteCard(
                 }
                 if (note.attachments.isNotEmpty()) {
                     Text(
-                        text = "${note.attachments.size} IMG",
+                        text = tx("{count} IMG").replace("{count}", note.attachments.size.toString()),
                         style = MaterialTheme.typography.labelLarge,
                         color = onSurface.copy(alpha = 0.7f)
                     )
@@ -3928,7 +3964,7 @@ private fun NewNoteScreen(
     val templates = listOf(
         NoteTemplate(
             name = tx("Meeting"),
-            content = "## ${tx("Meeting")}\n\n- ${tx("Agenda")}:\n- ${tx("Decisions")}:\n- ${tx("Action items")}:\n- ${tx("Follow-up")}:"
+            content = tx("## Meeting\n\n- Agenda:\n- Decisions:\n- Action items:\n- Follow-up:")
         ),
         NoteTemplate(
             name = tx("Checklist"),
@@ -3937,11 +3973,11 @@ private fun NewNoteScreen(
         ),
         NoteTemplate(
             name = tx("Journal"),
-            content = "## ${tx("Journal")}\n\n${tx("Mood")}:\n${tx("What happened today")}:\n${tx("What I learned")}:\n${tx("Next step")}:"
+            content = tx("## Journal\n\nMood:\nWhat happened today:\nWhat I learned:\nNext step:")
         ),
         NoteTemplate(
             name = tx("Credentials"),
-            content = "${tx("Service")}:\n${tx("Username")}:\n${tx("Password")}:\n${tx("Backup code")}:\n${tx("Notes")}:",
+            content = tx("Service:\nUsername:\nPassword:\nBackup code:\nNotes:"),
             labels = listOf(tx("security"))
         )
     )
@@ -4252,13 +4288,16 @@ private fun NewNoteScreen(
                     }
                     if (attachments.isNotEmpty()) {
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(tx("${attachments.size} attached"), color = onSurface.copy(alpha = 0.7f))
+                        Text(
+                            tx("{count} attached").replace("{count}", attachments.size.toString()),
+                            color = onSurface.copy(alpha = 0.7f)
+                        )
                     }
                 }
                 if (attachments.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     attachments.forEach { uri ->
-                        val name = resolveDisplayName(context, uri) ?: "image"
+                        val name = resolveDisplayName(context, uri) ?: tx("Image")
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(name, color = onSurface, modifier = Modifier.weight(1f))
                             TextButton(onClick = {
@@ -4372,7 +4411,8 @@ private fun NewNoteScreen(
             if (customExpiresAt != null) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    tx("Selected expiry:") + " " + dateTimeFormatter.format(java.util.Date(customExpiresAt!!)),
+                    tx("Selected expiry: {value}")
+                        .replace("{value}", dateTimeFormatter.format(java.util.Date(customExpiresAt!!))),
                     style = MaterialTheme.typography.bodySmall,
                     color = onSurface.copy(alpha = 0.7f)
                 )
@@ -4400,7 +4440,8 @@ private fun NewNoteScreen(
             if (reminderAt != null) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    stringResource(R.string.notes_reminder_prefix) + " " + dateTimeFormatter.format(java.util.Date(reminderAt!!)),
+                    tx("Reminder: {value}")
+                        .replace("{value}", dateTimeFormatter.format(java.util.Date(reminderAt!!))),
                     style = MaterialTheme.typography.bodySmall,
                     color = onSurface.copy(alpha = 0.7f)
                 )
@@ -4700,9 +4741,10 @@ private fun NoteDetailScreen(
                 }
                 if (note.reminderAt != null) {
                     Spacer(modifier = Modifier.height(6.dp))
+                    val reminderText = tx("Reminder: {value}")
+                        .replace("{value}", dateTimeFormatter.format(java.util.Date(note.reminderAt)))
                     Text(
-                        stringResource(R.string.notes_reminder_prefix) + " " + dateTimeFormatter.format(java.util.Date(note.reminderAt)) +
-                            (note.reminderRepeat?.let { " (" + it.uppercase() + ")" } ?: ""),
+                        reminderText + (note.reminderRepeat?.let { " (" + it.uppercase() + ")" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.7f)
                     )
@@ -4780,7 +4822,8 @@ private fun NoteDetailScreen(
                 if (customExpiresAt != null && expiryChoice == "custom") {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        tx("Selected expiry:") + " " + dateTimeFormatter.format(java.util.Date(customExpiresAt!!)),
+                        tx("Selected expiry: {value}")
+                            .replace("{value}", dateTimeFormatter.format(java.util.Date(customExpiresAt!!))),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.7f)
                     )
@@ -4878,13 +4921,16 @@ private fun NoteDetailScreen(
                     }
                     if (newAttachments.isNotEmpty()) {
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(tx("${newAttachments.size} attached"), color = onSurface.copy(alpha = 0.7f))
+                        Text(
+                            tx("{count} attached").replace("{count}", newAttachments.size.toString()),
+                            color = onSurface.copy(alpha = 0.7f)
+                        )
                     }
                 }
                 if (newAttachments.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     newAttachments.forEach { uri ->
-                        val name = resolveDisplayName(context, uri) ?: "image"
+                        val name = resolveDisplayName(context, uri) ?: tx("Image")
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(name, color = onSurface, modifier = Modifier.weight(1f))
                             TextButton(onClick = {
@@ -5266,7 +5312,7 @@ private fun PendingImportDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (remoteImport != null) {
                     Text(
-                        tx("Media ID:") + " " + remoteImport.mediaId.take(16) + "…",
+                        tx("Media ID: {id}").replace("{id}", remoteImport.mediaId.take(16) + "…"),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurface.copy(alpha = 0.6f)
                     )
@@ -5369,31 +5415,55 @@ private fun localizeRuntimeMessage(msg: String): String {
         val seconds = lockoutMatch.groupValues[1]
         return tx("Too many attempts. Try again in {seconds}s").replace("{seconds}", seconds)
     }
+    val importedKeysMatch = Regex("^Imported (\\d+) keys$").matchEntire(msg)
+    if (importedKeysMatch != null) {
+        return tx("Imported {count} keys").replace("{count}", importedKeysMatch.groupValues[1])
+    }
+    val restoreCompleteMatch = Regex("^Restore complete \\((\\d+) notes\\)$").matchEntire(msg)
+    if (restoreCompleteMatch != null) {
+        return tx("Restore complete ({count} notes)").replace("{count}", restoreCompleteMatch.groupValues[1])
+    }
+    val backupRestoredMatch = Regex("^Backup restored \\((\\d+) notes\\)$").matchEntire(msg)
+    if (backupRestoredMatch != null) {
+        return tx("Backup restored ({count} notes)").replace("{count}", backupRestoredMatch.groupValues[1])
+    }
+    val remoteImportCompleteMatch = Regex("^Remote import complete \\((\\d+) notes\\)$").matchEntire(msg)
+    if (remoteImportCompleteMatch != null) {
+        return tx("Remote import complete ({count} notes)").replace("{count}", remoteImportCompleteMatch.groupValues[1])
+    }
+    val keyManagerRestoredMatch = Regex("^Key manager restored \\((\\d+) keys\\)$").matchEntire(msg)
+    if (keyManagerRestoredMatch != null) {
+        return tx("Key manager restored ({count} keys)").replace("{count}", keyManagerRestoredMatch.groupValues[1])
+    }
+    val backupUploadedMatch = Regex("^Backup uploaded \\((\\d+) bytes\\)$").matchEntire(msg)
+    if (backupUploadedMatch != null) {
+        return tx("Backup uploaded ({count} bytes)").replace("{count}", backupUploadedMatch.groupValues[1])
+    }
+    val keyImportedViaMatch = Regex("^Key imported via (.+)$").matchEntire(msg)
+    if (keyImportedViaMatch != null) {
+        return tx("Key imported via {source}").replace("{source}", keyImportedViaMatch.groupValues[1])
+    }
     return tx(msg)
 }
 
 @Composable
 private fun resolveInfoDialogText(key: String): String {
     return when (key) {
-        "info_keys_manager_overview" -> tx("Keys Manager stores keys used for encrypted note sharing and backups.") + "\n\n" +
-            tx("- OpenPGP key: generated/imported PGP key material.") + "\n" +
-            tx("- XChaCha key: 32-byte symmetric key used for fast encrypted payload exchange.") + "\n\n" +
-            tx("Sources (manual/qr/nfc) are auto-tagged based on how key was imported.")
-        "info_manual_import" -> tx("Manual import accepts:") + "\n\n" +
-            tx("1) OpenPGP armored key blocks (BEGIN PGP ... END PGP)") + "\n" +
-            tx("2) XChaCha key as:") + "\n" +
-            tx("- base64 string decoding to exactly 32 bytes, or") + "\n" +
-            tx("- 64-char hex string (32 bytes).")
-        "info_generate_help" -> tx("Generate XChaCha creates a new random 32-byte symmetric key.") + "\n\n" +
-            tx("Generate PGP creates a new OpenPGP key pair stored in the app key vault.")
-        "info_qr_nfc_exchange" -> tx("SHARE SELECTED KEY lets you transfer a selected key to another Nulvex user.") + "\n\n" +
-            tx("- QR: show code on screen for scan.") + "\n" +
-            tx("- NFC: writes key payload to NFC tag.") + "\n\n" +
-            tx("Receiver imports it via QR scanner or NFC read.")
-        "info_backup_modes" -> tx("Backup modes:") + "\n\n" +
-            tx("- Local backup: exports encrypted file to your phone storage.") + "\n" +
-            tx("- Remote encrypted storage (Pro): uploads encrypted backup to Pro remote storage.") + "\n\n" +
-            tx("In both cases, decrypt requires the correct key.")
+        "info_keys_manager_overview" -> tx(
+            "Keys Manager stores keys used for encrypted note sharing and backups.\n\n- OpenPGP key: generated/imported PGP key material.\n- XChaCha key: 32-byte symmetric key used for fast encrypted payload exchange.\n\nSources (manual/qr/nfc) are auto-tagged based on how key was imported."
+        )
+        "info_manual_import" -> tx(
+            "Manual import accepts:\n\n1) OpenPGP armored key blocks (BEGIN PGP ... END PGP)\n2) XChaCha key as:\n- base64 string decoding to exactly 32 bytes, or\n- 64-char hex string (32 bytes)."
+        )
+        "info_generate_help" -> tx(
+            "Generate XChaCha creates a new random 32-byte symmetric key.\n\nGenerate PGP creates a new OpenPGP key pair stored in the app key vault."
+        )
+        "info_qr_nfc_exchange" -> tx(
+            "SHARE SELECTED KEY lets you transfer a selected key to another Nulvex user.\n\n- QR: show code on screen for scan.\n- NFC: writes key payload to NFC tag.\n\nReceiver imports it via QR scanner or NFC read."
+        )
+        "info_backup_modes" -> tx(
+            "Backup modes:\n\n- Local backup: exports encrypted file to your phone storage.\n- Remote encrypted storage (Pro): uploads encrypted backup to Pro remote storage.\n\nIn both cases, decrypt requires the correct key."
+        )
         else -> tx(key)
     }
 }

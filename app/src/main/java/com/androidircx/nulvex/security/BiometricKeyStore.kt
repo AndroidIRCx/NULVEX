@@ -95,6 +95,7 @@ class BiometricKeyStore(
                     )
                 } else {
                     // Pre-API 30 fallback for per-use auth.
+                    @Suppress("DEPRECATION")
                     setUserAuthenticationValidityDurationSeconds(-1)
                 }
             }
