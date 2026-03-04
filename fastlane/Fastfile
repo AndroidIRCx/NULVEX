@@ -2,13 +2,9 @@ default_platform(:android)
 
 platform :android do
 
-  # ─── fastlane closed ────────────────────────────────────────────────────────
-  # Full release flow in one command:
-  #   1. bundleRelease (auto-increments versionCode via Gradle task)
-  #   2. Commits version.properties and pushes to git
-  #   3. Uploads AAB + R8 mapping to Closed testing (Alpha)
-  desc "Build, bump version, push to git, upload to Closed testing (Alpha)"
-  lane :closed do
+  private_lane :release_to_play do |options|
+    track = options[:track]
+
     # Build release APK for local/device testing (no version bump here).
     gradle(
       task: "assemble",
@@ -32,7 +28,7 @@ platform :android do
     push_to_git_remote
 
     upload_to_play_store(
-      track: "alpha",
+      track: track,
       aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
       mapping: lane_context[SharedValues::GRADLE_MAPPING_TXT_OUTPUT_PATH],
       skip_upload_apk: true,
@@ -41,6 +37,23 @@ platform :android do
       skip_upload_images: true,
       skip_upload_screenshots: true
     )
+  end
+
+  # ─── fastlane closed ────────────────────────────────────────────────────────
+  # Full release flow in one command:
+  #   1. bundleRelease (auto-increments versionCode via Gradle task)
+  #   2. Commits version.properties and pushes to git
+  #   3. Uploads AAB + R8 mapping to Closed testing (Alpha)
+  desc "Build, bump version, push to git, upload to Closed testing (Alpha)"
+  lane :closed do
+    release_to_play(track: "alpha")
+  end
+
+  # ─── fastlane production ───────────────────────────────────────────────────
+  # Same flow as closed, but uploads to the production track.
+  desc "Build, bump version, push to git, upload to Production"
+  lane :production do
+    release_to_play(track: "production")
   end
 
   # ─── fastlane test ──────────────────────────────────────────────────────────
