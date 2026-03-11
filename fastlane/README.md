@@ -23,6 +23,14 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 Build, bump version, push to git, upload to Closed testing (Alpha)
 
+### android production
+
+```sh
+[bundle exec] fastlane android production
+```
+
+Build, bump version, push to git, upload to Production
+
 ### android test
 
 ```sh
