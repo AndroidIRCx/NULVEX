@@ -2,6 +2,7 @@ package com.androidircx.nulvex.pro
 
 import org.bouncycastle.bcpg.ArmoredOutputStream
 import org.bouncycastle.bcpg.HashAlgorithmTags
+import org.bouncycastle.bcpg.PublicKeyPacket
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openpgp.PGPKeyRingGenerator
 import org.bouncycastle.openpgp.PGPPublicKey
@@ -55,7 +56,12 @@ class OpenPgpSupportTest {
         val keyPair = generator.generateKeyPair()
         val nowDate = Date()
         val calc = JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1)
-        val pgpKeyPair = JcaPGPKeyPair(PGPPublicKey.RSA_GENERAL, keyPair, nowDate)
+        val pgpKeyPair = JcaPGPKeyPair(
+            PublicKeyPacket.VERSION_4,
+            PGPPublicKey.RSA_GENERAL,
+            keyPair,
+            nowDate
+        )
         val signer = JcaPGPContentSignerBuilder(pgpKeyPair.publicKey.algorithm, HashAlgorithmTags.SHA256)
         val ringGen = PGPKeyRingGenerator(
             PGPSignature.POSITIVE_CERTIFICATION,
