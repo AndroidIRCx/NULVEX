@@ -1,13 +1,13 @@
 # NULVEX
 
 [![Android Unit Tests](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml/badge.svg)](https://github.com/AndroidIRCx/NULVEX/actions/workflows/android-unit-tests.yml)
-[![Google Play Closed Testing](https://img.shields.io/badge/Google%20Play-Closed%20Testing-01875f?logo=googleplay&logoColor=white)](https://play.google.com/apps/testing/com.androidircx.nulvex)
+[![Google Play](https://img.shields.io/badge/Google%20Play-Production-01875f?logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=com.androidircx.nulvex)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/AndroidIRCx/NULVEX?style=flat)](https://github.com/AndroidIRCx/NULVEX/stargazers)
 [![GitHub downloads](https://img.shields.io/github/downloads/AndroidIRCx/NULVEX/total?style=flat)](https://github.com/AndroidIRCx/NULVEX/releases)
 
 **Offline-first encrypted notes vault for Android.**
-Built for secure local notes with strong encryption, clean UX, and optional cloud-era monetization/testing integrations.
+Built for secure local notes with strong encryption, clean UX, and production distribution on Google Play.
 
 ---
 
@@ -62,21 +62,12 @@ File types:
 
 ---
 
-## Download (Closed testing)
+## Download
 
-The app is currently in **Google Play Closed Testing** and can be installed only through the Play testing flow.
+NULVEX is live in production.
 
-Join Google Groups first:
-- https://groups.google.com/g/androidircx
-- https://groups.google.com/g/testers-community
-
-Then join testing and install:
-- Join on Android & install: https://play.google.com/store/apps/details?id=com.androidircx.nulvex
-- Join on the web: https://play.google.com/apps/testing/com.androidircx.nulvex
-
-Troubleshooting:
-- Use the same Google account for Google Groups and Play Store.
-- If opt-in does not appear immediately, wait a few minutes and reopen Play Store.
+- Official website: https://nulvex.androidircx.com/
+- Google Play: https://play.google.com/store/apps/details?id=com.androidircx.nulvex
 
 ---
 
@@ -191,13 +182,18 @@ Releases are automated with Fastlane. Use Bundler-installed fastlane:
 
 ```bash
 bundle exec fastlane closed
+bundle exec fastlane production
 ```
 
-What it does:
+Available lanes:
+- `bundle exec fastlane closed` - builds, bumps version, pushes git changes, and uploads to Google Play Closed testing (`alpha`)
+- `bundle exec fastlane production` - builds, bumps version, pushes git changes, and uploads to the Google Play production track
+
+Release flow:
 1. `assembleRelease` — builds release APK for local/device testing
 2. `bundleRelease` — builds release AAB for Play upload and auto-increments `versionCode` + `versionName`
 3. `git commit` + `push` — commits `version.properties` and pushes to `main`
-4. `upload_to_play_store` — uploads only AAB + R8 mapping to the **alpha** track (`skip_upload_apk: true`)
+4. `upload_to_play_store` — uploads only AAB + R8 mapping (`skip_upload_apk: true`) to the selected Play track
 
 Notes:
 - Lane currently runs Gradle with `--no-configuration-cache` for stability with custom version bump task.

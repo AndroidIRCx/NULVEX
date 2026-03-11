@@ -80,11 +80,16 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -104,6 +109,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -141,6 +148,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
@@ -178,6 +186,22 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+
+@Composable
+private fun Modifier.bringIntoViewOnFocus(): Modifier {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    return this
+        .bringIntoViewRequester(bringIntoViewRequester)
+        .onFocusEvent { focusState ->
+            if (focusState.isFocused) {
+                scope.launch {
+                    delay(180)
+                    bringIntoViewRequester.bringIntoView()
+                }
+            }
+        }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -238,6 +262,7 @@ fun MainScreen(
     onSetShowTrash: (Boolean) -> Unit = {},
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
+    onExportAttachment: (String, String, String) -> Unit = { _, _, _ -> },
     onToggleArchived: (String) -> Unit = {},
     onRestoreNoteFromTrash: (String) -> Unit = {},
     onSetNoteReminder: (String, Long) -> Unit = { _, _ -> },
@@ -450,6 +475,7 @@ fun MainScreen(
                             onMoveChecklistItem,
                             onLoadAttachmentPreview,
                             onRemoveAttachment,
+                            onExportAttachment,
                             onNoteEditDraftChanged,
                             onClearNoteEditDraft,
                             onUndoNoteEdit,
@@ -3918,6 +3944,11 @@ private fun NewNoteScreen(
     onDraftChanged: (NewNoteDraft?) -> Unit = {}
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
+    val scrollState = rememberScrollState()
+    val checklistInputRequester = remember { BringIntoViewRequester() }
+    val checklistInputFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var content by remember { mutableStateOf("") }
     var readOnce by remember(defaultReadOnce) { mutableStateOf(defaultReadOnce) }
     var expiryChoice by remember(defaultExpiry) { mutableStateOf(defaultExpiry) }
@@ -3934,6 +3965,8 @@ private fun NewNoteScreen(
     var attachments by remember { mutableStateOf(listOf<Uri>()) }
     var labels by remember { mutableStateOf(listOf<String>()) }
     var newLabel by remember { mutableStateOf("") }
+    var pendingChecklistItemScroll by remember { mutableStateOf(false) }
+    var pendingChecklistInputReveal by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var appliedQuickCreate by remember { mutableStateOf<QuickCreateType?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -3989,6 +4022,7 @@ private fun NewNoteScreen(
             checklistItems = template.checklist.map {
                 ChecklistItem(id = java.util.UUID.randomUUID().toString(), text = it, checked = false)
             }
+            pendingChecklistInputReveal = true
         }
         if (template.labels.isNotEmpty()) {
             showLabels = true
@@ -4001,15 +4035,7 @@ private fun NewNoteScreen(
             when (state.newNoteQuickCreate) {
                 QuickCreateType.CHECKLIST -> {
                     showChecklist = true
-                    if (checklistItems.isEmpty()) {
-                        checklistItems = listOf(
-                            ChecklistItem(
-                                id = java.util.UUID.randomUUID().toString(),
-                                text = "",
-                                checked = false
-                            )
-                        )
-                    }
+                    pendingChecklistInputReveal = true
                 }
                 QuickCreateType.ATTACHMENT -> {
                     showAttachments = true
@@ -4099,6 +4125,24 @@ private fun NewNoteScreen(
         }
         onDraftChanged(NewNoteDraft(content, checklistItems, labels, pinned, expiresAtMs, readOnce, reminderAt))
     }
+    LaunchedEffect(showChecklist, pendingChecklistInputReveal, checklistItems.size) {
+        if (showChecklist && pendingChecklistInputReveal) {
+            delay(120)
+            checklistInputFocusRequester.requestFocus()
+            keyboardController?.show()
+            checklistInputRequester.bringIntoView()
+            delay(120)
+            checklistInputRequester.bringIntoView()
+            pendingChecklistInputReveal = false
+        }
+    }
+    LaunchedEffect(checklistItems.size, pendingChecklistItemScroll) {
+        if (pendingChecklistItemScroll) {
+            delay(80)
+            scrollState.animateScrollTo(scrollState.maxValue)
+            pendingChecklistItemScroll = false
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -4108,9 +4152,13 @@ private fun NewNoteScreen(
         Column(
             modifier = Modifier
                 .padding(20.dp)
-                .verticalScroll(rememberScrollState())
                 .imePadding()
         ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(scrollState)
+            ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(tx("New note"), style = MaterialTheme.typography.titleLarge, color = onSurface, modifier = Modifier.weight(1f))
                 IconButton(onClick = onCancel) {
@@ -4156,6 +4204,7 @@ private fun NewNoteScreen(
                         text = { Text(tx("Checklist")) },
                         onClick = {
                             showChecklist = true
+                            pendingChecklistInputReveal = true
                             showAddMenu = false
                         }
                     )
@@ -4197,6 +4246,7 @@ private fun NewNoteScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 260.dp)
+                    .bringIntoViewOnFocus()
             )
             Spacer(modifier = Modifier.height(6.dp))
             val voicePrompt = stringResource(R.string.notes_voice_prompt)
@@ -4226,33 +4276,6 @@ private fun NewNoteScreen(
             if (showChecklist) {
                 Text(tx("Checklist"), style = MaterialTheme.typography.labelLarge, color = onSurface)
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = newChecklistItem,
-                        onValueChange = { newChecklistItem = it },
-                        label = { Text(tx("Add item")) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val trimmed = newChecklistItem.trim()
-                            if (trimmed.isNotBlank()) {
-                                checklistItems = checklistItems + ChecklistItem(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    text = trimmed,
-                                    checked = false
-                                )
-                                newChecklistItem = ""
-                            }
-                        },
-                        enabled = newChecklistItem.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
-                    ) {
-                        Text(tx("ADD"))
-                    }
-                }
                 if (checklistItems.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     checklistItems.forEach { item ->
@@ -4447,6 +4470,45 @@ private fun NewNoteScreen(
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
+            }
+            if (showChecklist) {
+                HorizontalDivider(color = onSurface.copy(alpha = 0.08f))
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newChecklistItem,
+                        onValueChange = { newChecklistItem = it },
+                        label = { Text(tx("Add item")) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .bringIntoViewRequester(checklistInputRequester)
+                            .focusRequester(checklistInputFocusRequester)
+                            .bringIntoViewOnFocus(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val trimmed = newChecklistItem.trim()
+                            if (trimmed.isNotBlank()) {
+                                checklistItems = checklistItems + ChecklistItem(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    text = trimmed,
+                                    checked = false
+                                )
+                                newChecklistItem = ""
+                                pendingChecklistItemScroll = true
+                                pendingChecklistInputReveal = true
+                            }
+                        },
+                        enabled = newChecklistItem.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
+                    ) {
+                        Text(tx("ADD"))
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             val expiresAt = when (expiryChoice) {
                 "1h" -> System.currentTimeMillis() + 3_600_000L
                 "24h" -> System.currentTimeMillis() + 86_400_000L
@@ -4464,7 +4526,11 @@ private fun NewNoteScreen(
                     Text(tx("CANCEL"))
                 }
                 Button(
-                    onClick = { onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce, reminderAt) },
+                    onClick = {
+                        onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce, reminderAt)
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                    },
                     enabled = !state.isBusy,
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                     modifier = Modifier.weight(1f)
@@ -4500,6 +4566,7 @@ private fun NoteDetailScreen(
     onMoveChecklistItem: (String, String, Int) -> Unit,
     onLoadAttachmentPreview: (String, String) -> Unit,
     onRemoveAttachment: (String, String) -> Unit,
+    onExportAttachment: (String, String, String) -> Unit,
     onNoteEditDraftChanged: (String, String, Long?) -> Unit = { _, _, _ -> },
     onClearNoteEditDraft: () -> Unit = {},
     onUndoNoteEdit: (String) -> Unit = {},
@@ -4525,6 +4592,7 @@ private fun NoteDetailScreen(
     var checklistInput by remember { mutableStateOf("") }
     var showMarkdownPreview by remember(note.id) { mutableStateOf(false) }
     var showRevisionHistory by remember(note.id) { mutableStateOf(false) }
+    var previewAttachmentId by remember(note.id) { mutableStateOf<String?>(null) }
     var editingChecklistId by remember { mutableStateOf<String?>(null) }
     var editingChecklistText by remember { mutableStateOf("") }
     val checklistBounds = remember { mutableStateMapOf<String, IntRange>() }
@@ -4532,8 +4600,19 @@ private fun NoteDetailScreen(
     var dragY by remember { mutableStateOf(0f) }
     var lastSwapTargetId by remember { mutableStateOf<String?>(null) }
     var dragTargetId by remember { mutableStateOf<String?>(null) }
+    val scrollState = rememberScrollState()
+    val editContentRequester = remember { BringIntoViewRequester() }
+    val checklistSectionRequester = remember { BringIntoViewRequester() }
+    val editingChecklistItemRequester = remember { BringIntoViewRequester() }
+    val checklistInputRequester = remember { BringIntoViewRequester() }
+    val checklistInputFocusRequester = remember { FocusRequester() }
+    val editChecklistTextFocusRequester = remember { FocusRequester() }
+    var lastChecklistCount by remember(note.id) { mutableIntStateOf(note.checklist.size) }
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val scope = rememberCoroutineScope()
     val dateTimeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) newAttachments = newAttachments + uri
@@ -4621,6 +4700,26 @@ private fun NoteDetailScreen(
         customExpiresAt = pending.expiresAt
         expiryChoice = if (pending.expiresAt == null) "none" else "custom"
     }
+    LaunchedEffect(isEditing) {
+        if (isEditing) {
+            delay(180)
+            editContentRequester.bringIntoView()
+        }
+    }
+    LaunchedEffect(editingChecklistId) {
+        if (editingChecklistId != null) {
+            delay(180)
+            editingChecklistItemRequester.bringIntoView()
+            editChecklistTextFocusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(note.checklist.size) {
+        if (note.checklist.size > lastChecklistCount) {
+            delay(180)
+            checklistInputRequester.bringIntoView()
+        }
+        lastChecklistCount = note.checklist.size
+    }
 
     fun cancelEditing() {
         isEditing = false
@@ -4631,13 +4730,22 @@ private fun NoteDetailScreen(
         customExpiresAt = note.expiresAt
         expiryChoice = if (note.expiresAt == null) "none" else "custom"
         showMarkdownPreview = false
+        editingChecklistId = null
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
         onClearNoteEditDraft()
     }
 
     fun saveEditing() {
         onSaveEditedNote(note.id, editText, editLabels, newAttachments, editedExpiresAt)
         isEditing = false
+        editingChecklistId = null
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
     }
+
+    val previewAttachment = note.attachments.firstOrNull { it.id == previewAttachmentId }
+    val previewBitmap = previewAttachment?.let { state.attachmentPreviews[it.id] }
 
     Surface(
         shape = RoundedCornerShape(24.dp),
@@ -4646,7 +4754,7 @@ private fun NoteDetailScreen(
         Box(modifier = Modifier.padding(20.dp).imePadding()) {
             Column(
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(top = if (isEditing) 48.dp else 0.dp)
             ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -4801,7 +4909,10 @@ private fun NoteDetailScreen(
                         onValueChange = {
                             editText = it
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewRequester(editContentRequester)
+                            .bringIntoViewOnFocus(),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Default,
@@ -4950,7 +5061,9 @@ private fun NoteDetailScreen(
                 tx("Checklist"),
                 color = onSurface.copy(alpha = 0.75f),
                 style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.testTag("note_section_checklist")
+                modifier = Modifier
+                    .testTag("note_section_checklist")
+                    .bringIntoViewRequester(checklistSectionRequester)
             )
             Spacer(modifier = Modifier.height(6.dp))
             if (note.checklist.isNotEmpty()) {
@@ -4971,6 +5084,13 @@ private fun NoteDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .then(
+                                if (editingChecklistId == item.id) {
+                                    Modifier.bringIntoViewRequester(editingChecklistItemRequester)
+                                } else {
+                                    Modifier
+                                }
+                            )
                             .background(
                                 if (isDragging) {
                                     Brass.copy(alpha = 0.12f)
@@ -5047,12 +5167,17 @@ private fun NoteDetailScreen(
                             OutlinedTextField(
                                 value = editingChecklistText,
                                 onValueChange = { editingChecklistText = it },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(editChecklistTextFocusRequester)
+                                    .bringIntoViewOnFocus(),
                                 singleLine = true
                             )
                             IconButton(onClick = {
                                 onUpdateChecklistText(note.id, item.id, editingChecklistText)
                                 editingChecklistId = null
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
                             }) {
                                 Icon(
                                     imageVector = Icons.Filled.Edit,
@@ -5060,7 +5185,11 @@ private fun NoteDetailScreen(
                                     tint = Brass
                                 )
                             }
-                            IconButton(onClick = { editingChecklistId = null }) {
+                            IconButton(onClick = {
+                                editingChecklistId = null
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                            }) {
                                 Icon(
                                     imageVector = Icons.Filled.Delete,
                                     contentDescription = tx("Cancel edit"),
@@ -5096,7 +5225,11 @@ private fun NoteDetailScreen(
                     value = checklistInput,
                     onValueChange = { checklistInput = it },
                     label = { Text(tx("Add item")) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .bringIntoViewRequester(checklistInputRequester)
+                        .focusRequester(checklistInputFocusRequester)
+                        .bringIntoViewOnFocus(),
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -5104,6 +5237,9 @@ private fun NoteDetailScreen(
                     onClick = {
                         onAddChecklistItem(note.id, checklistInput)
                         checklistInput = ""
+                        keyboardController?.show()
+                        scope.launch { checklistInputRequester.bringIntoView() }
+                        checklistInputFocusRequester.requestFocus()
                     },
                     enabled = checklistInput.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
@@ -5125,6 +5261,15 @@ private fun NoteDetailScreen(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(attachment.name, color = onSurface, modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            onLoadAttachmentPreview(note.id, attachment.id)
+                            previewAttachmentId = attachment.id
+                        }) {
+                            Text(tx("OPEN"), color = Moss)
+                        }
+                        TextButton(onClick = { onExportAttachment(note.id, attachment.id, attachment.name) }) {
+                            Text(tx("SAVE"), color = Brass)
+                        }
                         TextButton(onClick = { onRemoveAttachment(note.id, attachment.id) }) {
                             Text(tx("REMOVE"), color = Ember)
                         }
@@ -5137,6 +5282,7 @@ private fun NoteDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 240.dp)
+                                .clickable { previewAttachmentId = attachment.id }
                                 .background(
                                     onSurface.copy(alpha = 0.05f),
                                     RoundedCornerShape(12.dp)
@@ -5146,6 +5292,55 @@ private fun NoteDetailScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                     } else {
                         Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+            if (previewAttachment != null && previewBitmap != null) {
+                Dialog(onDismissRequest = { previewAttachmentId = null }) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.88f)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = previewAttachment.name,
+                                    color = onSurface,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { previewAttachmentId = null }) {
+                                    Icon(Icons.Filled.Close, contentDescription = tx("Close"), tint = onSurface)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Image(
+                                bitmap = previewBitmap.asImageBitmap(),
+                                contentDescription = previewAttachment.name,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .background(onSurface.copy(alpha = 0.05f), RoundedCornerShape(16.dp)),
+                                contentScale = ContentScale.Fit
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Button(
+                                    onClick = {
+                                        onExportAttachment(note.id, previewAttachment.id, previewAttachment.name)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
+                                ) {
+                                    Text(tx("SAVE"))
+                                }
+                                TextButton(onClick = { previewAttachmentId = null }) {
+                                    Text(tx("CLOSE"), color = onSurface.copy(alpha = 0.7f))
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -1,5 +1,6 @@
 package com.androidircx.nulvex
 
+import android.Manifest
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
@@ -21,9 +22,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.activity.viewModels
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.core.content.PermissionChecker
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.os.LocaleListCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.androidircx.nulvex.ui.MainScreen
 import com.androidircx.nulvex.ui.MainViewModel
@@ -63,6 +66,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+private data class PendingNoteCreateRequest(
+    val text: String,
+    val checklist: List<com.androidircx.nulvex.data.ChecklistItem>,
+    val labels: List<String>,
+    val pinned: Boolean,
+    val attachments: List<android.net.Uri>,
+    val expiresAt: Long?,
+    val readOnce: Boolean,
+    val reminderAt: Long?
+)
+
 class MainActivity : AppCompatActivity() {
     companion object {
         const val ACTION_QUICK_CAPTURE = "com.androidircx.nulvex.action.QUICK_CAPTURE"
@@ -86,6 +100,13 @@ class MainActivity : AppCompatActivity() {
     private var pendingKeyManagerExportPassword: String? = null
     private var pendingKeyManagerImportPassword: String? = null
     private var pendingNfcSharePayload: String? = null
+    private var pendingAttachmentExportNoteId: String? = null
+    private var pendingAttachmentExportId: String? = null
+    private var pendingAttachmentExportName: String? = null
+    private var pendingReminderNoteId: String? = null
+    private var pendingReminderAt: Long? = null
+    private var pendingBulkReminderAt: Long? = null
+    private var pendingNoteCreateRequest: PendingNoteCreateRequest? = null
 
     private val exportLocalBackupLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -134,6 +155,62 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    private val exportAttachmentLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+            val noteId = pendingAttachmentExportNoteId
+            val attachmentId = pendingAttachmentExportId
+            if (uri == null || noteId.isNullOrBlank() || attachmentId.isNullOrBlank()) return@registerForActivityResult
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val bytes = vm.loadAttachmentBytes(noteId, attachmentId)
+                        ?: throw IllegalStateException("Unable to load attachment")
+                    contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                        ?: throw IllegalStateException("Unable to open output stream")
+                    withContext(Dispatchers.Main) { vm.setBackupStatus(tx("Attachment saved")) }
+                } catch (_: Exception) {
+                    withContext(Dispatchers.Main) { vm.showError(tx("Failed to save attachment")) }
+                }
+            }
+        }
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                val noteId = pendingReminderNoteId
+                val reminderAt = pendingReminderAt
+                val bulkReminderAt = pendingBulkReminderAt
+                val createRequest = pendingNoteCreateRequest
+                pendingReminderNoteId = null
+                pendingReminderAt = null
+                pendingBulkReminderAt = null
+                pendingNoteCreateRequest = null
+                if (!noteId.isNullOrBlank() && reminderAt != null) {
+                    vm.setNoteReminder(noteId, reminderAt)
+                }
+                if (bulkReminderAt != null) {
+                    vm.bulkSetReminderSelected(bulkReminderAt)
+                }
+                if (createRequest != null) {
+                    vm.createNote(
+                        createRequest.text,
+                        createRequest.checklist,
+                        createRequest.labels,
+                        createRequest.pinned,
+                        createRequest.attachments,
+                        createRequest.expiresAt,
+                        createRequest.readOnce,
+                        createRequest.reminderAt
+                    )
+                }
+            } else {
+                pendingReminderNoteId = null
+                pendingReminderAt = null
+                pendingBulkReminderAt = null
+                pendingNoteCreateRequest = null
+                vm.showError(tx("Enable notifications to receive reminders"))
+            }
+        }
+
     private val importKeyManagerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri == null) return@registerForActivityResult
@@ -163,6 +240,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         window.setFlags(
@@ -206,7 +284,7 @@ class MainActivity : AppCompatActivity() {
                     onUpdateLanguage = ::updateLanguage,
                     onOpenNew = vm::openNewNote,
                     onQuickCreate = vm::openNewNote,
-                    onCreate = vm::createNote,
+                    onCreate = ::createNoteWithReminderPermission,
                     onOpenNote = vm::openNote,
                     onOpenLinkedNote = vm::openNote,
                     onToggleNoteSelection = vm::toggleNoteSelection,
@@ -214,7 +292,7 @@ class MainActivity : AppCompatActivity() {
                     onBulkArchiveSelected = vm::bulkArchiveSelected,
                     onBulkDeleteSelected = vm::bulkDeleteSelected,
                     onBulkAddLabelSelected = vm::bulkAddLabelSelected,
-                    onBulkSetReminderSelected = vm::bulkSetReminderSelected,
+                    onBulkSetReminderSelected = ::bulkSetReminderSelectedWithPermission,
                     onCloseNote = vm::closeNoteDetail,
                     onUpdateNoteText = vm::updateNoteText,
                     onSaveEditedNote = vm::saveEditedNote,
@@ -236,9 +314,10 @@ class MainActivity : AppCompatActivity() {
                     onSetShowTrash = vm::setShowTrash,
                     onLoadAttachmentPreview = vm::loadAttachmentPreview,
                     onRemoveAttachment = vm::removeAttachment,
+                    onExportAttachment = ::exportAttachmentFile,
                     onToggleArchived = vm::toggleArchived,
                     onRestoreNoteFromTrash = vm::restoreNoteFromTrash,
-                    onSetNoteReminder = vm::setNoteReminder,
+                    onSetNoteReminder = ::setNoteReminderWithPermission,
                     onSetNoteReminderRepeat = vm::setNoteReminderRepeat,
                     onClearNoteReminder = vm::clearNoteReminder,
                     onRestoreNoteRevision = vm::restoreNoteRevision,
@@ -602,6 +681,83 @@ class MainActivity : AppCompatActivity() {
     private fun importKeyManagerFile(password: String?) {
         pendingKeyManagerImportPassword = password
         importKeyManagerLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
+    }
+
+    private fun exportAttachmentFile(noteId: String, attachmentId: String, attachmentName: String) {
+        pendingAttachmentExportNoteId = noteId
+        pendingAttachmentExportId = attachmentId
+        pendingAttachmentExportName = attachmentName
+        exportAttachmentLauncher.launch(attachmentName.ifBlank { "attachment.bin" })
+    }
+
+    private fun notificationsPermissionGranted(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return PermissionChecker.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PermissionChecker.PERMISSION_GRANTED
+    }
+
+    private fun ensureNotificationsPermission(onDenied: (() -> Unit)? = null, onGranted: () -> Unit) {
+        if (notificationsPermissionGranted()) {
+            onGranted()
+            return
+        }
+        onDenied?.invoke()
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun setNoteReminderWithPermission(noteId: String, reminderAt: Long) {
+        ensureNotificationsPermission(
+            onDenied = {
+                pendingReminderNoteId = noteId
+                pendingReminderAt = reminderAt
+            }
+        ) {
+            vm.setNoteReminder(noteId, reminderAt)
+        }
+    }
+
+    private fun bulkSetReminderSelectedWithPermission(triggerAt: Long) {
+        ensureNotificationsPermission(
+            onDenied = {
+                pendingBulkReminderAt = triggerAt
+            }
+        ) {
+            vm.bulkSetReminderSelected(triggerAt)
+        }
+    }
+
+    private fun createNoteWithReminderPermission(
+        text: String,
+        checklist: List<com.androidircx.nulvex.data.ChecklistItem>,
+        labels: List<String>,
+        pinned: Boolean,
+        attachments: List<android.net.Uri>,
+        expiresAt: Long?,
+        readOnce: Boolean,
+        reminderAt: Long?
+    ) {
+        if (reminderAt == null) {
+            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, null)
+            return
+        }
+        ensureNotificationsPermission(
+            onDenied = {
+                pendingNoteCreateRequest = PendingNoteCreateRequest(
+                    text = text,
+                    checklist = checklist,
+                    labels = labels,
+                    pinned = pinned,
+                    attachments = attachments,
+                    expiresAt = expiresAt,
+                    readOnce = readOnce,
+                    reminderAt = reminderAt
+                )
+            }
+        ) {
+            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, reminderAt)
+        }
     }
 
     private fun shareNoteFile(noteId: String) {

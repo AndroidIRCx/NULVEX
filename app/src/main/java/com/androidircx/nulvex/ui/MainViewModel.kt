@@ -1878,6 +1878,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    suspend fun loadAttachmentBytes(noteId: String, attachmentId: String): ByteArray? {
+        return withContext(Dispatchers.IO) {
+            vaultService.loadAttachment(noteId, attachmentId)
+        }
+    }
+
     fun clearError() {
         uiState.value = uiState.value.copy(error = null)
     }
