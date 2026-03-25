@@ -5,6 +5,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/AndroidIRCx/NULVEX?style=flat)](https://github.com/AndroidIRCx/NULVEX/stargazers)
 [![GitHub downloads](https://img.shields.io/github/downloads/AndroidIRCx/NULVEX/total?style=flat)](https://github.com/AndroidIRCx/NULVEX/releases)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12265/badge)](https://www.bestpractices.dev/projects/12265)
 
 **Offline-first encrypted notes vault for Android.**
 Built for secure local notes with strong encryption, clean UX, and production distribution on Google Play.
