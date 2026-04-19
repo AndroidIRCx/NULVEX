@@ -57,9 +57,14 @@ import com.androidircx.nulvex.billing.BillingPurchaseState
 import com.androidircx.nulvex.billing.PurchaseUpdateResult
 import com.androidircx.nulvex.billing.PurchaseUpdateStatus
 import com.androidircx.nulvex.i18n.sanitizeLanguageTag
+import com.androidircx.nulvex.pro.ImportPayloadValidator
+import com.androidircx.nulvex.pro.PayloadTooLargeException
+import com.androidircx.nulvex.pro.UnsupportedImportMimeException
 import com.androidircx.nulvex.reminder.ReminderConstants
+import com.androidircx.nulvex.sync.SyncAuthToken
 import com.androidircx.nulvex.i18n.tx
 import com.androidircx.nulvex.ui.resolveRemoteMediaIdInput
+import com.androidircx.nulvex.work.SyncWorkScheduler
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -129,11 +134,19 @@ class MainActivity : AppCompatActivity() {
             if (uri == null || keyId.isNullOrBlank()) return@registerForActivityResult
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw IllegalStateException("Unable to read file")
+                    val bytes = contentResolver.openInputStream(uri)?.use {
+                        ImportPayloadValidator.readWithLimit(
+                            input = it,
+                            mimeType = com.androidircx.nulvex.pro.NulvexFileTypes.BACKUP_MIME
+                        )
+                    } ?: throw IllegalStateException("Unable to read file")
                     vm.restoreLocalEncryptedBackupPayload(bytes, keyId, pendingLocalBackupImportMerge)
-                } catch (_: Exception) {
-                    withContext(Dispatchers.Main) { vm.showError(tx("Failed to import local backup")) }
+                } catch (e: Exception) {
+                    val message = when (e) {
+                        is PayloadTooLargeException -> tx("Backup file exceeds allowed size limit")
+                        else -> tx("Failed to import local backup")
+                    }
+                    withContext(Dispatchers.Main) { vm.showError(message) }
                 }
             }
         }
@@ -216,12 +229,20 @@ class MainActivity : AppCompatActivity() {
             if (uri == null) return@registerForActivityResult
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw IllegalStateException("Unable to read file")
+                    val bytes = contentResolver.openInputStream(uri)?.use {
+                        ImportPayloadValidator.readWithLimit(
+                            input = it,
+                            mimeType = com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+                        )
+                    } ?: throw IllegalStateException("Unable to read file")
                     val imported = vm.importKeyManagerStorage(bytes, pendingKeyManagerImportPassword)
                     withContext(Dispatchers.Main) { vm.setBackupStatus(tx("Imported $imported keys")) }
-                } catch (_: Exception) {
-                    withContext(Dispatchers.Main) { vm.showError(tx("Failed to import key manager")) }
+                } catch (e: Exception) {
+                    val message = when (e) {
+                        is PayloadTooLargeException -> tx("Key manager file exceeds allowed size limit")
+                        else -> tx("Failed to import key manager")
+                    }
+                    withContext(Dispatchers.Main) { vm.showError(message) }
                 }
             }
         }
@@ -366,7 +387,9 @@ class MainActivity : AppCompatActivity() {
                     onImportIncomingRemote = vm::importIncomingRemote,
                     onImportIncomingRemoteKeyManager = vm::importIncomingRemoteKeyManager,
                     onClearPendingImport = vm::clearPendingImport,
-                    onClearNoteShareUrl = vm::clearNoteShareUrl
+                    onClearNoteShareUrl = vm::clearNoteShareUrl,
+                    onResolveSyncConflict = vm::resolveSyncConflict,
+                    onClearKeyRotationState = vm::clearKeyRotationState
                 )
             }
         }
@@ -836,23 +859,44 @@ class MainActivity : AppCompatActivity() {
                 vm.setPendingImport(com.androidircx.nulvex.ui.PendingImport.RemoteMedia(mediaId, mime))
             }
             scheme == "content" || scheme == "file" -> {
-                val mimeType = intent.type?.takeIf { it.isNotBlank() }
-                    ?: contentResolver.getType(data)?.takeIf { it.isNotBlank() }
-                    ?: determineMimeFromUri(data)
-                    ?: return
+                val mimeType = resolveIncomingMimeType(intent, data)
+                if (mimeType == null) {
+                    vm.showError(tx("Unsupported import file type"))
+                    return
+                }
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
-                        val bytes = contentResolver.openInputStream(data)?.use { it.readBytes() }
+                        val bytes = contentResolver.openInputStream(data)?.use {
+                            ImportPayloadValidator.readWithLimit(it, mimeType)
+                        }
                             ?: return@launch
                         withContext(Dispatchers.Main) {
                             vm.setPendingImport(com.androidircx.nulvex.ui.PendingImport.LocalFile(bytes, mimeType))
                         }
-                    } catch (_: Exception) {
-                        withContext(Dispatchers.Main) { vm.showError(tx("Failed to read incoming file")) }
+                    } catch (e: Exception) {
+                        val message = when (e) {
+                            is PayloadTooLargeException -> tx("Incoming file exceeds allowed size limit")
+                            is UnsupportedImportMimeException -> tx("Unsupported import file type")
+                            else -> tx("Failed to read incoming file")
+                        }
+                        withContext(Dispatchers.Main) { vm.showError(message) }
                     }
                 }
             }
         }
+    }
+
+    private fun resolveIncomingMimeType(intent: Intent, data: android.net.Uri): String? {
+        val fromPath = determineMimeFromUri(data)
+        val candidates = buildList {
+            intent.type?.trim()?.takeIf { it.isNotBlank() }?.let { add(it.lowercase()) }
+            contentResolver.getType(data)?.trim()?.takeIf { it.isNotBlank() }?.let { add(it.lowercase()) }
+            fromPath?.let { add(it.lowercase()) }
+        }.filter { ImportPayloadValidator.isSupportedMime(it) }
+
+        if (candidates.isEmpty()) return null
+        if (candidates.distinct().size > 1) return null
+        return candidates.first()
     }
 
     private fun determineMimeFromUri(uri: android.net.Uri): String? {
@@ -993,6 +1037,23 @@ class MainActivity : AppCompatActivity() {
         override fun showError(message: String) = vm.showError(message)
         override fun grantLifetimeRemoveAds() = vm.grantLifetimeRemoveAds()
         override fun grantLifetimeProFeatures() = vm.grantLifetimeProFeatures()
+        override fun onProSyncTokenAvailable(purchaseToken: String) {
+            val token = purchaseToken.trim()
+            if (token.isBlank()) return
+
+            val syncPrefs = VaultServiceLocator.syncPreferences()
+            val deviceId = syncPrefs.getOrCreateDeviceId()
+            syncPrefs.setAuthToken(
+                profile = VaultProfile.REAL.id,
+                token = SyncAuthToken(
+                    accessToken = token,
+                    refreshToken = null,
+                    expiresAtEpochMillis = Long.MAX_VALUE,
+                    deviceId = deviceId
+                )
+            )
+            SyncWorkScheduler.schedule(this@MainActivity)
+        }
         override fun refreshAdFreeState() = vm.refreshAdFreeState()
     }
 

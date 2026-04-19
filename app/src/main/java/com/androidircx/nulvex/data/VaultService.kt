@@ -517,6 +517,16 @@ class VaultService(
         return null
     }
 
+    suspend fun listSyncConflicts(profile: String): List<SyncConflictEntity> {
+        val session = sessionManager.getActive() ?: return emptyList()
+        return SyncStateStore(session.database.syncStateDao()).listOpenConflicts(profile)
+    }
+
+    suspend fun resolveSyncConflict(conflictId: String): Boolean {
+        val session = sessionManager.getActive() ?: return false
+        return SyncStateStore(session.database.syncStateDao()).markConflictResolved(conflictId)
+    }
+
     suspend fun changeRealPin(oldPin: CharArray, newPin: CharArray) {
         val session = sessionManager.open(oldPin, VaultProfile.REAL)
         val keyManager = VaultKeyManager(sessionManager.context, VaultProfile.REAL)

@@ -13,7 +13,8 @@ class SyncEngine(
     private val api: SyncApi,
     private val stateStore: SyncStateStore,
     private val localRevisionLookup: suspend (entityId: String) -> String?,
-    private val applyRemoteOp: suspend (SyncPulledOp) -> Boolean
+    private val applyRemoteOp: suspend (SyncPulledOp) -> Boolean,
+    private val requestSecurityProvider: suspend (SyncSecurityRequestContext) -> SyncRequestSecurity? = { null }
 ) {
     suspend fun runCycle(
         profile: String,
@@ -42,7 +43,21 @@ class SyncEngine(
             }
 
             try {
-                val acks = api.push(profile = profile, token = token, operations = envelopes)
+                val pushSecurity = requestSecurityProvider(
+                    SyncSecurityRequestContext(
+                        action = "push",
+                        profile = profile,
+                        deviceId = token.deviceId,
+                        cursorToken = null,
+                        operationsCount = envelopes.size
+                    )
+                )
+                val acks = api.push(
+                    profile = profile,
+                    token = token,
+                    operations = envelopes,
+                    requestSecurity = pushSecurity
+                )
                     .associateBy { it.opId }
                 outbox.forEach { op ->
                     val ack = acks[op.opId]
@@ -66,7 +81,22 @@ class SyncEngine(
         }
 
         val cursor = stateStore.getCursor(profile)
-        val pull = api.pull(profile = profile, token = token, cursorToken = cursor, limit = batchLimit)
+        val pullSecurity = requestSecurityProvider(
+            SyncSecurityRequestContext(
+                action = "pull",
+                profile = profile,
+                deviceId = token.deviceId,
+                cursorToken = cursor,
+                operationsCount = 0
+            )
+        )
+        val pull = api.pull(
+            profile = profile,
+            token = token,
+            cursorToken = cursor,
+            limit = batchLimit,
+            requestSecurity = pullSecurity
+        )
         var halted = false
         pull.operations.forEach { op ->
             if (halted) return@forEach
@@ -100,3 +130,11 @@ class SyncEngine(
         )
     }
 }
+
+data class SyncSecurityRequestContext(
+    val action: String,
+    val profile: String,
+    val deviceId: String,
+    val cursorToken: String?,
+    val operationsCount: Int
+)

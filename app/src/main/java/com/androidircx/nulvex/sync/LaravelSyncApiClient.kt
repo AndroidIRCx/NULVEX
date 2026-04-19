@@ -12,7 +12,11 @@ class LaravelSyncApiClient(
     private val baseApiUrl: String = "https://androidircx.com/api"
 ) : SyncApi {
 
-    override suspend fun registerDevice(profile: String, token: SyncAuthToken): Boolean {
+    override suspend fun registerDevice(
+        profile: String,
+        token: SyncAuthToken,
+        requestSecurity: SyncRequestSecurity?
+    ): Boolean {
         val endpoint = URL("$baseApiUrl/sync/v1/devices/register")
         val conn = (endpoint.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
@@ -22,9 +26,11 @@ class LaravelSyncApiClient(
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Authorization", "Bearer ${token.accessToken}")
         }
+        applyRequestSecurityHeaders(conn, requestSecurity)
         val body = JSONObject().apply {
             put("device_id", token.deviceId)
             put("profile", profile)
+            requestSecurity?.let { put("request_security", it.toJson()) }
         }.toString()
         OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { it.write(body) }
         return conn.responseCode in 200..299
@@ -33,7 +39,8 @@ class LaravelSyncApiClient(
     override suspend fun push(
         profile: String,
         token: SyncAuthToken,
-        operations: List<SyncEnvelope>
+        operations: List<SyncEnvelope>,
+        requestSecurity: SyncRequestSecurity?
     ): List<SyncPushAck> {
         val endpoint = URL("$baseApiUrl/sync/v1/ops/push")
         val conn = (endpoint.openConnection() as HttpURLConnection).apply {
@@ -44,6 +51,7 @@ class LaravelSyncApiClient(
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Authorization", "Bearer ${token.accessToken}")
         }
+        applyRequestSecurityHeaders(conn, requestSecurity)
         val ops = JSONArray()
         operations.forEach { op ->
             ops.put(
@@ -63,6 +71,7 @@ class LaravelSyncApiClient(
             put("device_id", token.deviceId)
             put("profile", profile)
             put("operations", ops)
+            requestSecurity?.let { put("request_security", it.toJson()) }
         }.toString()
         OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { it.write(body) }
 
@@ -87,11 +96,15 @@ class LaravelSyncApiClient(
         profile: String,
         token: SyncAuthToken,
         cursorToken: String?,
-        limit: Int
+        limit: Int,
+        requestSecurity: SyncRequestSecurity?
     ): SyncPullResult {
         val query = buildList {
             add("profile=${URLEncoder.encode(profile, Charsets.UTF_8.name())}")
             add("limit=$limit")
+            if (token.deviceId.isNotBlank()) {
+                add("device_id=${URLEncoder.encode(token.deviceId, Charsets.UTF_8.name())}")
+            }
             if (!cursorToken.isNullOrBlank()) {
                 add("cursor=${URLEncoder.encode(cursorToken, Charsets.UTF_8.name())}")
             }
@@ -103,6 +116,7 @@ class LaravelSyncApiClient(
             readTimeout = READ_TIMEOUT_MS
             setRequestProperty("Authorization", "Bearer ${token.accessToken}")
         }
+        applyRequestSecurityHeaders(conn, requestSecurity)
         val response = readJsonResponse(conn)
         val ops = response.optJSONArray("operations") ?: JSONArray()
         val pulled = buildList {
@@ -135,10 +149,29 @@ class LaravelSyncApiClient(
         val text = if (code in 200..299) {
             conn.inputStream.use { it.reader(Charsets.UTF_8).readText() }
         } else {
-            val body = conn.errorStream?.use { it.reader(Charsets.UTF_8).readText() } ?: "No body"
-            throw IllegalStateException("Sync API request failed ($code): $body")
+            // Avoid propagating raw backend response bodies to caller/UI surfaces.
+            conn.errorStream?.close()
+            throw IllegalStateException("Sync API request failed ($code)")
         }
         return if (text.isBlank()) JSONObject() else JSONObject(text)
+    }
+
+    private fun applyRequestSecurityHeaders(
+        conn: HttpURLConnection,
+        requestSecurity: SyncRequestSecurity?
+    ) {
+        val security = requestSecurity ?: return
+        conn.setRequestProperty("X-Play-Integrity-Token", security.integrityToken)
+        conn.setRequestProperty("X-Play-Integrity-Request-Hash", security.requestHash)
+        conn.setRequestProperty("X-Play-Integrity-Issued-At", security.issuedAtEpochSeconds.toString())
+    }
+
+    private fun SyncRequestSecurity.toJson(): JSONObject {
+        return JSONObject().apply {
+            put("integrity_token", integrityToken)
+            put("request_hash", requestHash)
+            put("issued_at", issuedAtEpochSeconds)
+        }
     }
 
     companion object {

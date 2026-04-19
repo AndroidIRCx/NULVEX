@@ -47,6 +47,7 @@ class PlayBillingCoordinatorTest {
         var lastError: String? = null
         var removeAdsGranted = 0
         var proGranted = 0
+        val proSyncTokens = mutableListOf<String>()
         var refreshCalls = 0
 
         override fun setBillingReady(ready: Boolean) {
@@ -67,6 +68,10 @@ class PlayBillingCoordinatorTest {
 
         override fun grantLifetimeProFeatures() {
             proGranted++
+        }
+
+        override fun onProSyncTokenAvailable(purchaseToken: String) {
+            proSyncTokens += purchaseToken
         }
 
         override fun refreshAdFreeState() {
@@ -189,6 +194,7 @@ class PlayBillingCoordinatorTest {
 
         assertEquals(1, sink.removeAdsGranted)
         assertEquals(1, sink.proGranted)
+        assertEquals(listOf("tok-1"), sink.proSyncTokens)
         assertEquals(1, sink.refreshCalls)
     }
 
@@ -215,6 +221,7 @@ class PlayBillingCoordinatorTest {
 
         assertEquals(listOf("tok-2"), gateway.acknowledgedTokens)
         assertEquals(1, sink.removeAdsGranted)
+        assertTrue(sink.proSyncTokens.isEmpty())
         assertEquals(1, sink.refreshCalls)
     }
 

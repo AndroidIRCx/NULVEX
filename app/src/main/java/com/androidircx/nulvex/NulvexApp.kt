@@ -1,6 +1,8 @@
 package com.androidircx.nulvex
 
 import android.app.Application
+import android.content.Context
+import android.os.UserManager
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.androidircx.nulvex.i18n.sanitizeLanguageTag
@@ -20,15 +22,21 @@ import java.util.concurrent.TimeUnit
 class NulvexApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        applySavedLanguage()
+        val userManager = getSystemService(Context.USER_SERVICE) as UserManager
+        val isUnlocked = userManager.isUserUnlocked
+        if (isUnlocked) {
+            applySavedLanguage()
+        }
         VaultServiceLocator.init(this)
-        MobileAds.initialize(this)
-        FirebaseCrashlytics.getInstance().setCustomKey("app_locale", AppPreferences(this).getLanguageTag())
+        if (isUnlocked) {
+            MobileAds.initialize(this)
+            FirebaseCrashlytics.getInstance().setCustomKey("app_locale", AppPreferences(this).getLanguageTag())
+            reschedulePersistedReminders()
+        }
         warmUpPlayIntegrity()
         scheduleSelfDestructWork()
         SyncWorkScheduler.schedule(this)
         ReminderNotificationHelper.ensureChannel(this)
-        reschedulePersistedReminders()
     }
 
     private fun applySavedLanguage() {

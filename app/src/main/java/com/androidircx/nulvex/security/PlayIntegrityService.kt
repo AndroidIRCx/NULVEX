@@ -4,7 +4,9 @@ import android.content.Context
 import com.androidircx.nulvex.BuildConfig
 import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.StandardIntegrityManager
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.security.MessageDigest
+import kotlin.coroutines.resume
 
 class PlayIntegrityService(context: Context) {
     private val appContext = context.applicationContext
@@ -48,6 +50,32 @@ class PlayIntegrityService(context: Context) {
             onComplete(Result.success(token.token()))
         }.addOnFailureListener { error ->
             onComplete(Result.failure(error))
+        }
+    }
+
+    suspend fun requestTokenOrNull(requestHash: String): String? {
+        if (!isConfigured()) return null
+
+        if (tokenProvider == null) {
+            val prepared = prepareSuspend()
+            if (prepared.isFailure) return null
+        }
+        return requestTokenSuspend(requestHash).getOrNull()
+    }
+
+    private suspend fun prepareSuspend(): Result<Unit> {
+        return suspendCancellableCoroutine { continuation ->
+            prepare { result ->
+                if (continuation.isActive) continuation.resume(result)
+            }
+        }
+    }
+
+    private suspend fun requestTokenSuspend(requestHash: String): Result<String> {
+        return suspendCancellableCoroutine { continuation ->
+            requestToken(requestHash) { result ->
+                if (continuation.isActive) continuation.resume(result)
+            }
         }
     }
 

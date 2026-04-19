@@ -321,6 +321,7 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.security.crypto)
     implementation(libs.play.services.ads)
     implementation(libs.play.services.code.scanner)
     implementation(libs.play.integrity)

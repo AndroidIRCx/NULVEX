@@ -11,11 +11,17 @@ import com.androidircx.nulvex.ads.AdManager
 import com.androidircx.nulvex.data.ChecklistItem
 import com.androidircx.nulvex.data.Note
 import com.androidircx.nulvex.data.NoteRevision
+import com.androidircx.nulvex.data.SyncConflictEntity
 import com.androidircx.nulvex.i18n.tx
 import com.androidircx.nulvex.pro.BackupRecord
+import com.androidircx.nulvex.pro.ImportPayloadValidator
+import com.androidircx.nulvex.pro.PayloadTooLargeException
 import com.androidircx.nulvex.pro.SharedKeyInfo
+import com.androidircx.nulvex.pro.UnsupportedImportMimeException
 import com.androidircx.nulvex.reminder.ReminderConstants
 import com.androidircx.nulvex.reminder.ReminderRequest
+import com.androidircx.nulvex.security.SecurityEvent
+import com.androidircx.nulvex.security.SecurityEventStore
 import com.androidircx.nulvex.security.VaultProfile
 import com.androidircx.nulvex.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
@@ -105,7 +111,16 @@ data class UiState(
     val noteRevisions: List<NoteRevision> = emptyList(),
     val newNoteQuickCreate: QuickCreateType = QuickCreateType.TEXT,
     val newNoteDraft: NewNoteDraft? = null,
-    val pendingImport: PendingImport? = null
+    val pendingImport: PendingImport? = null,
+    // F1 – Sync observability
+    val syncConflicts: List<SyncConflictEntity> = emptyList(),
+    val lastSyncAt: Long = 0L,
+    val lastSyncConflicts: Int = 0,
+    // F2 – Security timeline
+    val securityEvents: List<SecurityEvent> = emptyList(),
+    // F3 – Key rotation wizard
+    val keyRotationError: String? = null,
+    val keyRotationDone: Boolean = false
 )
 
 sealed class Screen {
@@ -129,6 +144,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val sharedKeyStore = VaultServiceLocator.sharedKeyStore()
     private val encryptedBackupService = VaultServiceLocator.encryptedBackupService()
     private val reminderScheduler = VaultServiceLocator.noteReminderScheduler()
+    private val securityEventStore = VaultServiceLocator.securityEventStore()
+    private val syncPreferences = VaultServiceLocator.syncPreferences()
     private val noteEditHistory = NoteEditHistory()
     private var inactivityJob: Job? = null
     private var autoSaveEditJob: Job? = null
@@ -263,6 +280,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 sharedKeyStore.importKey(label, source, rawKey)
+                securityEventStore.record(SecurityEventStore.EVENT_KEY_IMPORT, label)
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -272,12 +290,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         backupRecords = encryptedBackupService.listBackupRecords()
                     )
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Failed to import key: {reason}")
-                            .replace("{reason}", e.message ?: "unknown error")
+                        error = appContext.tx("Failed to import key")
                     )
                 }
             }
@@ -285,7 +302,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteSharedKey(keyId: String) {
+        val label = uiState.value.sharedKeys.firstOrNull { it.id == keyId }?.label ?: keyId
         sharedKeyStore.deleteKey(keyId)
+        securityEventStore.record(SecurityEventStore.EVENT_KEY_DELETE, label)
         uiState.value = uiState.value.copy(
             sharedKeys = sharedKeyStore.listKeys(),
             backupRecords = encryptedBackupService.listBackupRecords()
@@ -305,6 +324,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val result = encryptedBackupService.uploadEncryptedBackup(keyId)
+                securityEventStore.record(SecurityEventStore.EVENT_BACKUP_EXPORT, "remote")
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -451,12 +471,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         noteShareUrl = result.url
                     )
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Note share upload failed: {reason}")
-                            .replace("{reason}", e.message?.take(120) ?: "unknown error")
+                        error = appContext.tx("Note share upload failed")
                     )
                 }
             }
@@ -483,12 +502,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         noteShareUrl = result.url
                     )
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Key manager upload failed: {reason}")
-                            .replace("{reason}", e.message?.take(120) ?: "unknown error")
+                        error = appContext.tx("Key manager upload failed")
                     )
                 }
             }
@@ -518,12 +536,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             .replace("{count}", imported.toString())
                     )
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Key manager restore failed: {reason}")
-                            .replace("{reason}", e.message?.take(120) ?: "unknown error")
+                        error = appContext.tx("Key manager restore failed")
                     )
                 }
             }
@@ -543,12 +560,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun generateXChaChaKey(label: String) {
         try {
             sharedKeyStore.generateXChaChaKey(label.ifBlank { appContext.tx("XChaCha key") })
+            securityEventStore.record(SecurityEventStore.EVENT_KEY_GENERATE, "xchacha")
             uiState.value = uiState.value.copy(backupStatus = "")
             uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("XChaCha key generated"))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             uiState.value = uiState.value.copy(
-                error = appContext.tx("Failed to generate XChaCha key: {reason}")
-                    .replace("{reason}", e.message ?: "unknown error")
+                error = appContext.tx("Failed to generate XChaCha key")
             )
         }
     }
@@ -556,12 +573,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun generatePgpKey(label: String) {
         try {
             sharedKeyStore.generatePgpKey(label.ifBlank { appContext.tx("OpenPGP key") })
+            securityEventStore.record(SecurityEventStore.EVENT_KEY_GENERATE, "pgp")
             uiState.value = uiState.value.copy(backupStatus = "")
             uiState.value = uiState.value.copy(sharedKeys = sharedKeyStore.listKeys(), backupStatus = appContext.tx("OpenPGP key generated"))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             uiState.value = uiState.value.copy(
-                error = appContext.tx("Failed to generate OpenPGP key: {reason}")
-                    .replace("{reason}", e.message ?: "unknown error")
+                error = appContext.tx("Failed to generate OpenPGP key")
             )
         }
     }
@@ -653,6 +670,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         appContext.tx("Invalid PIN")
                     appPreferences.setWrongAttempts(attempts)
                     appPreferences.setLockoutUntil(newLockoutUntil)
+                    securityEventStore.record(SecurityEventStore.EVENT_UNLOCK_FAIL)
+                    if (newLockoutUntil > 0L) {
+                        securityEventStore.record(SecurityEventStore.EVENT_LOCKOUT, "${lockoutMs / 1000}s")
+                    }
                     uiState.value = uiState.value.copy(
                         error = errorMsg,
                         isBusy = false,
@@ -663,6 +684,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             val notes = listCurrentNotes()
+            securityEventStore.record(SecurityEventStore.EVENT_UNLOCK_SUCCESS, profile.id)
             withContext(Dispatchers.Main) {
                 appPreferences.setWrongAttempts(0)
                 appPreferences.setLockoutUntil(0L)
@@ -901,6 +923,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             uiState.value = uiState.value.copy(error = appContext.tx("Choose a key first"))
             return
         }
+        val localValidationError = validateIncomingPayload(bytes.size, mimeType)
+        if (localValidationError != null) {
+            uiState.value = uiState.value.copy(error = localValidationError)
+            return
+        }
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -956,6 +983,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun importIncomingKeyManager(bytes: ByteArray, password: String?) {
+        val localValidationError = validateIncomingPayload(
+            bytesSize = bytes.size,
+            mimeType = com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+        )
+        if (localValidationError != null) {
+            uiState.value = uiState.value.copy(error = localValidationError)
+            return
+        }
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -983,6 +1018,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val bytes = encryptedBackupService.downloadKeyManagerBackup(mediaId)
+                validateIncomingPayload(
+                    bytesSize = bytes.size,
+                    mimeType = com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME
+                )?.let { message ->
+                    withContext(Dispatchers.Main) {
+                        uiState.value = uiState.value.copy(isBusy = false, error = message)
+                    }
+                    return@launch
+                }
                 val imported = sharedKeyStore.importManagerBackup(bytes, password?.toCharArray())
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
@@ -1095,6 +1139,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             biometricEnabled = appPreferences.isBiometricEnabled(),
             themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
         )
+        loadSyncStatus()
+        loadSecurityEvents()
         resetInactivityTimer()
     }
 
@@ -1273,16 +1319,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             val ok = authController.changeRealPin(oldPin.toCharArray(), newPin.toCharArray())
+            if (ok) securityEventStore.record(SecurityEventStore.EVENT_KEY_ROTATION)
             withContext(Dispatchers.Main) {
                 uiState.value = if (ok) {
                     uiState.value.copy(
                         isBusy = false,
-                        error = null
+                        error = null,
+                        keyRotationDone = true,
+                        keyRotationError = null
                     )
                 } else {
                     uiState.value.copy(
                         isBusy = false,
-                        error = appContext.tx("Current PIN is incorrect")
+                        error = appContext.tx("Current PIN is incorrect"),
+                        keyRotationError = appContext.tx("Current PIN is incorrect")
                     )
                 }
             }
@@ -1899,6 +1949,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun panicWipe() {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
+            securityEventStore.record(SecurityEventStore.EVENT_PANIC_WIPE)
             appPreferences.getReminderSchedules().keys.forEach { noteId ->
                 reminderScheduler.cancel(noteId)
             }
@@ -1931,6 +1982,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             clearInactivityTimer()
         }
+    }
+
+    // ── F1: Sync status + conflict resolution ────────────────────────────────
+
+    fun loadSyncStatus() {
+        uiState.value = uiState.value.copy(
+            lastSyncAt = syncPreferences.getLastSyncAt(),
+            lastSyncConflicts = syncPreferences.getLastSyncConflictCount()
+        )
+        val profile = uiState.value.lastProfile?.id ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val conflicts = vaultService.listSyncConflicts(profile)
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(syncConflicts = conflicts)
+            }
+        }
+    }
+
+    fun resolveSyncConflict(conflictId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            vaultService.resolveSyncConflict(conflictId)
+            val profile = uiState.value.lastProfile?.id ?: return@launch
+            val conflicts = vaultService.listSyncConflicts(profile)
+            withContext(Dispatchers.Main) {
+                uiState.value = uiState.value.copy(syncConflicts = conflicts)
+            }
+        }
+    }
+
+    // ── F2: Security timeline ─────────────────────────────────────────────────
+
+    fun loadSecurityEvents() {
+        val events = securityEventStore.listEvents()
+        uiState.value = uiState.value.copy(securityEvents = events)
+    }
+
+    // ── F3: Key rotation wizard ───────────────────────────────────────────────
+
+    fun clearKeyRotationState() {
+        uiState.value = uiState.value.copy(
+            keyRotationError = null,
+            keyRotationDone = false
+        )
     }
 
     private suspend fun listCurrentNotes(): List<Note> {
@@ -2094,6 +2188,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun setBusy(value: Boolean) {
         uiState.value = uiState.value.copy(isBusy = value, error = null)
+    }
+
+    private fun validateIncomingPayload(bytesSize: Int, mimeType: String): String? {
+        return try {
+            ImportPayloadValidator.validateSizeOrThrow(bytesSize, mimeType)
+            null
+        } catch (e: Exception) {
+            when (e) {
+                is PayloadTooLargeException -> appContext.tx("Incoming file exceeds allowed size limit")
+                is UnsupportedImportMimeException -> appContext.tx("Unsupported import file type")
+                else -> appContext.tx("Import blocked by security policy")
+            }
+        }
     }
 
     private fun shouldAutoLock(): Boolean {

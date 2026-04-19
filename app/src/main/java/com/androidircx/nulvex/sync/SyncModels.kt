@@ -35,3 +35,9 @@ data class SyncPullResult(
     val cursorToken: String?,
     val operations: List<SyncPulledOp>
 )
+
+data class SyncRequestSecurity(
+    val integrityToken: String,
+    val requestHash: String,
+    val issuedAtEpochSeconds: Long
+)

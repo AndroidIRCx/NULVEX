@@ -161,6 +161,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.window.Dialog
 import com.androidircx.nulvex.i18n.tx
 import com.androidircx.nulvex.R
+import com.androidircx.nulvex.security.SecurityEventStore
 import com.androidircx.nulvex.ui.theme.Brass
 import com.androidircx.nulvex.ui.theme.Coal
 import com.androidircx.nulvex.ui.theme.Ember
@@ -305,7 +306,9 @@ fun MainScreen(
     onImportIncomingRemote: (String, String, Boolean) -> Unit = { _, _, _ -> },
     onImportIncomingRemoteKeyManager: (String, String?) -> Unit = { _, _ -> },
     onClearPendingImport: () -> Unit = {},
-    onClearNoteShareUrl: () -> Unit = {}
+    onClearNoteShareUrl: () -> Unit = {},
+    onResolveSyncConflict: (String) -> Unit = {},
+    onClearKeyRotationState: () -> Unit = {}
 ) {
     var showPanicConfirm by remember { mutableStateOf(false) }
     var showLabelMenu by remember { mutableStateOf(false) }
@@ -435,7 +438,9 @@ fun MainScreen(
                             onGeneratePgpKey = onGeneratePgpKey,
                             onBuildKeyTransferPayload = onBuildKeyTransferPayload,
                             onBuildQrKeyTransferPayload = onBuildQrKeyTransferPayload,
-                            onStartNfcKeyShare = onStartNfcKeyShare
+                            onStartNfcKeyShare = onStartNfcKeyShare,
+                            onResolveSyncConflict = onResolveSyncConflict,
+                            onClearKeyRotationState = onClearKeyRotationState
                         )
                         Screen.Purchases -> PurchaseScreen(
                             state = state,
@@ -1835,7 +1840,9 @@ private fun SettingsScreen(
     onGeneratePgpKey: (String) -> Unit = {},
     onBuildKeyTransferPayload: (String) -> String? = { null },
     onBuildQrKeyTransferPayload: (String) -> String? = { null },
-    onStartNfcKeyShare: (String) -> Unit = {}
+    onStartNfcKeyShare: (String) -> Unit = {},
+    onResolveSyncConflict: (String) -> Unit = {},
+    onClearKeyRotationState: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -1870,6 +1877,10 @@ private fun SettingsScreen(
     var confirmDeleteKeyId by remember { mutableStateOf<String?>(null) }
     var confirmDeleteBackupId by remember { mutableStateOf<String?>(null) }
     var lastHandledStatus by remember { mutableStateOf("") }
+    var showKeyRotationWizard by remember { mutableStateOf(false) }
+    var krOldPin by remember { mutableStateOf("") }
+    var krNewPin by remember { mutableStateOf("") }
+    var krConfirmPin by remember { mutableStateOf("") }
     val settingsScroll = rememberScrollState()
     val normalizedQuery = settingsSearch.trim().lowercase()
 
@@ -2463,6 +2474,121 @@ private fun SettingsScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(tx("Rekeying vault..."), color = Brass, style = MaterialTheme.typography.labelMedium)
                 }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                HorizontalDivider(color = onSurface.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // F3 – Key Rotation Wizard
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Security,
+                        contentDescription = null,
+                        tint = Moss,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(tx("Key Rotation Wizard"), color = onSurface)
+                        Text(
+                            tx("Guided re-encryption of vault with new PIN"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        krOldPin = ""
+                        krNewPin = ""
+                        krConfirmPin = ""
+                        onClearKeyRotationState()
+                        showKeyRotationWizard = true
+                    },
+                    enabled = !state.isBusy,
+                    colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Ink)
+                ) {
+                    Text(tx("OPEN KEY ROTATION WIZARD"))
+                }
+
+                // F2 – Security Event Timeline
+                Spacer(modifier = Modifier.height(20.dp))
+                HorizontalDivider(color = onSurface.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.History,
+                        contentDescription = null,
+                        tint = onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column {
+                        Text(tx("Security Timeline"), color = onSurface)
+                        Text(
+                            tx("Local audit log — unlock, wipe, key events"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+                if (state.securityEvents.isEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        tx("No events recorded yet."),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurface.copy(alpha = 0.5f)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    state.securityEvents.take(30).forEach { event ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val (icon, color) = when (event.type) {
+                                SecurityEventStore.EVENT_UNLOCK_SUCCESS -> Icons.Filled.Shield to Moss
+                                SecurityEventStore.EVENT_UNLOCK_FAIL -> Icons.Filled.Warning to Ember
+                                SecurityEventStore.EVENT_LOCKOUT -> Icons.Filled.Lock to Ember
+                                SecurityEventStore.EVENT_PANIC_WIPE -> Icons.Filled.DeleteForever to Ember
+                                SecurityEventStore.EVENT_KEY_ROTATION -> Icons.Filled.Security to Brass
+                                SecurityEventStore.EVENT_BACKUP_EXPORT -> Icons.Filled.FileDownload to Brass
+                                else -> Icons.Filled.Info to onSurface.copy(alpha = 0.5f)
+                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = color,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .padding(end = 0.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    event.type.replace('_', ' '),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = onSurface
+                                )
+                                if (event.detail.isNotBlank()) {
+                                    Text(
+                                        event.detail,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = onSurface.copy(alpha = 0.5f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Text(
+                                formatEventTime(event.timestampMillis),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = onSurface.copy(alpha = 0.4f)
+                            )
+                        }
+                    }
+                }
             }
 
             if (showDanger && (showAds || showDisplay || showVaultDefaults || showSecurity)) SettingsDivider()
@@ -3019,7 +3145,103 @@ private fun SettingsScreen(
                 }
             }
 
-            if (showAbout && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys || showBackup)) {
+            // === SYNC STATUS SECTION (F1) ===
+            val showSync = state.hasProFeatures && matchesSection(
+                tx("Sync"),
+                tx("Multi-device sync status"),
+                "sync",
+                "conflict",
+                "multi-device"
+            )
+            if (showSync && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys || showBackup)) {
+                SettingsDivider()
+            }
+            if (showSync) SettingsSection(
+                icon = Icons.Filled.Schedule,
+                title = tx("Sync"),
+                description = tx("Multi-device sync status"),
+                expanded = isExpanded("sync"),
+                onToggle = { toggleSection("sync") }
+            ) {
+                val lastSyncTs = state.lastSyncAt
+                val lastSyncLabel = if (lastSyncTs == 0L) {
+                    tx("Never synced")
+                } else {
+                    val diffSec = (System.currentTimeMillis() - lastSyncTs) / 1000L
+                    when {
+                        diffSec < 60 -> tx("Synced just now")
+                        diffSec < 3600 -> tx("Synced {m}m ago").replace("{m}", (diffSec / 60).toString())
+                        diffSec < 86400 -> tx("Synced {h}h ago").replace("{h}", (diffSec / 3600).toString())
+                        else -> tx("Synced {d}d ago").replace("{d}", (diffSec / 86400).toString())
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = null,
+                        tint = if (lastSyncTs == 0L) onSurface.copy(alpha = 0.4f) else Moss,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(lastSyncLabel, color = onSurface)
+                        if (state.lastSyncConflicts > 0) {
+                            Text(
+                                tx("{n} conflict(s) last cycle").replace("{n}", state.lastSyncConflicts.toString()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Ember
+                            )
+                        }
+                    }
+                }
+
+                if (state.syncConflicts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        tx("Open conflicts — local version was kept"),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    state.syncConflicts.forEach { conflict ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        tx("Note ID: {id}").replace("{id}", conflict.entityId.take(12) + "…"),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = onSurface
+                                    )
+                                    Text(
+                                        formatEventTime(conflict.createdAt),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = onSurface.copy(alpha = 0.5f)
+                                    )
+                                }
+                                TextButton(onClick = { onResolveSyncConflict(conflict.id) }) {
+                                    Text(tx("DISMISS"), color = Moss)
+                                }
+                            }
+                        }
+                    }
+                } else if (lastSyncTs > 0L) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        tx("No open conflicts"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Moss
+                    )
+                }
+            }
+
+            if (showAbout && (showAds || showDisplay || showVaultDefaults || showSecurity || showDanger || showKeys || showBackup || showSync)) {
                 SettingsDivider()
             }
 
@@ -3181,6 +3403,154 @@ private fun SettingsScreen(
                 TextButton(onClick = { confirmDeleteBackupId = null }) { Text(tx("NO")) }
             }
         )
+    }
+
+    // ── F3: Key Rotation Wizard dialog ───────────────────────────────────────
+    if (showKeyRotationWizard) {
+        val krPinMismatch = krNewPin.isNotEmpty() && krConfirmPin.isNotEmpty() && krNewPin != krConfirmPin
+        Dialog(onDismissRequest = {
+            if (!state.isBusy) {
+                showKeyRotationWizard = false
+                onClearKeyRotationState()
+            }
+        }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Security, contentDescription = null, tint = Moss,
+                        modifier = Modifier.padding(end = 10.dp))
+                    Text(tx("Key Rotation Wizard"),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    tx("Re-encrypts all notes and the database under your new PIN. This may take a few seconds."),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                when {
+                    state.keyRotationDone -> {
+                        Icon(Icons.Filled.Shield, contentDescription = null, tint = Moss,
+                            modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(tx("Key rotation complete. Your vault is now re-encrypted with the new PIN."),
+                            color = Moss, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                showKeyRotationWizard = false
+                                onClearKeyRotationState()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Ink)
+                        ) { Text(tx("DONE")) }
+                    }
+                    state.isBusy -> {
+                        Text(tx("Re-encrypting vault…"),
+                            color = Brass, style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(tx("Please wait, do not close the app."),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            modifier = Modifier.align(Alignment.CenterHorizontally))
+                    }
+                    else -> {
+                        OutlinedTextField(
+                            value = krOldPin,
+                            onValueChange = { krOldPin = it },
+                            label = { Text(tx("Current PIN")) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.NumberPassword,
+                                imeAction = ImeAction.Next,
+                                autoCorrectEnabled = false
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = krNewPin,
+                            onValueChange = { krNewPin = it },
+                            label = { Text(tx("New PIN")) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.NumberPassword,
+                                imeAction = ImeAction.Next,
+                                autoCorrectEnabled = false
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = krConfirmPin,
+                            onValueChange = { krConfirmPin = it },
+                            label = { Text(tx("Confirm new PIN")) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.NumberPassword,
+                                imeAction = ImeAction.Done,
+                                autoCorrectEnabled = false
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (krPinMismatch) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(tx("PINs do not match"), color = Ember,
+                                style = MaterialTheme.typography.labelSmall)
+                        }
+                        if (state.keyRotationError != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(state.keyRotationError, color = Ember,
+                                style = MaterialTheme.typography.labelSmall)
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    showKeyRotationWizard = false
+                                    onClearKeyRotationState()
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) { Text(tx("CANCEL")) }
+                            Button(
+                                onClick = {
+                                    onChangeRealPin(krOldPin, krNewPin, krConfirmPin)
+                                },
+                                enabled = krOldPin.isNotBlank() && krNewPin.isNotBlank() && !krPinMismatch,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Ink)
+                            ) { Text(tx("ROTATE")) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatEventTime(ts: Long): String {
+    if (ts == 0L) return ""
+    val diffSec = (System.currentTimeMillis() - ts) / 1000L
+    return when {
+        diffSec < 60 -> "just now"
+        diffSec < 3600 -> "${diffSec / 60}m ago"
+        diffSec < 86400 -> "${diffSec / 3600}h ago"
+        else -> "${diffSec / 86400}d ago"
     }
 }
 

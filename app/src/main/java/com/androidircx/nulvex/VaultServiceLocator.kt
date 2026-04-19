@@ -18,6 +18,7 @@ import com.androidircx.nulvex.sync.LaravelSyncApiClient
 import com.androidircx.nulvex.sync.SyncApi
 import com.androidircx.nulvex.sync.SyncPreferences
 import com.androidircx.nulvex.security.PlayIntegrityService
+import com.androidircx.nulvex.security.SecurityEventStore
 
 object VaultServiceLocator {
     private lateinit var sessionManager: VaultSessionManager
@@ -35,6 +36,7 @@ object VaultServiceLocator {
     private lateinit var syncPreferences: SyncPreferences
     private lateinit var syncApi: SyncApi
     private lateinit var playIntegrityService: PlayIntegrityService
+    private lateinit var securityEventStore: SecurityEventStore
 
     fun init(context: Context) {
         val appContext = context.applicationContext
@@ -53,6 +55,7 @@ object VaultServiceLocator {
         syncPreferences = SyncPreferences(appContext)
         syncApi = LaravelSyncApiClient()
         playIntegrityService = PlayIntegrityService(appContext)
+        securityEventStore = SecurityEventStore(appContext)
     }
 
     fun sessionManager(): VaultSessionManager = sessionManager
@@ -70,4 +73,5 @@ object VaultServiceLocator {
     fun syncPreferences(): SyncPreferences = syncPreferences
     fun syncApi(): SyncApi = syncApi
     fun playIntegrityService(): PlayIntegrityService = playIntegrityService
+    fun securityEventStore(): SecurityEventStore = securityEventStore
 }

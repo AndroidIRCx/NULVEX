@@ -74,7 +74,10 @@ class EncryptedBackupService(
     }
 
     suspend fun downloadKeyManagerBackup(mediaId: String): ByteArray {
-        return apiClient.download(mediaId)
+        return apiClient.download(
+            id = mediaId,
+            maxBytes = ImportPayloadValidator.KEY_MANAGER_MAX_BYTES
+        )
     }
 
     suspend fun buildEncryptedNoteShareWrapper(noteId: String, keyId: String): ByteArray {
@@ -109,7 +112,12 @@ class EncryptedBackupService(
         downloadToken: String? = null,
         downloadExpires: Long? = null
     ): Int {
-        val wrapper = apiClient.download(mediaId, downloadToken, downloadExpires)
+        val wrapper = apiClient.download(
+            id = mediaId,
+            downloadToken = downloadToken,
+            downloadExpires = downloadExpires,
+            maxBytes = ImportPayloadValidator.BACKUP_MAX_BYTES
+        )
         val plaintext = decryptWrapper(wrapper, keyId)
         try {
             return vaultService.importBackupJsonBytes(plaintext, merge = merge)
@@ -119,6 +127,10 @@ class EncryptedBackupService(
     }
 
     suspend fun restoreFromEncryptedBytes(wrapper: ByteArray, keyId: String, merge: Boolean): Int {
+        ImportPayloadValidator.validateSizeOrThrow(
+            sizeBytes = wrapper.size,
+            mimeType = NulvexFileTypes.BACKUP_MIME
+        )
         val plaintext = decryptWrapper(wrapper, keyId)
         try {
             return vaultService.importBackupJsonBytes(plaintext, merge = merge)

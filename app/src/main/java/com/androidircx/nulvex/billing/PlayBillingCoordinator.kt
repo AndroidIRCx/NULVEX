@@ -13,6 +13,7 @@ interface PlayBillingStateSink {
     fun showError(message: String)
     fun grantLifetimeRemoveAds()
     fun grantLifetimeProFeatures()
+    fun onProSyncTokenAvailable(purchaseToken: String)
     fun refreshAdFreeState()
 }
 
@@ -91,6 +92,9 @@ class PlayBillingCoordinator(
     }
 
     private fun applyEntitlements(purchase: BillingPurchaseInfo) {
+        if (purchase.products.contains(PlayBillingProducts.PRO_FEATURES_ONE_TIME)) {
+            sink.onProSyncTokenAvailable(purchase.purchaseToken)
+        }
         purchase.products.forEach { productId ->
             when (productId) {
                 PlayBillingProducts.REMOVE_ADS_ONE_TIME -> sink.grantLifetimeRemoveAds()

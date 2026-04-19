@@ -2,6 +2,7 @@ package com.androidircx.nulvex.pro
 
 import org.json.JSONObject
 import java.io.BufferedOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
@@ -71,13 +72,18 @@ class LaravelMediaApiClient(
 
         val code = conn.responseCode
         if (code !in 200..299) {
-            val body = readError(conn)
-            throw IllegalStateException("Upload failed ($code): $body")
+            readError(conn) // consume stream, but do not leak raw body in thrown message
+            throw IllegalStateException("Upload failed ($code)")
         }
         return true
     }
 
-    fun download(id: String, downloadToken: String? = null, downloadExpires: Long? = null): ByteArray {
+    fun download(
+        id: String,
+        downloadToken: String? = null,
+        downloadExpires: Long? = null,
+        maxBytes: Int? = null
+    ): ByteArray {
         val query = buildList {
             if (!downloadToken.isNullOrBlank()) {
                 add("token=${URLEncoder.encode(downloadToken, Charsets.UTF_8.name())}")
@@ -103,17 +109,39 @@ class LaravelMediaApiClient(
         }
         val code = conn.responseCode
         if (code !in 200..299) {
-            val body = readError(conn)
-            throw IllegalStateException("Download failed ($code): $body")
+            readError(conn) // consume stream, but do not leak raw body in thrown message
+            throw IllegalStateException("Download failed ($code)")
         }
-        return conn.inputStream.use { it.readBytes() }
+        return conn.inputStream.use { input ->
+            if (maxBytes == null) {
+                input.readBytes()
+            } else {
+                readBytesWithLimit(input, maxBytes)
+            }
+        }
+    }
+
+    private fun readBytesWithLimit(input: java.io.InputStream, maxBytes: Int): ByteArray {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(8 * 1024)
+        var total = 0L
+        while (true) {
+            val read = input.read(buffer)
+            if (read <= 0) break
+            total += read.toLong()
+            if (total > maxBytes.toLong()) {
+                throw IllegalStateException("Download exceeded allowed size ($total bytes > $maxBytes bytes)")
+            }
+            output.write(buffer, 0, read)
+        }
+        return output.toByteArray()
     }
 
     private fun readResponse(conn: HttpURLConnection): String {
         val code = conn.responseCode
         if (code !in 200..299) {
-            val body = readError(conn)
-            throw IllegalStateException("Request failed ($code): $body")
+            readError(conn) // consume stream, but do not leak raw body in thrown message
+            throw IllegalStateException("Request failed ($code)")
         }
         return conn.inputStream.use { it.reader(Charsets.UTF_8).readText() }
     }

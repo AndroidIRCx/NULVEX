@@ -38,8 +38,8 @@ class SyncEngineTest {
         )
         coEvery { stateStore.pollReadyOutbox(any(), any()) } returns outbox
         coEvery { stateStore.getCursor("real") } returns "cur-1"
-        coEvery { api.push("real", token, any()) } returns listOf(SyncPushAck("op-1", true))
-        coEvery { api.pull("real", token, "cur-1", any()) } returns SyncPullResult(
+        coEvery { api.push("real", token, any(), any()) } returns listOf(SyncPushAck("op-1", true))
+        coEvery { api.pull("real", token, "cur-1", any(), any()) } returns SyncPullResult(
             cursorToken = "cur-2",
             operations = listOf(
                 SyncPulledOp(
@@ -78,7 +78,7 @@ class SyncEngineTest {
     fun runCycle_recordsConflict_whenBaseRevisionMismatches() = runTest {
         coEvery { stateStore.pollReadyOutbox(any(), any()) } returns emptyList()
         coEvery { stateStore.getCursor("real") } returns null
-        coEvery { api.pull("real", token, null, any()) } returns SyncPullResult(
+        coEvery { api.pull("real", token, null, any(), any()) } returns SyncPullResult(
             cursorToken = "cur-10",
             operations = listOf(
                 SyncPulledOp(
@@ -134,9 +134,9 @@ class SyncEngineTest {
             )
         )
         coEvery { stateStore.pollReadyOutbox(any(), any()) } returns outbox
-        coEvery { api.push("real", token, any()) } throws IllegalStateException("offline")
+        coEvery { api.push("real", token, any(), any()) } throws IllegalStateException("offline")
         coEvery { stateStore.getCursor("real") } returns null
-        coEvery { api.pull("real", token, null, any()) } returns SyncPullResult(
+        coEvery { api.pull("real", token, null, any(), any()) } returns SyncPullResult(
             cursorToken = null,
             operations = emptyList()
         )
@@ -159,7 +159,7 @@ class SyncEngineTest {
     fun runCycle_skipsCursorUpdate_whenApplyRequestsHalt() = runTest {
         coEvery { stateStore.pollReadyOutbox(any(), any()) } returns emptyList()
         coEvery { stateStore.getCursor("real") } returns "cur-4"
-        coEvery { api.pull("real", token, "cur-4", any()) } returns SyncPullResult(
+        coEvery { api.pull("real", token, "cur-4", any(), any()) } returns SyncPullResult(
             cursorToken = "cur-5",
             operations = listOf(
                 SyncPulledOp(
@@ -183,5 +183,32 @@ class SyncEngineTest {
 
         assertEquals(1, report.pulledApplied)
         coVerify(exactly = 0) { stateStore.updateCursor("real", any(), any()) }
+    }
+
+    @Test
+    fun runCycle_forwardsRequestSecurityToApi() = runTest {
+        val security = SyncRequestSecurity(
+            integrityToken = "pi-token",
+            requestHash = "hash-1",
+            issuedAtEpochSeconds = 123L
+        )
+        coEvery { stateStore.pollReadyOutbox(any(), any()) } returns emptyList()
+        coEvery { stateStore.getCursor("real") } returns null
+        coEvery { api.pull("real", token, null, any(), security) } returns SyncPullResult(
+            cursorToken = null,
+            operations = emptyList()
+        )
+
+        val engine = SyncEngine(
+            api = api,
+            stateStore = stateStore,
+            localRevisionLookup = { null },
+            applyRemoteOp = { true },
+            requestSecurityProvider = { security }
+        )
+
+        engine.runCycle(profile = "real", token = token)
+
+        coVerify(exactly = 1) { api.pull("real", token, null, any(), security) }
     }
 }

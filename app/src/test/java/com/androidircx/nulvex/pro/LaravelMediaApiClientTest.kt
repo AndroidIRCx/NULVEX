@@ -113,14 +113,17 @@ class LaravelMediaApiClientTest {
     @Test
     fun non2xx_throwsIllegalState() {
         server.createContext("/api/media/request-upload") { exchange ->
-            val response = "boom".toByteArray()
+            val response = "boom secret_token=abc123".toByteArray()
             exchange.sendResponseHeaders(500, response.size.toLong())
             exchange.responseBody.use { it.write(response) }
         }
 
         val client = LaravelMediaApiClient(baseUrl)
-        assertThrows(IllegalStateException::class.java) {
+        val thrown = assertThrows(IllegalStateException::class.java) {
             client.requestUpload()
         }
+        val message = thrown.message.orEmpty()
+        assertTrue(message.contains("Request failed (500)"))
+        assertTrue(!message.contains("secret_token"))
     }
 }
