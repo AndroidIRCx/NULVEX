@@ -33,6 +33,12 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean("biometric_enabled", value).apply()
     }
 
+    fun isAutoBiometricPromptEnabled(): Boolean = prefs.getBoolean("auto_biometric_prompt_enabled", true)
+
+    fun setAutoBiometricPromptEnabled(value: Boolean) {
+        prefs.edit().putBoolean("auto_biometric_prompt_enabled", value).apply()
+    }
+
     fun isDecoyBiometricEnabled(): Boolean = prefs.getBoolean("decoy_biometric_enabled", false)
 
     fun setDecoyBiometricEnabled(value: Boolean) {

@@ -271,6 +271,30 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContent {
             val state = vm.uiState.value
+            val autoPromptConsumedState = androidx.compose.runtime.remember(state.screen) {
+                androidx.compose.runtime.mutableStateOf(false)
+            }
+            androidx.compose.runtime.LaunchedEffect(
+                state.screen,
+                state.biometricEnabled,
+                state.autoBiometricPromptEnabled,
+                state.lockoutUntil,
+                state.isBusy
+            ) {
+                val lockedOut = System.currentTimeMillis() < state.lockoutUntil
+                if (
+                    state.screen == com.androidircx.nulvex.ui.Screen.Unlock &&
+                    state.biometricEnabled &&
+                    state.autoBiometricPromptEnabled &&
+                    !state.isBusy &&
+                    !lockedOut &&
+                    !autoPromptConsumedState.value &&
+                    biometricStore.hasEncryptedKey()
+                ) {
+                    autoPromptConsumedState.value = true
+                    startBiometricUnlock()
+                }
+            }
             NULVEXTheme(themeMode = state.themeMode) {
                 MainScreen(
                     state = state,
@@ -295,6 +319,7 @@ class MainActivity : AppCompatActivity() {
                     onRequestBiometricEnroll = ::startBiometricEnrollment,
                     onRequestBiometricUnlock = ::startBiometricUnlock,
                     onDisableBiometric = ::disableBiometric,
+                    onToggleAutoBiometricPrompt = vm::setAutoBiometricPromptEnabled,
                     onRequestDecoyBiometricEnroll = ::startDecoyBiometricEnrollment,
                     onRequestDecoyBiometricUnlock = ::startDecoyBiometricUnlock,
                     onDisableDecoyBiometric = ::disableDecoyBiometric,

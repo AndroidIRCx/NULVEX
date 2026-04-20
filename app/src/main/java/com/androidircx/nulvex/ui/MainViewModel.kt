@@ -77,6 +77,7 @@ data class UiState(
     val defaultExpiry: String = "none",
     val defaultReadOnce: Boolean = false,
     val biometricEnabled: Boolean = false,
+    val autoBiometricPromptEnabled: Boolean = true,
     val decoyBiometricEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val searchQuery: String = "",
@@ -164,6 +165,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             defaultExpiry = appPreferences.getDefaultExpiry(),
             defaultReadOnce = appPreferences.getDefaultReadOnce(),
             biometricEnabled = appPreferences.isBiometricEnabled(),
+            autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
             decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
             themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
             wrongAttempts = appPreferences.getWrongAttempts(),
@@ -632,6 +634,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
@@ -701,6 +704,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
@@ -1137,6 +1141,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             defaultExpiry = appPreferences.getDefaultExpiry(),
             defaultReadOnce = appPreferences.getDefaultReadOnce(),
             biometricEnabled = appPreferences.isBiometricEnabled(),
+            autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
             themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
         )
         loadSyncStatus()
@@ -1227,6 +1232,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disableBiometric() {
         appPreferences.setBiometricEnabled(false)
         uiState.value = uiState.value.copy(biometricEnabled = false)
+    }
+
+    fun setAutoBiometricPromptEnabled(enabled: Boolean) {
+        appPreferences.setAutoBiometricPromptEnabled(enabled)
+        uiState.value = uiState.value.copy(autoBiometricPromptEnabled = enabled)
     }
 
     fun setPinScramble(enabled: Boolean) {
@@ -1965,6 +1975,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
@@ -2056,6 +2067,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     defaultExpiry = appPreferences.getDefaultExpiry(),
                     defaultReadOnce = appPreferences.getDefaultReadOnce(),
                     biometricEnabled = appPreferences.isBiometricEnabled(),
+                    autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
                     savedLabels = appPreferences.getCustomLabels(),
