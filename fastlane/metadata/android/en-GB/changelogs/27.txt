@@ -1,0 +1,5 @@
+What's new in this release:
+- Fingerprint unlock can now be shown automatically when the app opens.
+- Added a new Security setting: "Auto-show fingerprint on app open" (enabled by default).
+- Security hardening: patched Netty and Bouncy Castle transitive dependencies.
+- Build and release pipeline reliability improvements.
