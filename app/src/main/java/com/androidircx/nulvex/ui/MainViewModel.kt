@@ -656,7 +656,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            val profile = authController.unlockWithPin(pin.toCharArray())
+            val profile = try {
+                authController.unlockWithPin(pin.toCharArray())
+            } catch (e: RuntimeException) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(
+                        error = appContext.tx("Failed to open vault on this device"),
+                        isBusy = false
+                    )
+                }
+                return@launch
+            }
             if (profile == null) {
                 withContext(Dispatchers.Main) {
                     val attempts = uiState.value.wrongAttempts + 1
@@ -2050,7 +2060,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun refreshNotes(targetScreen: Screen) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            val notes = listCurrentNotes()
+            val notes = try {
+                listCurrentNotes()
+            } catch (e: IllegalStateException) {
+                withContext(Dispatchers.Main) {
+                    uiState.value = uiState.value.copy(screen = Screen.Unlock, isBusy = false)
+                }
+                return@launch
+            }
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(
                     screen = targetScreen,

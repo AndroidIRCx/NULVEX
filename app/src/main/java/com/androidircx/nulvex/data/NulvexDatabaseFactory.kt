@@ -13,7 +13,11 @@ object NulvexDatabaseFactory {
         passphrase: ByteArray,
         dbName: String = DB_NAME
     ): NulvexDatabase {
-        System.loadLibrary("sqlcipher")
+        try {
+            System.loadLibrary("sqlcipher")
+        } catch (e: UnsatisfiedLinkError) {
+            throw RuntimeException("SQLCipher native library is not available on this device", e)
+        }
         val factory = SupportOpenHelperFactory(passphrase)
         return Room.databaseBuilder(context, NulvexDatabase::class.java, dbName)
             .openHelperFactory(factory)

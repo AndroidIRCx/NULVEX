@@ -688,6 +688,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scanQrKey() {
+        val probeIntent = Intent("com.google.android.gms.mlkit.ACTION_SCAN_BARCODE")
+        probeIntent.setPackage("com.google.android.gms")
+        if (packageManager.resolveActivity(probeIntent, 0) == null) {
+            vm.showError(tx("QR scanner is not available. Please update Google Play Services."))
+            return
+        }
         codeScanner.startScan()
             .addOnSuccessListener { barcode ->
                 val raw = barcode.rawValue?.trim().orEmpty()
@@ -1134,7 +1140,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun launchPurchase(productId: String, offerToken: String): Pair<Boolean, String> {
-            val client = billingClient ?: return false to tx("Google Play Billing is not ready")
+            val client = billingClient?.takeIf { it.isReady } ?: return false to tx("Google Play Billing is not ready")
             val details = productDetailsById[productId] ?: return false to tx("Missing product details")
             val productParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
                 .setProductDetails(details)

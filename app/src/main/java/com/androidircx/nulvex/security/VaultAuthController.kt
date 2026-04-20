@@ -30,6 +30,9 @@ class VaultAuthController(
         return try {
             vaultService.unlock(pin, profile)
             profile
+        } catch (e: RuntimeException) {
+            pin.wipe()
+            throw e
         } catch (_: Exception) {
             pin.wipe()
             null
