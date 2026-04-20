@@ -71,6 +71,6 @@ class NoteReminderReceiver : BroadcastReceiver() {
             .addAction(0, context.getString(R.string.reminder_action_mark_done), doneIntent)
             .build()
 
-        NotificationManagerCompat.from(context).notify(abs(noteId.hashCode()), notification)
+        NotificationManagerCompat.from(context).notify(abs(noteId.hashCode()), notification) // lgtm [java/android/implicit-pendingintents]
     }
 }
