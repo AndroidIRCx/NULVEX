@@ -897,6 +897,67 @@
     <string name="tx_auto_bc67a440ab">{count} izabrano</string>
     
     <string name="tx_auto_2dc2b0de3b">Preostalo {time}</string>
-    
+
     <string name="tx_auto_7e09c0135c">{time} {label}: {title}</string>
+
+    <!-- Strings added to complete translations -->
+    <string name="tx_auto_105d4889c3">## Dnevnik\n\nRaspoloženje:\nŠta se danas desilo:\nŠta sam naučio/la:\nSledeći korak:</string>
+    <string name="tx_auto_57a28588b4">## Sastanak\n\n- Dnevni red:\n- Odluke:\n- Zadaci:\n- Praćenje:</string>
+    <string name="tx_auto_d71f075b87">{n} konflikt(a) u poslednjem ciklusu</string>
+    <string name="tx_auto_e9c9f7bc39">1h</string>
+    <string name="tx_auto_0277959611">24h</string>
+    <string name="tx_auto_fd4a4c2d52">7d</string>
+    <string name="tx_auto_406f23109c">Prilog sačuvan</string>
+    <string name="tx_auto_199096675c">Automatski prikaži otisak prsta pri otvaranju aplikacije</string>
+    <string name="tx_auto_5aa4c0b9fa">Rezervna kopija premašuje dozvoljenu veličinu</string>
+    <string name="tx_auto_bbfa773e5a">Zatvori</string>
+    <string name="tx_auto_d2fd9a32e5">ODBACI</string>
+    <string name="tx_auto_e782e7728e">GOTOVO</string>
+    <string name="tx_auto_84280898c7">Omogući obaveštenja za primanje podsetnika</string>
+    <string name="tx_auto_fdfa54823e">Generisanje OpenPGP ključa nije uspelo</string>
+    <string name="tx_auto_98ca78e5cb">Generisanje XChaCha ključa nije uspelo</string>
+    <string name="tx_auto_bfd1769354">Uvoz ključa nije uspeo</string>
+    <string name="tx_auto_322ccfd319">Otvaranje trezora na ovom uređaju nije uspelo</string>
+    <string name="tx_auto_16cd09e821">Čuvanje priloga nije uspelo</string>
+    <string name="tx_auto_67bd5810ec">generisan</string>
+    <string name="tx_auto_91ef2056b0">Vođena ponovna enkripcija trezora novim PIN-om</string>
+    <string name="tx_auto_b62e28cb5f">Uvoz blokiran bezbednosnom politikom</string>
+    <string name="tx_auto_9d02c3b8c9">Uvoz nije uspeo — pogrešan ključ ili oštećen fajl</string>
+    <string name="tx_auto_cd56f01e52">Dolazni fajl premašuje dozvoljenu veličinu</string>
+    <string name="tx_auto_6afb975034">Uvoz ključa nije uspeo — pogrešna lozinka ili oštećen fajl</string>
+    <string name="tx_auto_7ee3437c43">Fajl menadžera ključeva premašuje dozvoljenu veličinu</string>
+    <string name="tx_auto_db412d470b">Obnavljanje menadžera ključeva nije uspelo</string>
+    <string name="tx_auto_1c6b9555c2">Otpremanje menadžera ključeva nije uspelo</string>
+    <string name="tx_auto_06369ca6f9">Rotacija ključeva završena. Vaš trezor je ponovo enkriptovan novim PIN-om.</string>
+    <string name="tx_auto_6148e8abba">Čarobnjak za rotaciju ključeva</string>
+    <string name="tx_auto_e0711f8386">Lokalni revizijski dnevnik — otključavanja, brisanja, događaji ključeva</string>
+    <string name="tx_auto_b363713a93">ručno</string>
+    <string name="tx_auto_e32b6aff61">Status sinhronizacije između uređaja</string>
+    <string name="tx_auto_8d5addc5f4">Nikad sinhronizovano</string>
+    <string name="tx_auto_4b369ec8d5">nfc</string>
+    <string name="tx_auto_27fffb2a7c">Još nema zabeleženih događaja.</string>
+    <string name="tx_auto_44933a8424">Nema dostupnih ključeva. Idite na Podešavanja → Menadžer ključeva i uvezite deljeni ključ.</string>
+    <string name="tx_auto_1b0bc8c802">Nema otvorenih konflikata</string>
+    <string name="tx_auto_cbb3854eaf">ID beleške: {id}</string>
+    <string name="tx_auto_154432f0de">Otpremanje deljenja beleške nije uspelo</string>
+    <string name="tx_auto_33906a7dfd">OTVORI</string>
+    <string name="tx_auto_be3ef87947">Otvoreni konflikti — zadržana je lokalna verzija</string>
+    <string name="tx_auto_473670202a">OTVORI ČAROBNJAK ZA ROTACIJU KLJUČEVA</string>
+    <string name="tx_auto_3ded6fcc8d">Molimo sačekajte, ne zatvarajte aplikaciju.</string>
+    <string name="tx_auto_452fa1301c">qr</string>
+    <string name="tx_auto_68a4ad94d5">QR skener nije dostupan. Molimo ažurirajte Google Play usluge.</string>
+    <string name="tx_auto_954f97432b">Ponovna enkripcija trezora…</string>
+    <string name="tx_auto_cc8da1b7b4">Ponovo enkriptuje sve beleške i bazu podataka sa vašim novim PIN-om. Ovo može trajati nekoliko sekundi.</string>
+    <string name="tx_auto_62ec43804c">ROTIRAJ</string>
+    <string name="tx_auto_8eec7bc461">bezbednost</string>
+    <string name="tx_auto_c1fee466eb">Bezbednosna vremenska linija</string>
+    <string name="tx_auto_d7359a4863">Servis:\nKorisničko ime:\nLozinka:\nRezervni kod:\nBeleške:</string>
+    <string name="tx_auto_905f63092f">Sinhronizacija</string>
+    <string name="tx_auto_4a386a71cd">Sinhronizovano pre {d}d</string>
+    <string name="tx_auto_1f02e73e4a">Sinhronizovano pre {h}h</string>
+    <string name="tx_auto_eda19c7738">Sinhronizovano pre {m}m</string>
+    <string name="tx_auto_a38fad8f71">Sinhronizovano malopre</string>
+    <string name="tx_auto_885968a4fb">Nepodržan tip fajla za uvoz</string>
+    <string name="tx_auto_8411f4e1cf">Kada je omogućeno, upit za otključavanje se odmah prikazuje na ekranu za otključavanje</string>
+    <string name="tx_auto_c032adc1ff">X</string>
 </resources>
