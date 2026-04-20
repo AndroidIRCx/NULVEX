@@ -15,6 +15,14 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 ## Android
 
+### android retry_production_upload
+
+```sh
+[bundle exec] fastlane android retry_production_upload
+```
+
+Retry Play upload for existing release artifacts without rebuilding/bumping
+
 ### android closed
 
 ```sh
