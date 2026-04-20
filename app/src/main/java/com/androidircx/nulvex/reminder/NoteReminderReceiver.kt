@@ -2,7 +2,6 @@ package com.androidircx.nulvex.reminder
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -18,41 +17,45 @@ class NoteReminderReceiver : BroadcastReceiver() {
         ReminderNotificationHelper.ensureChannel(context)
 
         val baseRequestCode = abs(noteId.hashCode())
+        val packageName = context.packageName
+        val activityClassName = MainActivity::class.java.name
 
+        val openActionIntent = Intent().apply {
+            setClassName(packageName, activityClassName)
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
+            putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_OPEN)
+        }
         val openIntent = PendingIntent.getActivity(
             context,
             baseRequestCode,
-            Intent().apply {
-                component = ComponentName(context, MainActivity::class.java)
-                `package` = context.packageName
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
-                putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_OPEN)
-            },
+            openActionIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
+
+        val snoozeActionIntent = Intent().apply {
+            setClassName(packageName, activityClassName)
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
+            putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_SNOOZE)
+        }
         val snoozeIntent = PendingIntent.getActivity(
             context,
             baseRequestCode + 1,
-            Intent().apply {
-                component = ComponentName(context, MainActivity::class.java)
-                `package` = context.packageName
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
-                putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_SNOOZE)
-            },
+            snoozeActionIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
+
+        val doneActionIntent = Intent().apply {
+            setClassName(packageName, activityClassName)
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
+            putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_DONE)
+        }
         val doneIntent = PendingIntent.getActivity(
             context,
             baseRequestCode + 2,
-            Intent().apply {
-                component = ComponentName(context, MainActivity::class.java)
-                `package` = context.packageName
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
-                putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_DONE)
-            },
+            doneActionIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
 
