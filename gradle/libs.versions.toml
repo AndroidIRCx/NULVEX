@@ -24,7 +24,7 @@ playServicesAds = "25.0.0"
 playServicesCodeScanner = "16.1.0"
 playIntegrity = "1.6.0"
 billing = "8.3.0"
-bouncycastle = "1.83"
+bouncycastle = "1.84"
 zxing = "3.5.4"
 securityCrypto = "1.1.0"
 
