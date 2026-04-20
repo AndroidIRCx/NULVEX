@@ -2,6 +2,7 @@ package com.androidircx.nulvex.reminder
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import kotlin.math.abs
@@ -42,8 +43,9 @@ class AlarmManagerNoteReminderScheduler(
         flag: Int
     ): PendingIntent? {
         if (noteId.isBlank()) return null
-        val intent = Intent(context, NoteReminderReceiver::class.java).apply {
-            action = ReminderConstants.ACTION_FIRE
+        val intent = Intent().apply {
+            component = ComponentName(context, NoteReminderReceiver::class.java)
+            `package` = context.packageName
             putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
         }
         return PendingIntent.getBroadcast(

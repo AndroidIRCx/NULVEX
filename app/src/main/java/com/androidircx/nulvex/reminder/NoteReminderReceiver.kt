@@ -2,6 +2,7 @@ package com.androidircx.nulvex.reminder
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -41,7 +42,9 @@ class NoteReminderReceiver : BroadcastReceiver() {
         action: String,
         requestCodeOffset: Int
     ): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val intent = Intent().apply {
+            component = ComponentName(context, MainActivity::class.java)
+            `package` = context.packageName
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
             putExtra(ReminderConstants.EXTRA_ACTION, action)
