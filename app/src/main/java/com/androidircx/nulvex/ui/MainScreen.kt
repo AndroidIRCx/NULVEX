@@ -223,6 +223,7 @@ fun MainScreen(
     onRequestBiometricEnroll: (String) -> Unit,
     onRequestBiometricUnlock: () -> Unit,
     onDisableBiometric: () -> Unit,
+    onToggleAutoBiometricPrompt: (Boolean) -> Unit = {},
     onRequestDecoyBiometricEnroll: (String) -> Unit = {},
     onRequestDecoyBiometricUnlock: () -> Unit = {},
     onDisableDecoyBiometric: () -> Unit = {},
@@ -405,6 +406,7 @@ fun MainScreen(
                             onUpdateDefaultExpiry = onUpdateDefaultExpiry,
                             onUpdateDefaultReadOnce = onUpdateDefaultReadOnce,
                             onDisableBiometric = onDisableBiometric,
+                            onToggleAutoBiometricPrompt = onToggleAutoBiometricPrompt,
                             onRequestBiometricEnroll = onRequestBiometricEnroll,
                             onRequestDecoyBiometricEnroll = onRequestDecoyBiometricEnroll,
                             onDisableDecoyBiometric = onDisableDecoyBiometric,
@@ -1811,6 +1813,7 @@ private fun SettingsScreen(
     onUpdateDefaultExpiry: (String) -> Unit,
     onUpdateDefaultReadOnce: (Boolean) -> Unit,
     onDisableBiometric: () -> Unit,
+    onToggleAutoBiometricPrompt: (Boolean) -> Unit = {},
     onRequestBiometricEnroll: (String) -> Unit,
     onRequestDecoyBiometricEnroll: (String) -> Unit = {},
     onDisableDecoyBiometric: () -> Unit = {},
@@ -2338,6 +2341,28 @@ private fun SettingsScreen(
                     ) {
                         Text(tx("ENABLE FINGERPRINT"))
                     }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleAutoBiometricPrompt(!state.autoBiometricPromptEnabled) }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(tx("Auto-show fingerprint on app open"), color = onSurface)
+                        Text(
+                            tx("When enabled, unlock prompt appears immediately on the unlock screen"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = state.autoBiometricPromptEnabled,
+                        onCheckedChange = onToggleAutoBiometricPrompt
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
