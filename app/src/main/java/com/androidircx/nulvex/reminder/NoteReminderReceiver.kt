@@ -2,6 +2,7 @@ package com.androidircx.nulvex.reminder
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -16,41 +17,43 @@ class NoteReminderReceiver : BroadcastReceiver() {
         if (noteId.isBlank()) return
         ReminderNotificationHelper.ensureChannel(context)
 
-        val commonFlags = PendingIntent.FLAG_IMMUTABLE
         val baseRequestCode = abs(noteId.hashCode())
 
         val openIntent = PendingIntent.getActivity(
             context,
             baseRequestCode,
-            Intent(context, MainActivity::class.java).apply {
+            Intent().apply {
+                component = ComponentName(context, MainActivity::class.java)
                 `package` = context.packageName
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
                 putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_OPEN)
             },
-            commonFlags
+            PendingIntent.FLAG_IMMUTABLE
         )
         val snoozeIntent = PendingIntent.getActivity(
             context,
             baseRequestCode + 1,
-            Intent(context, MainActivity::class.java).apply {
+            Intent().apply {
+                component = ComponentName(context, MainActivity::class.java)
                 `package` = context.packageName
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
                 putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_SNOOZE)
             },
-            commonFlags
+            PendingIntent.FLAG_IMMUTABLE
         )
         val doneIntent = PendingIntent.getActivity(
             context,
             baseRequestCode + 2,
-            Intent(context, MainActivity::class.java).apply {
+            Intent().apply {
+                component = ComponentName(context, MainActivity::class.java)
                 `package` = context.packageName
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
                 putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_DONE)
             },
-            commonFlags
+            PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(context, ReminderConstants.NOTIFICATION_CHANNEL_ID)

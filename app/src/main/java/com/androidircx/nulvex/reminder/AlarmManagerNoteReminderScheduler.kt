@@ -2,6 +2,7 @@ package com.androidircx.nulvex.reminder
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import kotlin.math.abs
@@ -17,7 +18,8 @@ class AlarmManagerNoteReminderScheduler(
         val noteId = request.noteId.trim()
         if (triggerAt <= 0L || noteId.isBlank()) return
 
-        val intent = Intent(context, NoteReminderReceiver::class.java).apply {
+        val intent = Intent().apply {
+            component = ComponentName(context, NoteReminderReceiver::class.java)
             `package` = context.packageName
             putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
         }
@@ -25,14 +27,14 @@ class AlarmManagerNoteReminderScheduler(
             context,
             requestCodeFor(noteId),
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_IMMUTABLE
         )
         try {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent) // lgtm [java/android/implicit-pendingintents]
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
         } catch (_: SecurityException) {
             // On newer Android versions exact alarms can require explicit user-granted permission.
             runCatching {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent) // lgtm [java/android/implicit-pendingintents]
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
             }
         }
     }
@@ -41,7 +43,8 @@ class AlarmManagerNoteReminderScheduler(
         val normalizedNoteId = noteId.trim()
         if (normalizedNoteId.isBlank()) return
 
-        val intent = Intent(context, NoteReminderReceiver::class.java).apply {
+        val intent = Intent().apply {
+            component = ComponentName(context, NoteReminderReceiver::class.java)
             `package` = context.packageName
             putExtra(ReminderConstants.EXTRA_NOTE_ID, normalizedNoteId)
         }
