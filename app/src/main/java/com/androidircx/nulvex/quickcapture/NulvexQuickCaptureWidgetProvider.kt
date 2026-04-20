@@ -42,10 +42,11 @@ class NulvexQuickCaptureWidgetProvider : AppWidgetProvider() {
     }
 
     private fun buildViews(context: Context): RemoteViews {
-        val launchIntent = Intent(context, MainActivity::class.java).apply {
-            action = MainActivity.ACTION_QUICK_CAPTURE
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+        val launchIntent = Intent()
+        launchIntent.setClass(context, MainActivity::class.java)
+        launchIntent.setPackage(context.packageName)
+        launchIntent.action = MainActivity.ACTION_QUICK_CAPTURE
+        launchIntent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         val pendingIntent = PendingIntent.getActivity(
             context,
             9011,

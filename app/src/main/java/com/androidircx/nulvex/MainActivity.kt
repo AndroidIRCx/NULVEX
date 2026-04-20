@@ -936,7 +936,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun enableNfcForegroundDispatch() {
         val adapter = nfcAdapter ?: return
-        val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val intent = Intent()
+        intent.setClass(this, javaClass)
+        intent.setPackage(packageName)
+        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
