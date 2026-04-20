@@ -28,11 +28,11 @@ class AlarmManagerNoteReminderScheduler(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         try {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent) // lgtm [java/android/implicit-pendingintents]
         } catch (_: SecurityException) {
             // On newer Android versions exact alarms can require explicit user-granted permission.
             runCatching {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent) // lgtm [java/android/implicit-pendingintents]
             }
         }
     }
