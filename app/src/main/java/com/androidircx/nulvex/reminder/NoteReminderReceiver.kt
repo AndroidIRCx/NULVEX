@@ -2,7 +2,6 @@ package com.androidircx.nulvex.reminder
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -17,9 +16,42 @@ class NoteReminderReceiver : BroadcastReceiver() {
         if (noteId.isBlank()) return
         ReminderNotificationHelper.ensureChannel(context)
 
-        val openIntent = reminderActionIntent(context, noteId, ReminderConstants.ACTION_OPEN, requestCodeOffset = 0)
-        val snoozeIntent = reminderActionIntent(context, noteId, ReminderConstants.ACTION_SNOOZE, requestCodeOffset = 1)
-        val doneIntent = reminderActionIntent(context, noteId, ReminderConstants.ACTION_DONE, requestCodeOffset = 2)
+        val commonFlags = PendingIntent.FLAG_IMMUTABLE
+        val baseRequestCode = abs(noteId.hashCode())
+
+        val openIntent = PendingIntent.getActivity(
+            context,
+            baseRequestCode,
+            Intent(context, MainActivity::class.java).apply {
+                `package` = context.packageName
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
+                putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_OPEN)
+            },
+            commonFlags
+        )
+        val snoozeIntent = PendingIntent.getActivity(
+            context,
+            baseRequestCode + 1,
+            Intent(context, MainActivity::class.java).apply {
+                `package` = context.packageName
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
+                putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_SNOOZE)
+            },
+            commonFlags
+        )
+        val doneIntent = PendingIntent.getActivity(
+            context,
+            baseRequestCode + 2,
+            Intent(context, MainActivity::class.java).apply {
+                `package` = context.packageName
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
+                putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_DONE)
+            },
+            commonFlags
+        )
 
         val notification = NotificationCompat.Builder(context, ReminderConstants.NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -34,26 +66,5 @@ class NoteReminderReceiver : BroadcastReceiver() {
             .build()
 
         NotificationManagerCompat.from(context).notify(abs(noteId.hashCode()), notification)
-    }
-
-    private fun reminderActionIntent(
-        context: Context,
-        noteId: String,
-        action: String,
-        requestCodeOffset: Int
-    ): PendingIntent {
-        val intent = Intent().apply {
-            component = ComponentName(context, MainActivity::class.java)
-            `package` = context.packageName
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
-            putExtra(ReminderConstants.EXTRA_ACTION, action)
-        }
-        return PendingIntent.getActivity(
-            context,
-            abs(noteId.hashCode() + requestCodeOffset),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
     }
 }
