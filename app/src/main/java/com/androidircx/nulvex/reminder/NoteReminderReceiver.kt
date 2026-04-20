@@ -17,11 +17,8 @@ class NoteReminderReceiver : BroadcastReceiver() {
         ReminderNotificationHelper.ensureChannel(context)
 
         val baseRequestCode = abs(noteId.hashCode())
-        val packageName = context.packageName
-        val activityClassName = MainActivity::class.java.name
 
-        val openActionIntent = Intent().apply {
-            setClassName(packageName, activityClassName)
+        val openActionIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
             putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_OPEN)
@@ -33,8 +30,7 @@ class NoteReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val snoozeActionIntent = Intent().apply {
-            setClassName(packageName, activityClassName)
+        val snoozeActionIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
             putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_SNOOZE)
@@ -46,8 +42,7 @@ class NoteReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val doneActionIntent = Intent().apply {
-            setClassName(packageName, activityClassName)
+        val doneActionIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
             putExtra(ReminderConstants.EXTRA_ACTION, ReminderConstants.ACTION_DONE)
@@ -71,6 +66,6 @@ class NoteReminderReceiver : BroadcastReceiver() {
             .addAction(0, context.getString(R.string.reminder_action_mark_done), doneIntent)
             .build()
 
-        NotificationManagerCompat.from(context).notify(abs(noteId.hashCode()), notification) // lgtm [java/android/implicit-pendingintents]
+        NotificationManagerCompat.from(context).notify(abs(noteId.hashCode()), notification)
     }
 }
