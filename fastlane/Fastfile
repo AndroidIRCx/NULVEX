@@ -21,16 +21,30 @@ platform :android do
       print_command: false
     )
 
+    upload_to_play_store(
+      track: track,
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      mapping: lane_context[SharedValues::GRADLE_MAPPING_TXT_OUTPUT_PATH],
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: false,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+
     git_commit(
       path: "version.properties",
       message: "chore: bump versionCode [fastlane]"
     )
     push_to_git_remote
+  end
 
+  desc "Retry Play upload for existing release artifacts without rebuilding/bumping"
+  lane :retry_production_upload do
     upload_to_play_store(
-      track: track,
-      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
-      mapping: lane_context[SharedValues::GRADLE_MAPPING_TXT_OUTPUT_PATH],
+      track: "production",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      mapping: "app/build/outputs/mapping/release/mapping.txt",
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_changelogs: false,
