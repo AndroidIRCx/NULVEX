@@ -57,6 +57,7 @@
     <string name="settings_lock_timeout_1m">1m</string>
     <string name="settings_lock_timeout_5m">5m</string>
     <string name="settings_lock_timeout_10m">10m</string>
+
     <plurals name="notes_count">
         <item quantity="one">%d note</item>
         <item quantity="other">%d notes</item>

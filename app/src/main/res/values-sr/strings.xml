@@ -960,4 +960,16 @@
     <string name="tx_auto_885968a4fb">Nepodržan tip fajla za uvoz</string>
     <string name="tx_auto_8411f4e1cf">Kada je omogućeno, upit za otključavanje se odmah prikazuje na ekranu za otključavanje</string>
     <string name="tx_auto_c032adc1ff">X</string>
+
+    <!-- Fingerprint vault targeting -->
+    <string name="tx_auto_2ad5925c9b">Otvara: {vault}</string>
+    <string name="tx_auto_4761e72503">Glavni sef</string>
+    <string name="tx_auto_d70aa0f46f">Lažni PIN za aktivaciju</string>
+
+    <!-- Info dialog translations -->
+    <string name="tx_auto_160607c1d3">Menadžer ključeva čuva ključeve za enkriptovano deljenje beleški i rezervne kopije.\n\n- OpenPGP ključ: generisan/uvezen PGP materijal ključa.\n- XChaCha ključ: simetrični ključ od 32 bajta za brzu enkriptovanu razmenu.\n\nIzvori (ručno/qr/nfc) se automatski označavaju na osnovu načina uvoza ključa.</string>
+    <string name="tx_auto_b39cf074fb">Ručni uvoz prihvata:\n\n1) OpenPGP blokove zaštićenih ključeva (BEGIN PGP ... END PGP)\n2) XChaCha ključ kao:\n- base64 string koji dekodira tačno 32 bajta, ili\n- 64-znakovni hex string (32 bajta).</string>
+    <string name="tx_auto_dba1356f9f">Generisanje XChaCha kreira novi nasumični simetrični ključ od 32 bajta.\n\nGenerisanje PGP kreira novi OpenPGP par ključeva pohranjen u aplikacijskom trezoru ključeva.</string>
+    <string name="tx_auto_62d963c772">PODELI IZABRANI KLJUČ omogućava prenos izabranog ključa drugom Nulvex korisniku.\n\n- QR: prikaži kod na ekranu za skeniranje.\n- NFC: upiši sadržaj ključa na NFC tag.\n\nPrimalac ga uvozi putem QR skenera ili NFC čitanja.</string>
+    <string name="tx_auto_2afac3d8db">Režimi rezervnih kopija:\n\n- Lokalna rezervna kopija: izvozi enkriptovani fajl na telefon.\n- Udaljeno enkriptovano skladište (Pro): otprema enkriptovanu kopiju na Pro udaljeno skladište.\n\nU oba slučaja, dekriptovanje zahteva ispravan ključ.</string>
 </resources>

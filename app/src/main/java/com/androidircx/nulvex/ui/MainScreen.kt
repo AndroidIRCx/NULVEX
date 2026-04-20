@@ -1093,6 +1093,10 @@ private fun UnlockScreen(
     var lockoutRemainingSecs by remember { mutableStateOf(0L) }
     val isLockedOut = lockoutRemainingSecs > 0L
 
+    LaunchedEffect(state.wrongAttempts) {
+        if (state.wrongAttempts > 0) pin = ""
+    }
+
     LaunchedEffect(state.lockoutUntil) {
         while (true) {
             val remaining = (state.lockoutUntil - System.currentTimeMillis()) / 1000L
@@ -1146,18 +1150,32 @@ private fun UnlockScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink)
                 ) {
+                    Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(tx("UNLOCK"))
                 }
             }
-            if (state.biometricEnabled && !isLockedOut) {
+            val primaryBiometricReady = when (state.biometricTargetVault) {
+                "decoy" -> state.decoyBiometricEnabled
+                else -> state.biometricEnabled
+            }
+            if (primaryBiometricReady && !isLockedOut) {
+                val primaryUnlock = when (state.biometricTargetVault) {
+                    "decoy" -> onRequestDecoyBiometricUnlock
+                    else -> onRequestBiometricUnlock
+                }
+                val secondaryUnlock = when (state.biometricTargetVault) {
+                    "decoy" -> if (state.biometricEnabled) onRequestBiometricUnlock else null
+                    else -> if (state.decoyBiometricEnabled) onRequestDecoyBiometricUnlock else null
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .combinedClickable(
                             enabled = !state.isBusy,
-                            onClick = onRequestBiometricUnlock,
-                            onLongClick = if (state.decoyBiometricEnabled) onRequestDecoyBiometricUnlock else null
+                            onClick = primaryUnlock,
+                            onLongClick = secondaryUnlock
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1859,6 +1877,7 @@ private fun SettingsScreen(
     var newPin by remember { mutableStateOf("") }
     var confirmNewPin by remember { mutableStateOf("") }
     var biometricPin by remember { mutableStateOf("") }
+    var fingerprintTargetVault by remember { mutableStateOf("real") }
     val realPinMismatch = newPin.isNotEmpty() && confirmNewPin.isNotEmpty() && newPin != confirmNewPin
     var settingsSearch by remember { mutableStateOf("") }
     var expandedSections by remember { mutableStateOf(setOf<String>()) }
@@ -2294,33 +2313,68 @@ private fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val anyBiometricEnabled = state.biometricEnabled || state.decoyBiometricEnabled
                     Icon(
                         imageVector = Icons.Filled.Fingerprint,
                         contentDescription = null,
-                        tint = if (state.biometricEnabled) Moss else onSurface.copy(alpha = 0.5f),
+                        tint = if (anyBiometricEnabled) Moss else onSurface.copy(alpha = 0.5f),
                         modifier = Modifier.padding(end = 12.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(tx("Fingerprint unlock"), color = onSurface)
                         Text(
-                            if (state.biometricEnabled) tx("Enabled") else tx("Disabled"),
+                            if (anyBiometricEnabled) tx("Enabled") else tx("Disabled"),
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (state.biometricEnabled) Moss else onSurface.copy(alpha = 0.6f)
+                            color = if (anyBiometricEnabled) Moss else onSurface.copy(alpha = 0.6f)
                         )
                     }
                 }
 
-                if (state.biometricEnabled) {
+                val activeBiometricEnabled = when (state.biometricTargetVault) {
+                    "decoy" -> state.decoyBiometricEnabled
+                    else -> state.biometricEnabled
+                }
+                if (activeBiometricEnabled) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val vaultLabel = if (state.biometricTargetVault == "decoy") tx("Decoy vault") else tx("Main vault")
+                    Text(
+                        tx("Opens: {vault}").replace("{vault}", vaultLabel),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Moss
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(onClick = onDisableBiometric, enabled = !state.isBusy) {
+                    TextButton(
+                        onClick = if (state.biometricTargetVault == "decoy") onDisableDecoyBiometric else onDisableBiometric,
+                        enabled = !state.isBusy
+                    ) {
                         Text(tx("DISABLE FINGERPRINT"), color = Ember)
                     }
                 } else {
                     Spacer(modifier = Modifier.height(12.dp))
+                    if (state.isDecoyEnabled) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = fingerprintTargetVault == "real",
+                                onClick = { fingerprintTargetVault = "real" },
+                                label = { Text(tx("Main vault")) }
+                            )
+                            FilterChip(
+                                selected = fingerprintTargetVault == "decoy",
+                                onClick = { fingerprintTargetVault = "decoy" },
+                                label = { Text(tx("Decoy vault")) }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     OutlinedTextField(
                         value = biometricPin,
                         onValueChange = { biometricPin = it },
-                        label = { Text(tx("Current PIN to enable")) },
+                        label = {
+                            Text(
+                                if (fingerprintTargetVault == "decoy") tx("Decoy PIN to enable")
+                                else tx("Current PIN to enable")
+                            )
+                        },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(
@@ -2333,7 +2387,11 @@ private fun SettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = {
-                            onRequestBiometricEnroll(biometricPin)
+                            if (fingerprintTargetVault == "decoy") {
+                                onRequestDecoyBiometricEnroll(biometricPin)
+                            } else {
+                                onRequestBiometricEnroll(biometricPin)
+                            }
                             biometricPin = ""
                         },
                         enabled = !state.isBusy && biometricPin.isNotBlank(),

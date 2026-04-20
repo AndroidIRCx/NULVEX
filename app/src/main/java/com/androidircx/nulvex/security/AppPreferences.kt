@@ -45,6 +45,12 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean("decoy_biometric_enabled", value).apply()
     }
 
+    fun getBiometricTargetVault(): String = prefs.getString("biometric_target_vault", "real") ?: "real"
+
+    fun setBiometricTargetVault(vault: String) {
+        prefs.edit().putString("biometric_target_vault", vault).apply()
+    }
+
     fun getThemeMode(): String = prefs.getString("theme_mode", "system") ?: "system"
 
     fun setThemeMode(value: String) {

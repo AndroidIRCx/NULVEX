@@ -507,6 +507,7 @@ class MainActivity : AppCompatActivity() {
                             biometricStore.storeEncryptedMasterKey(authCipher, masterKey)
                             masterKey.fill(0)
                             vm.enableBiometric()
+                            vm.setBiometricTargetVault("real")
                         }
 
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -616,6 +617,7 @@ class MainActivity : AppCompatActivity() {
                             decoyBiometricStore.storeEncryptedMasterKey(authCipher, masterKey)
                             masterKey.fill(0)
                             vm.enableDecoyBiometric()
+                            vm.setBiometricTargetVault("decoy")
                         }
 
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {

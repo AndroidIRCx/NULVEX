@@ -79,6 +79,7 @@ data class UiState(
     val biometricEnabled: Boolean = false,
     val autoBiometricPromptEnabled: Boolean = true,
     val decoyBiometricEnabled: Boolean = false,
+    val biometricTargetVault: String = "real",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val searchQuery: String = "",
     val activeLabel: String? = null,
@@ -167,6 +168,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             biometricEnabled = appPreferences.isBiometricEnabled(),
             autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
             decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
+            biometricTargetVault = appPreferences.getBiometricTargetVault(),
             themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
             wrongAttempts = appPreferences.getWrongAttempts(),
             lockoutUntil = appPreferences.getLockoutUntil(),
@@ -636,6 +638,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     biometricEnabled = appPreferences.isBiometricEnabled(),
                     autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
+                    biometricTargetVault = appPreferences.getBiometricTargetVault(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
                 onComplete?.invoke()
@@ -716,6 +719,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     biometricEnabled = appPreferences.isBiometricEnabled(),
                     autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
+                    biometricTargetVault = appPreferences.getBiometricTargetVault(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
                 applyPendingReminderActionIfAny()
@@ -1267,6 +1271,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disableDecoyBiometric() {
         appPreferences.setDecoyBiometricEnabled(false)
         uiState.value = uiState.value.copy(decoyBiometricEnabled = false)
+    }
+
+    fun setBiometricTargetVault(vault: String) {
+        appPreferences.setBiometricTargetVault(vault)
+        uiState.value = uiState.value.copy(biometricTargetVault = vault)
     }
 
     fun unlockWithDecoyMasterKey(masterKey: ByteArray) {
@@ -1987,6 +1996,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     biometricEnabled = appPreferences.isBiometricEnabled(),
                     autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
+                    biometricTargetVault = appPreferences.getBiometricTargetVault(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode())
                 )
             }
@@ -2086,6 +2096,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     biometricEnabled = appPreferences.isBiometricEnabled(),
                     autoBiometricPromptEnabled = appPreferences.isAutoBiometricPromptEnabled(),
                     decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
+                    biometricTargetVault = appPreferences.getBiometricTargetVault(),
                     themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
                     savedLabels = appPreferences.getCustomLabels(),
                     newNoteQuickCreate = QuickCreateType.TEXT,
