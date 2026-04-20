@@ -17,9 +17,10 @@ class AlarmManagerNoteReminderScheduler(
         val noteId = request.noteId.trim()
         if (triggerAt <= 0L || noteId.isBlank()) return
 
-        val intent = Intent(context, NoteReminderReceiver::class.java).apply {
-            putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
-        }
+        val intent = Intent()
+        intent.setClass(context, NoteReminderReceiver::class.java)
+        intent.setPackage(context.packageName)
+        intent.putExtra(ReminderConstants.EXTRA_NOTE_ID, noteId)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCodeFor(noteId),
@@ -40,9 +41,10 @@ class AlarmManagerNoteReminderScheduler(
         val normalizedNoteId = noteId.trim()
         if (normalizedNoteId.isBlank()) return
 
-        val intent = Intent(context, NoteReminderReceiver::class.java).apply {
-            putExtra(ReminderConstants.EXTRA_NOTE_ID, normalizedNoteId)
-        }
+        val intent = Intent()
+        intent.setClass(context, NoteReminderReceiver::class.java)
+        intent.setPackage(context.packageName)
+        intent.putExtra(ReminderConstants.EXTRA_NOTE_ID, normalizedNoteId)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCodeFor(normalizedNoteId),
