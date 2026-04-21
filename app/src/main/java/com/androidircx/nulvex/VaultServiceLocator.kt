@@ -50,11 +50,11 @@ object VaultServiceLocator {
         adManager = AdManager(adPreferences)
         sharedKeyStore = SharedKeyStore(appContext)
         backupRegistryStore = BackupRegistryStore(appContext)
-        encryptedBackupService = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore)
         noteReminderScheduler = AlarmManagerNoteReminderScheduler(appContext)
         syncPreferences = SyncPreferences(appContext)
         syncApi = LaravelSyncApiClient()
         playIntegrityService = PlayIntegrityService(appContext)
+        encryptedBackupService = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore)
         securityEventStore = SecurityEventStore(appContext)
     }
 

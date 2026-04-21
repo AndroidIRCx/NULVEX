@@ -3,9 +3,9 @@ package com.androidircx.nulvex.pro
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.androidircx.nulvex.data.VaultService
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -25,14 +25,14 @@ class EncryptedBackupServiceTest {
 
         coEvery { vaultService.exportBackupJsonBytes() } returns "{\"notes\":[1]}".toByteArray()
         every { sharedKeyStore.getKeyMaterial("key-1") } answers { ByteArray(32) { 7 } }
-        every { apiClient.requestUpload("file", "application/octet-stream") } returns UploadRequestToken(
+        coEvery { apiClient.requestUpload("file", "application/octet-stream") } returns UploadRequestToken(
             id = "media-1",
             uploadToken = "upload-token",
             expires = 111L,
             downloadToken = "download-1",
             downloadExpires = 222L
         )
-        every { apiClient.upload("media-1", "upload-token", 111L, any()) } returns true
+        coEvery { apiClient.upload("media-1", "upload-token", 111L, any()) } returns true
         every {
             backupRegistryStore.add(
                 mediaId = "media-1",
@@ -61,8 +61,8 @@ class EncryptedBackupServiceTest {
         assertEquals("media-1", result.mediaId)
         assertTrue(result.sizeBytes > 0)
         assertEquals(64, result.sha256.length)
-        verify { apiClient.upload("media-1", "upload-token", 111L, any()) }
-        verify {
+        coVerify { apiClient.upload("media-1", "upload-token", 111L, any()) }
+        coVerify {
             backupRegistryStore.add(
                 mediaId = "media-1",
                 downloadPathId = "download-1",
@@ -83,7 +83,7 @@ class EncryptedBackupServiceTest {
         val apiClient = mockk<LaravelMediaApiClient>()
 
         every { sharedKeyStore.exportManagerBackup(false, null) } returns ByteArray(64) { it.toByte() }
-        every {
+        coEvery {
             apiClient.requestUpload(type = "file", mime = com.androidircx.nulvex.pro.NulvexFileTypes.KEY_MANAGER_MIME)
         } returns UploadRequestToken(
             id = "km-1",
@@ -92,7 +92,7 @@ class EncryptedBackupServiceTest {
             downloadToken = "dl-km",
             downloadExpires = 1000L
         )
-        every { apiClient.upload("km-1", "up-token", 999L, any()) } returns true
+        coEvery { apiClient.upload("km-1", "up-token", 999L, any()) } returns true
 
         val service = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore, apiClient)
         val result = service.uploadKeyManagerBackup(encrypted = false, password = null)
@@ -101,7 +101,7 @@ class EncryptedBackupServiceTest {
         assertEquals("dl-km", result.downloadPathId)
         assertTrue(result.url.contains("dl-km"))
         assertTrue("URL should have ?t=keys hint", result.url.contains("?t=keys"))
-        verify { apiClient.upload("km-1", "up-token", 999L, any()) }
+        coVerify { apiClient.upload("km-1", "up-token", 999L, any()) }
     }
 
     @Test
@@ -112,13 +112,13 @@ class EncryptedBackupServiceTest {
         val apiClient = mockk<LaravelMediaApiClient>()
 
         val expected = ByteArray(16) { 42 }
-        every { apiClient.download("media-km", null, null) } returns expected
+        coEvery { apiClient.download("media-km", null, null) } returns expected
 
         val service = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore, apiClient)
         val result = service.downloadKeyManagerBackup("media-km")
 
         assertTrue(result.contentEquals(expected))
-        verify { apiClient.download("media-km", null, null) }
+        coVerify { apiClient.download("media-km", null, null) }
     }
 
     @Test
@@ -146,14 +146,14 @@ class EncryptedBackupServiceTest {
             createdAt = 1L
         )
 
-        every { apiClient.download("download-path-a", "d-token", 999L) } returns wrapper
+        coEvery { apiClient.download("download-path-a", "d-token", 999L) } returns wrapper
         every { sharedKeyStore.getKeyMaterial("key-restore") } answers { ByteArray(32) { 9 } }
         coEvery { vaultService.importBackupJsonBytes(any(), merge = false) } returns 4
 
         val imported = service.restoreFromStoredRecord("rec-1", merge = false)
 
         assertEquals(4, imported)
-        verify { apiClient.download("download-path-a", "d-token", 999L) }
+        coVerify { apiClient.download("download-path-a", "d-token", 999L) }
     }
 
     @Test

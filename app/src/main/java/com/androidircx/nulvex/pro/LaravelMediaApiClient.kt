@@ -1,5 +1,7 @@
 package com.androidircx.nulvex.pro
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
@@ -17,106 +19,113 @@ data class UploadRequestToken(
 )
 
 class LaravelMediaApiClient(
-    private val baseApiUrl: String = "https://androidircx.com/api"
+    private val baseApiUrl: String = "https://www.androidircx.com/api"
 ) {
-    fun requestUpload(type: String = "file", mime: String = "application/octet-stream"): UploadRequestToken {
-        val endpoint = URL("$baseApiUrl/media/request-upload")
-        val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-        }
-
-        val body = JSONObject().apply {
-            put("type", type)
-            put("mime", mime)
-        }.toString()
-
-        OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
-            writer.write(body)
-        }
-
-        val response = readResponse(conn)
-        val json = JSONObject(response)
-        return UploadRequestToken(
-            id = json.getString("id"),
-            uploadToken = json.getString("upload_token"),
-            expires = json.getLong("expires"),
-            downloadToken = json.optString("download_token", "").ifBlank { null },
-            downloadExpires = json.optLong("download_expires").takeIf {
-                json.has("download_expires") && !json.isNull("download_expires")
+    suspend fun requestUpload(type: String = "file", mime: String = "application/octet-stream"): UploadRequestToken {
+        return withContext(Dispatchers.IO) {
+            val endpoint = URL("$baseApiUrl/media/request-upload")
+            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
             }
-        )
+
+            val body = JSONObject().apply {
+                put("type", type)
+                put("mime", mime)
+            }.toString()
+
+            OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
+                writer.write(body)
+            }
+
+            val response = readResponse(conn)
+            val json = JSONObject(response)
+            UploadRequestToken(
+                id = json.getString("id"),
+                uploadToken = json.getString("upload_token"),
+                expires = json.getLong("expires"),
+                downloadToken = json.optString("download_token", "").ifBlank { null },
+                downloadExpires = json.optLong("download_expires").takeIf {
+                    json.has("download_expires") && !json.isNull("download_expires")
+                }
+            )
+        }
     }
 
-    fun upload(id: String, token: String, expires: Long, payload: ByteArray): Boolean {
-        val encodedToken = URLEncoder.encode(token, Charsets.UTF_8.name())
-        val endpoint = URL("$baseApiUrl/media/upload/$id?token=$encodedToken&exp=$expires")
-        val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-            requestMethod = "PUT"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            doOutput = true
-            setRequestProperty("Content-Type", "application/octet-stream")
-            setRequestProperty("X-Upload-Token", token)
-            setRequestProperty("X-Upload-Expires", expires.toString())
-            setRequestProperty("Content-Length", payload.size.toString())
-        }
+    suspend fun upload(id: String, token: String, expires: Long, payload: ByteArray): Boolean {
+        return withContext(Dispatchers.IO) {
+            val encodedToken = URLEncoder.encode(token, Charsets.UTF_8.name())
+            val endpoint = URL("$baseApiUrl/media/upload/$id?token=$encodedToken&exp=$expires")
+            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                requestMethod = "PUT"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/octet-stream")
+                setRequestProperty("X-Upload-Token", token)
+                setRequestProperty("X-Upload-Expires", expires.toString())
+                setRequestProperty("Content-Length", payload.size.toString())
+            }
 
-        BufferedOutputStream(conn.outputStream).use { out ->
-            out.write(payload)
-            out.flush()
-        }
+            BufferedOutputStream(conn.outputStream).use { out ->
+                out.write(payload)
+                out.flush()
+            }
 
-        val code = conn.responseCode
-        if (code !in 200..299) {
-            readError(conn) // consume stream, but do not leak raw body in thrown message
-            throw IllegalStateException("Upload failed ($code)")
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                readError(conn)
+                throw IllegalStateException("Upload failed ($code)")
+            }
+            true
         }
-        return true
     }
 
-    fun download(
+    suspend fun download(
         id: String,
         downloadToken: String? = null,
         downloadExpires: Long? = null,
         maxBytes: Int? = null
     ): ByteArray {
-        val query = buildList {
-            if (!downloadToken.isNullOrBlank()) {
-                add("token=${URLEncoder.encode(downloadToken, Charsets.UTF_8.name())}")
+        return withContext(Dispatchers.IO) {
+            val query = buildList {
+                if (!downloadToken.isNullOrBlank()) {
+                    add("token=${URLEncoder.encode(downloadToken, Charsets.UTF_8.name())}")
+                }
+                if (downloadExpires != null) {
+                    add("expires=$downloadExpires")
+                }
+            }.joinToString("&")
+            val endpoint = URL(
+                if (query.isBlank()) "$baseApiUrl/media/download/$id"
+                else "$baseApiUrl/media/download/$id?$query"
+            )
+            val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                if (!downloadToken.isNullOrBlank()) {
+                    setRequestProperty("X-Download-Token", downloadToken)
+                }
+                if (downloadExpires != null) {
+                    setRequestProperty("X-Download-Expires", downloadExpires.toString())
+                }
             }
-            if (downloadExpires != null) {
-                add("expires=$downloadExpires")
+
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                readError(conn)
+                throw IllegalStateException("Download failed ($code)")
             }
-        }.joinToString("&")
-        val endpoint = URL(
-            if (query.isBlank()) "$baseApiUrl/media/download/$id"
-            else "$baseApiUrl/media/download/$id?$query"
-        )
-        val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            if (!downloadToken.isNullOrBlank()) {
-                setRequestProperty("X-Download-Token", downloadToken)
-            }
-            if (downloadExpires != null) {
-                setRequestProperty("X-Download-Expires", downloadExpires.toString())
-            }
-        }
-        val code = conn.responseCode
-        if (code !in 200..299) {
-            readError(conn) // consume stream, but do not leak raw body in thrown message
-            throw IllegalStateException("Download failed ($code)")
-        }
-        return conn.inputStream.use { input ->
-            if (maxBytes == null) {
-                input.readBytes()
-            } else {
-                readBytesWithLimit(input, maxBytes)
+            conn.inputStream.use { input ->
+                if (maxBytes == null) {
+                    input.readBytes()
+                } else {
+                    readBytesWithLimit(input, maxBytes)
+                }
             }
         }
     }
@@ -140,7 +149,7 @@ class LaravelMediaApiClient(
     private fun readResponse(conn: HttpURLConnection): String {
         val code = conn.responseCode
         if (code !in 200..299) {
-            readError(conn) // consume stream, but do not leak raw body in thrown message
+            readError(conn)
             throw IllegalStateException("Request failed ($code)")
         }
         return conn.inputStream.use { it.reader(Charsets.UTF_8).readText() }

@@ -1,6 +1,7 @@
 package com.androidircx.nulvex.pro
 
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -30,7 +31,7 @@ class LaravelMediaApiClientTest {
     }
 
     @Test
-    fun requestUpload_parsesResponse() {
+    fun requestUpload_parsesResponse() = runTest {
         val requestBody = AtomicReference("")
         server.createContext("/api/media/request-upload") { exchange ->
             requestBody.set(exchange.requestBody.readBytes().toString(Charsets.UTF_8))
@@ -54,7 +55,7 @@ class LaravelMediaApiClientTest {
     }
 
     @Test
-    fun upload_sendsPayloadAndHeaders() {
+    fun upload_sendsPayloadAndHeaders() = runTest {
         val seenQuery = AtomicReference("")
         val seenTokenHeader = AtomicReference("")
         val seenExpiresHeader = AtomicReference("")
@@ -84,7 +85,7 @@ class LaravelMediaApiClientTest {
     }
 
     @Test
-    fun download_withOptionalTokenAndExpires_returnsBytes() {
+    fun download_withOptionalTokenAndExpires_returnsBytes() = runTest {
         val seenQuery = AtomicReference("")
         val seenTokenHeader = AtomicReference("")
         val seenExpiresHeader = AtomicReference("")
@@ -111,7 +112,7 @@ class LaravelMediaApiClientTest {
     }
 
     @Test
-    fun non2xx_throwsIllegalState() {
+    fun non2xx_throwsIllegalState() = runTest {
         server.createContext("/api/media/request-upload") { exchange ->
             val response = "boom secret_token=abc123".toByteArray()
             exchange.sendResponseHeaders(500, response.size.toLong())
@@ -119,10 +120,13 @@ class LaravelMediaApiClientTest {
         }
 
         val client = LaravelMediaApiClient(baseUrl)
-        val thrown = assertThrows(IllegalStateException::class.java) {
+        var thrown: IllegalStateException? = null
+        try {
             client.requestUpload()
+        } catch (e: IllegalStateException) {
+            thrown = e
         }
-        val message = thrown.message.orEmpty()
+        val message = thrown?.message.orEmpty()
         assertTrue(message.contains("Request failed (500)"))
         assertTrue(!message.contains("secret_token"))
     }

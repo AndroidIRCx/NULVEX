@@ -9,7 +9,7 @@ import java.net.URLEncoder
 import java.util.Base64
 
 class LaravelSyncApiClient(
-    private val baseApiUrl: String = "https://androidircx.com/api"
+    private val baseApiUrl: String = "https://www.androidircx.com/api"
 ) : SyncApi {
 
     override suspend fun registerDevice(

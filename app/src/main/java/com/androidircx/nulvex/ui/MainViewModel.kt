@@ -2,6 +2,7 @@ package com.androidircx.nulvex.ui
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.util.Log
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
@@ -341,7 +342,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         backupRecords = encryptedBackupService.listBackupRecords()
                     )
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("NulvexUpload", "uploadEncryptedBackup failed", e)
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -491,7 +493,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         noteShareUrl = result.url
                     )
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("NulvexUpload", "uploadNoteShare failed", e)
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -522,7 +525,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         noteShareUrl = result.url
                     )
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("NulvexUpload", "uploadKeyManagerToApi failed", e)
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
@@ -556,7 +560,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             .replace("{count}", imported.toString())
                     )
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("NulvexUpload", "restoreKeyManagerFromApi failed", e)
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
                         isBusy = false,
