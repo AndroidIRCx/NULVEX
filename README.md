@@ -182,11 +182,13 @@ Optional build-time pull:
 Releases are automated with Fastlane. Use Bundler-installed fastlane:
 
 ```bash
+bundle exec fastlane internal
 bundle exec fastlane closed
 bundle exec fastlane production
 ```
 
 Available lanes:
+- `bundle exec fastlane internal` - builds release APK and uploads APK-only build to Google Play Internal App Sharing
 - `bundle exec fastlane closed` - builds, bumps version, pushes git changes, and uploads to Google Play Closed testing (`alpha`)
 - `bundle exec fastlane production` - builds, bumps version, pushes git changes, and uploads to the Google Play production track
 

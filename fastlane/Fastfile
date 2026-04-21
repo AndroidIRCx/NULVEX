@@ -53,6 +53,22 @@ platform :android do
     )
   end
 
+  # ─── fastlane internal ─────────────────────────────────────────────────────
+  # Build release APK and upload only APK to Google Play Internal App Sharing.
+  desc "Build release APK and upload to Internal App Sharing (APK only)"
+  lane :internal do
+    gradle(
+      task: "assemble",
+      build_type: "Release",
+      flags: "--no-configuration-cache",
+      print_command: false
+    )
+
+    upload_to_play_store_internal_app_sharing(
+      apk: "app/build/outputs/apk/release/app-release.apk"
+    )
+  end
+
   # ─── fastlane closed ────────────────────────────────────────────────────────
   # Full release flow in one command:
   #   1. bundleRelease (auto-increments versionCode via Gradle task)
