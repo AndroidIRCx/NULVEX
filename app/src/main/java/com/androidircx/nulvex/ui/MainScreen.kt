@@ -69,6 +69,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
@@ -4993,7 +4994,22 @@ private fun NewNoteScreen(
                     ) {
                         state.sharedKeys.forEach { key ->
                             DropdownMenuItem(
-                                text = { Text(key.label) },
+                                text = {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(key.label, modifier = Modifier.weight(1f))
+                                        if (selectedShareKeyId == key.id) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = null,
+                                                tint = Brass
+                                            )
+                                        }
+                                    }
+                                },
                                 onClick = {
                                     selectedShareKeyId = key.id
                                     showShareKeyMenu = false
@@ -6099,7 +6115,22 @@ private fun PendingImportDialog(
                         DropdownMenu(expanded = showKeyMenu, onDismissRequest = { showKeyMenu = false }) {
                             state.sharedKeys.forEach { key ->
                                 DropdownMenuItem(
-                                    text = { Text(key.label) },
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(key.label, modifier = Modifier.weight(1f))
+                                            if (selectedKeyId == key.id) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Check,
+                                                    contentDescription = null,
+                                                    tint = Brass
+                                                )
+                                            }
+                                        }
+                                    },
                                     onClick = { selectedKeyId = key.id; showKeyMenu = false }
                                 )
                             }

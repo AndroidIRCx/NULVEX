@@ -312,15 +312,15 @@ CI workflow (`.github/workflows/android-unit-tests.yml`) runs JVM tests only (`.
 - [x] UI flow tests (Compose: onboarding, setup, unlock, vault, panic, error banner)
 - [x] Firebase Gradle plugin + Analytics dependency
 - [x] Play Billing base wiring (product IDs + BillingClient factory)
-- [ ] Purchase flow integration (query, launch billing flow, entitlement persistence)
-- [ ] Security whitepaper + crypto flow diagram
-- [ ] Play Store listing + privacy policy
-- [ ] Device matrix test (StrongBox / no StrongBox, API 26 / 30 / 33 / 34+)
-- [ ] Zero-knowledge sync backend (Pro)
-- [ ] Remote panic wipe — cross-device trigger (Pro)
+- [x] Purchase flow integration (query, launch billing flow, entitlement persistence)
+- [x] Security whitepaper + crypto flow diagram
+- [x] Play Store listing + privacy policy
+- [x] Device matrix test (StrongBox / no StrongBox, API 26 / 30 / 33 / 34+)
+- [x] Zero-knowledge sync backend (Pro)
+- [x] Remote panic wipe — cross-device trigger (Pro)
 - [x] Encrypted export / backup (local + remote foundation)
 - [x] Keys Manager with OpenPGP + XChaCha import/export
-- [ ] Translations workflow (Transifex + multi-language resources)
+- [~] Translations workflow (Transifex + multi-language resources; EN/SR active, SR-Cyrl/DE expansion pending)
 
 ---
 
