@@ -8,7 +8,8 @@ data class NotePayload(
     val checklist: List<ChecklistItem>,
     val labels: List<String>,
     val attachments: List<NoteAttachment>,
-    val pinned: Boolean
+    val pinned: Boolean,
+    val shareKeyId: String? = null
 )
 
 object NotePayloadCodec {
@@ -18,6 +19,7 @@ object NotePayloadCodec {
     private const val KEY_LABELS = "labels"
     private const val KEY_ATTACHMENTS = "attachments"
     private const val KEY_PINNED = "pinned"
+    private const val KEY_SHARE_KEY_ID = "share_key_id"
     private const val VERSION = 1
 
     fun encode(payload: NotePayload): String {
@@ -25,6 +27,7 @@ object NotePayloadCodec {
         root.put(KEY_VERSION, VERSION)
         root.put(KEY_TEXT, payload.text)
         root.put(KEY_PINNED, payload.pinned)
+        root.put(KEY_SHARE_KEY_ID, payload.shareKeyId ?: JSONObject.NULL)
         val checklistArray = JSONArray()
         payload.checklist.forEach { item ->
             val itemObj = JSONObject()
@@ -60,6 +63,7 @@ object NotePayloadCodec {
             if (!root.has(KEY_TEXT)) return null
             val text = root.optString(KEY_TEXT, "")
             val pinned = root.optBoolean(KEY_PINNED, false)
+            val shareKeyId = root.optString(KEY_SHARE_KEY_ID, "").trim().ifBlank { null }
             val checklist = mutableListOf<ChecklistItem>()
             val checklistArray = root.optJSONArray(KEY_CHECKLIST) ?: JSONArray()
             for (i in 0 until checklistArray.length()) {
@@ -101,7 +105,8 @@ object NotePayloadCodec {
                 checklist = checklist,
                 labels = labels,
                 attachments = attachments,
-                pinned = pinned
+                pinned = pinned,
+                shareKeyId = shareKeyId
             )
         } catch (_: Exception) {
             null

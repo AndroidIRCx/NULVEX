@@ -33,11 +33,11 @@ class VaultAuthService(
         val realHash = prefs.getRealPinHash()
         val decoyHash = prefs.getDecoyPinHash()
         val pinBytes = pin.concatToString().toByteArray(Charsets.UTF_8)
-        val matchReal = realHash != null && argon2.verify(Argon2Mode.ARGON2_ID, realHash, pinBytes)
+        val matchReal = realHash != null && verifyAgainstKnownModes(realHash, pinBytes)
         if (matchReal) {
             return VaultProfile.REAL
         }
-        val matchDecoy = decoyHash != null && argon2.verify(Argon2Mode.ARGON2_ID, decoyHash, pinBytes)
+        val matchDecoy = decoyHash != null && verifyAgainstKnownModes(decoyHash, pinBytes)
         pinBytes.fill(0)
         return if (matchDecoy) VaultProfile.DECOY else null
     }
@@ -45,9 +45,15 @@ class VaultAuthService(
     fun verifyRealPin(pin: CharArray): Boolean {
         val realHash = prefs.getRealPinHash() ?: return false
         val pinBytes = pin.concatToString().toByteArray(Charsets.UTF_8)
-        val match = argon2.verify(Argon2Mode.ARGON2_ID, realHash, pinBytes)
+        val match = verifyAgainstKnownModes(realHash, pinBytes)
         pinBytes.fill(0)
         return match
+    }
+
+    private fun verifyAgainstKnownModes(hash: String, pinBytes: ByteArray): Boolean {
+        return runCatching { argon2.verify(Argon2Mode.ARGON2_ID, hash, pinBytes) }.getOrDefault(false) ||
+            runCatching { argon2.verify(Argon2Mode.ARGON2_I, hash, pinBytes) }.getOrDefault(false) ||
+            runCatching { argon2.verify(Argon2Mode.ARGON2_D, hash, pinBytes) }.getOrDefault(false)
     }
 
     private fun hashPin(pin: CharArray): String {

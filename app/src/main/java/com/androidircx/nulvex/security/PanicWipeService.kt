@@ -21,8 +21,10 @@ class PanicWipeService(
     }
 
     fun wipeDecoyOnly() {
-        sessionManager.close()
         val profile = VaultProfile.DECOY
+        if (sessionManager.getActiveProfile() == profile) {
+            sessionManager.close()
+        }
         context.deleteDatabase(profile.dbName)
         context.deleteSharedPreferences(profile.prefsName)
         context.deleteSharedPreferences(profile.keystorePrefsName)

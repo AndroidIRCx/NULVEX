@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.androidircx.nulvex.data.VaultSessionManager
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
 import io.mockk.verify
@@ -71,10 +72,19 @@ class PanicWipeServiceTest {
     // --- wipeDecoyOnly() ---
 
     @Test
-    fun wipeDecoyOnlyClosesActiveSession() {
+    fun wipeDecoyOnlyClosesOnlyWhenDecoySessionIsActive() {
+        every { mockSessionManager.getActiveProfile() } returns VaultProfile.DECOY
         val service = PanicWipeService(context, mockSessionManager)
         service.wipeDecoyOnly()
         verify { mockSessionManager.close() }
+    }
+
+    @Test
+    fun wipeDecoyOnlyDoesNotCloseWhenRealSessionIsActive() {
+        every { mockSessionManager.getActiveProfile() } returns VaultProfile.REAL
+        val service = PanicWipeService(context, mockSessionManager)
+        service.wipeDecoyOnly()
+        verify(exactly = 0) { mockSessionManager.close() }
     }
 
     @Test
@@ -86,7 +96,8 @@ class PanicWipeServiceTest {
     // --- isolation ---
 
     @Test
-    fun wipeAllAndWipeDecoyOnlyBothCloseSession() {
+    fun wipeAllAlwaysClosesAndDecoyWipeCanAlsoCloseForDecoyProfile() {
+        every { mockSessionManager.getActiveProfile() } returns VaultProfile.DECOY
         val service = PanicWipeService(context, mockSessionManager)
         service.wipeAll()
         service.wipeDecoyOnly()

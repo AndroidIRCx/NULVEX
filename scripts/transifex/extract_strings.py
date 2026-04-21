@@ -62,6 +62,12 @@ def key_for(text: str) -> str:
     return f"tx_auto_{digest}"
 
 
+def escape_android_string_value(text: str) -> str:
+    escaped = html.escape(text)
+    normalized = escaped.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized.replace("\n", r"\n")
+
+
 def main() -> None:
     found: dict[str, set[str]] = {}
 
@@ -88,7 +94,7 @@ def main() -> None:
         key = key_for(text)
         refs = ", ".join(sorted(found[text]))
         lines.append(f"    <!-- auto-extracted from: {refs} -->")
-        lines.append(f"    <string name=\"{key}\">{html.escape(text)}</string>")
+        lines.append(f"    <string name=\"{key}\">{escape_android_string_value(text)}</string>")
     lines.append("</resources>")
 
     OUT_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")

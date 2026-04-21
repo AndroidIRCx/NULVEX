@@ -20,6 +20,7 @@ import com.androidircx.nulvex.pro.SharedKeyInfo
 import com.androidircx.nulvex.pro.UnsupportedImportMimeException
 import com.androidircx.nulvex.reminder.ReminderConstants
 import com.androidircx.nulvex.reminder.ReminderRequest
+import com.androidircx.nulvex.security.executePanicWipeAll
 import com.androidircx.nulvex.security.SecurityEvent
 import com.androidircx.nulvex.security.SecurityEventStore
 import com.androidircx.nulvex.security.VaultProfile
@@ -48,7 +49,8 @@ data class NewNoteDraft(
     val pinned: Boolean = false,
     val expiresAt: Long? = null,
     val readOnce: Boolean = false,
-    val reminderAt: Long? = null
+    val reminderAt: Long? = null,
+    val shareKeyId: String? = null
 )
 
 data class NoteEditDraft(
@@ -458,8 +460,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return encryptedBackupService.buildEncryptedNoteShareWrapper(noteId, keyId)
     }
 
+    fun resolveNoteShareKeyId(noteId: String): String? {
+        val state = uiState.value
+        val keys = state.sharedKeys
+        if (keys.isEmpty()) return null
+        val preferredKeyId = state.selectedNote
+            ?.takeIf { it.id == noteId }
+            ?.shareKeyId
+            ?: state.notes.firstOrNull { it.id == noteId }?.shareKeyId
+        if (!preferredKeyId.isNullOrBlank() && keys.any { it.id == preferredKeyId }) {
+            return preferredKeyId
+        }
+        return keys.firstOrNull()?.id
+    }
+
     fun uploadNoteShare(noteId: String) {
-        val keyId = uiState.value.sharedKeys.firstOrNull()?.id
+        val keyId = resolveNoteShareKeyId(noteId)
         if (keyId.isNullOrBlank()) {
             uiState.value = uiState.value.copy(error = appContext.tx("Import at least one key in Keys Manager before sharing"))
             return
@@ -1111,6 +1127,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 checklist = draft.checklist,
                 labels = draft.labels,
                 attachments = emptyList(),
+                shareKeyId = draft.shareKeyId,
                 pinned = draft.pinned,
                 expiresAt = draft.expiresAt,
                 readOnce = draft.readOnce,
@@ -1445,7 +1462,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         attachments: List<Uri>,
         expiresAt: Long?,
         readOnce: Boolean,
-        reminderAt: Long?
+        reminderAt: Long?,
+        shareKeyId: String? = null
     ) {
         val hasContent = text.isNotBlank() || checklist.any { it.text.isNotBlank() } || attachments.isNotEmpty()
         if (!hasContent) {
@@ -1462,6 +1480,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 checklist = checklist,
                 labels = labels,
                 attachments = storedAttachments,
+                shareKeyId = shareKeyId,
                 pinned = pinned,
                 expiresAt = expiresAt,
                 readOnce = readOnce,
@@ -1978,13 +1997,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun panicWipe() {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
-            securityEventStore.record(SecurityEventStore.EVENT_PANIC_WIPE)
-            appPreferences.getReminderSchedules().keys.forEach { noteId ->
-                reminderScheduler.cancel(noteId)
-            }
-            appPreferences.clearReminderSchedules()
-            appPreferences.clearPendingReminderAction()
-            panicWipeService.wipeAll()
+            executePanicWipeAll(
+                panicWipeService = panicWipeService,
+                appPreferences = appPreferences,
+                reminderScheduler = reminderScheduler,
+                securityEventStore = securityEventStore
+            )
             withContext(Dispatchers.Main) {
                 clearInactivityTimer()
                 uiState.value = UiState(

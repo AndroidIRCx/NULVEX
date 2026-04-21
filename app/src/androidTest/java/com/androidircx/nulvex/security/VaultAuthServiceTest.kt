@@ -3,10 +3,13 @@ package com.androidircx.nulvex.security
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.lambdapioneer.argon2kt.Argon2Kt
+import com.lambdapioneer.argon2kt.Argon2Mode
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.security.SecureRandom
 
 @RunWith(AndroidJUnit4::class)
 class VaultAuthServiceTest {
@@ -137,5 +140,26 @@ class VaultAuthServiceTest {
 
         // Argon2 encoded output includes the salt, so same PIN → different encoded string
         assertNotEquals(hash1, hash2)
+    }
+
+    @Test
+    fun resolveProfileAcceptsLegacyArgon2iHash() {
+        val pinBytes = "2468".toByteArray(Charsets.UTF_8)
+        val legacyHash = Argon2Kt()
+            .hash(
+                mode = Argon2Mode.ARGON2_I,
+                password = pinBytes,
+                salt = ByteArray(16).also { SecureRandom().nextBytes(it) },
+                tCostInIterations = fastParams.iterations,
+                mCostInKibibyte = fastParams.memoryKiB,
+                parallelism = fastParams.parallelism,
+                hashLengthInBytes = fastParams.outputLength
+            )
+            .encodedOutputAsString()
+        pinBytes.fill(0)
+        prefs.setRealPinHash(legacyHash)
+
+        val profile = authService.resolveProfile("2468".toCharArray())
+        assertEquals(VaultProfile.REAL, profile)
     }
 }

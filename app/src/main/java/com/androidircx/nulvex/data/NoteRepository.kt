@@ -18,6 +18,7 @@ class NoteRepository(
         checklist: List<ChecklistItem> = emptyList(),
         labels: List<String> = emptyList(),
         attachments: List<NoteAttachment> = emptyList(),
+        shareKeyId: String? = null,
         pinned: Boolean = false,
         noteKey: ByteArray,
         expiresAt: Long? = null,
@@ -32,7 +33,8 @@ class NoteRepository(
             checklist = checklist,
             labels = labels,
             attachments = attachments,
-            pinned = pinned
+            pinned = pinned,
+            shareKeyId = shareKeyId
         )
         val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
         val ciphertext = noteCrypto.encrypt(plaintext, noteKey)
@@ -100,7 +102,8 @@ class NoteRepository(
             checklist = note.checklist,
             labels = note.labels,
             attachments = note.attachments,
-            pinned = note.pinned
+            pinned = note.pinned,
+            shareKeyId = note.shareKeyId
         )
         val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
         val ciphertext = noteCrypto.encrypt(plaintext, noteKey)
@@ -217,7 +220,8 @@ class NoteRepository(
             checklist = emptyList(),
             labels = emptyList(),
             attachments = emptyList(),
-            pinned = false
+            pinned = false,
+            shareKeyId = null
         )
         return Note(
             id = entity.id,
@@ -225,6 +229,7 @@ class NoteRepository(
             checklist = payload.checklist,
             labels = payload.labels,
             attachments = payload.attachments,
+            shareKeyId = payload.shareKeyId,
             pinned = payload.pinned,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,
@@ -246,7 +251,8 @@ class NoteRepository(
             checklist = emptyList(),
             labels = emptyList(),
             attachments = emptyList(),
-            pinned = false
+            pinned = false,
+            shareKeyId = null
         )
         return Note(
             id = entity.noteId,
@@ -254,6 +260,7 @@ class NoteRepository(
             checklist = payload.checklist,
             labels = payload.labels,
             attachments = payload.attachments,
+            shareKeyId = payload.shareKeyId,
             pinned = payload.pinned,
             createdAt = entity.createdAt,
             updatedAt = entity.createdAt,

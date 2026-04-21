@@ -79,7 +79,8 @@ private data class PendingNoteCreateRequest(
     val attachments: List<android.net.Uri>,
     val expiresAt: Long?,
     val readOnce: Boolean,
-    val reminderAt: Long?
+    val reminderAt: Long?,
+    val shareKeyId: String?
 )
 
 class MainActivity : AppCompatActivity() {
@@ -212,7 +213,8 @@ class MainActivity : AppCompatActivity() {
                         createRequest.attachments,
                         createRequest.expiresAt,
                         createRequest.readOnce,
-                        createRequest.reminderAt
+                        createRequest.reminderAt,
+                        createRequest.shareKeyId
                     )
                 }
             } else {
@@ -792,10 +794,11 @@ class MainActivity : AppCompatActivity() {
         attachments: List<android.net.Uri>,
         expiresAt: Long?,
         readOnce: Boolean,
-        reminderAt: Long?
+        reminderAt: Long?,
+        shareKeyId: String?
     ) {
         if (reminderAt == null) {
-            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, null)
+            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, null, shareKeyId)
             return
         }
         ensureNotificationsPermission(
@@ -808,11 +811,12 @@ class MainActivity : AppCompatActivity() {
                     attachments = attachments,
                     expiresAt = expiresAt,
                     readOnce = readOnce,
-                    reminderAt = reminderAt
+                    reminderAt = reminderAt,
+                    shareKeyId = shareKeyId
                 )
             }
         ) {
-            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, reminderAt)
+            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, reminderAt, shareKeyId)
         }
     }
 
@@ -826,8 +830,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun exportNoteFileLocal(noteId: String) {
-        val state = vm.uiState.value
-        val keyId = state.sharedKeys.firstOrNull()?.id
+        val keyId = vm.resolveNoteShareKeyId(noteId)
         if (keyId.isNullOrBlank()) {
             vm.showError(tx("Import at least one key in Keys Manager before sharing"))
             return
@@ -1228,7 +1231,7 @@ fun GreetingPreview() {
             onUpdateThemeMode = {},
             onOpenNew = {},
             onQuickCreate = {},
-            onCreate = { _, _, _, _, _, _, _, _ -> },
+            onCreate = { _, _, _, _, _, _, _, _, _ -> },
             onOpenNote = {},
             onOpenLinkedNote = {},
             onToggleNoteSelection = {},

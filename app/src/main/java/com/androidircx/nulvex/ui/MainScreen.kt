@@ -45,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -234,7 +235,7 @@ fun MainScreen(
     onUpdateLanguage: (String) -> Unit = {},
     onOpenNew: () -> Unit,
     onQuickCreate: (QuickCreateType) -> Unit = {},
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean, Long?) -> Unit,
+    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean, Long?, String?) -> Unit,
     onOpenNote: (String) -> Unit,
     onOpenLinkedNote: (String) -> Unit = {},
     onToggleNoteSelection: (String) -> Unit = {},
@@ -4390,7 +4391,7 @@ private fun FeatureHint(icon: ImageVector, text: String) {
 @Composable
 private fun NewNoteScreen(
     state: UiState,
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean, Long?) -> Unit,
+    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean, Long?, String?) -> Unit,
     onCancel: () -> Unit,
     defaultExpiry: String,
     defaultReadOnce: Boolean,
@@ -4413,11 +4414,15 @@ private fun NewNoteScreen(
     var showLabels by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
     var showTemplateMenu by remember { mutableStateOf(false) }
+    var showShareKeyMenu by remember { mutableStateOf(false) }
     var checklistItems by remember { mutableStateOf(listOf<ChecklistItem>()) }
     var newChecklistItem by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf(listOf<Uri>()) }
     var labels by remember { mutableStateOf(listOf<String>()) }
     var newLabel by remember { mutableStateOf("") }
+    var selectedShareKeyId by remember {
+        mutableStateOf(state.newNoteDraft?.shareKeyId ?: state.sharedKeys.firstOrNull()?.id.orEmpty())
+    }
     var pendingChecklistItemScroll by remember { mutableStateOf(false) }
     var pendingChecklistInputReveal by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -4480,6 +4485,18 @@ private fun NewNoteScreen(
         if (template.labels.isNotEmpty()) {
             showLabels = true
             labels = (labels + template.labels).distinct()
+        }
+    }
+
+    LaunchedEffect(state.sharedKeys, state.newNoteDraft?.shareKeyId) {
+        val draftKeyId = state.newNoteDraft?.shareKeyId
+        val preferred = when {
+            !draftKeyId.isNullOrBlank() && state.sharedKeys.any { it.id == draftKeyId } -> draftKeyId
+            selectedShareKeyId.isNotBlank() && state.sharedKeys.any { it.id == selectedShareKeyId } -> selectedShareKeyId
+            else -> state.sharedKeys.firstOrNull()?.id.orEmpty()
+        }
+        if (preferred != selectedShareKeyId) {
+            selectedShareKeyId = preferred
         }
     }
 
@@ -4568,7 +4585,11 @@ private fun NewNoteScreen(
         ).show()
     }
 
-    LaunchedEffect(content, checklistItems, labels, pinned, expiryChoice, customExpiresAt, readOnce, reminderAt) {
+    val selectedShareKeyLabel = state.sharedKeys.firstOrNull { it.id == selectedShareKeyId }?.label
+        ?: state.sharedKeys.firstOrNull()?.label
+        ?: tx("No keys available")
+
+    LaunchedEffect(content, checklistItems, labels, pinned, expiryChoice, customExpiresAt, readOnce, reminderAt, selectedShareKeyId) {
         val expiresAtMs = when (expiryChoice) {
             "1h" -> System.currentTimeMillis() + 3_600_000L
             "24h" -> System.currentTimeMillis() + 86_400_000L
@@ -4576,7 +4597,18 @@ private fun NewNoteScreen(
             "custom" -> customExpiresAt
             else -> null
         }
-        onDraftChanged(NewNoteDraft(content, checklistItems, labels, pinned, expiresAtMs, readOnce, reminderAt))
+        onDraftChanged(
+            NewNoteDraft(
+                text = content,
+                checklist = checklistItems,
+                labels = labels,
+                pinned = pinned,
+                expiresAt = expiresAtMs,
+                readOnce = readOnce,
+                reminderAt = reminderAt,
+                shareKeyId = selectedShareKeyId.ifBlank { null }
+            )
+        )
     }
     LaunchedEffect(showChecklist, pendingChecklistInputReveal, checklistItems.size) {
         if (showChecklist && pendingChecklistInputReveal) {
@@ -4624,6 +4656,7 @@ private fun NewNoteScreen(
                     onClick = { showAddMenu = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                 ) {
+                    Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                     Text(tx("ADD"))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
@@ -4632,6 +4665,7 @@ private fun NewNoteScreen(
                         onClick = { showTemplateMenu = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Coal, contentColor = Sand)
                     ) {
+                        Icon(imageVector = Icons.Filled.Edit, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                         Text(tx("TEMPLATES"))
                     }
                     DropdownMenu(
@@ -4745,6 +4779,12 @@ private fun NewNoteScreen(
                             TextButton(onClick = {
                                 checklistItems = checklistItems.filterNot { it.id == item.id }
                             }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = null,
+                                    tint = Ember,
+                                    modifier = Modifier.padding(end = 6.dp)
+                                )
                                 Text(tx("REMOVE"), color = Ember)
                             }
                         }
@@ -4760,6 +4800,7 @@ private fun NewNoteScreen(
                         onClick = { imagePicker.launch("image/*") },
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                         Text(tx("ADD IMAGE"))
                     }
                     if (attachments.isNotEmpty()) {
@@ -4779,6 +4820,12 @@ private fun NewNoteScreen(
                             TextButton(onClick = {
                                 attachments = attachments.filterNot { it == uri }
                             }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = null,
+                                    tint = Ember,
+                                    modifier = Modifier.padding(end = 6.dp)
+                                )
                                 Text(tx("REMOVE"), color = Ember)
                             }
                         }
@@ -4809,6 +4856,7 @@ private fun NewNoteScreen(
                         enabled = newLabel.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                         Text(tx("ADD"))
                     }
                 }
@@ -4905,13 +4953,61 @@ private fun NewNoteScreen(
                     onClick = { openReminderPicker() },
                     colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                 ) {
+                    Icon(imageVector = Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                     Text(tx("SET REMINDER"))
                 }
                 if (reminderAt != null) {
                     TextButton(onClick = { reminderAt = null }) {
+                        Icon(
+                            imageVector = Icons.Filled.NotificationsOff,
+                            contentDescription = null,
+                            tint = Ember,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
                         Text(tx("CLEAR REMINDER"), color = Ember)
                     }
                 }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(tx("Share key"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+            Spacer(modifier = Modifier.height(6.dp))
+            if (state.sharedKeys.isEmpty()) {
+                Text(
+                    tx("No keys available. Add a key in Keys Manager before sharing this note."),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Ember
+                )
+            } else {
+                Box {
+                    Button(
+                        onClick = { showShareKeyMenu = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Coal, contentColor = Sand),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(imageVector = Icons.Filled.Lock, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                        Text(selectedShareKeyLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    DropdownMenu(
+                        expanded = showShareKeyMenu,
+                        onDismissRequest = { showShareKeyMenu = false }
+                    ) {
+                        state.sharedKeys.forEach { key ->
+                            DropdownMenuItem(
+                                text = { Text(key.label) },
+                                onClick = {
+                                    selectedShareKeyId = key.id
+                                    showShareKeyMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    tx("This key will be used when sharing this note."),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onSurface.copy(alpha = 0.7f)
+                )
             }
             if (reminderAt != null) {
                 Spacer(modifier = Modifier.height(6.dp))
@@ -4957,6 +5053,7 @@ private fun NewNoteScreen(
                         enabled = newChecklistItem.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Moss, contentColor = Sand)
                     ) {
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                         Text(tx("ADD"))
                     }
                 }
@@ -4976,11 +5073,22 @@ private fun NewNoteScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Coal, contentColor = Sand),
                     modifier = Modifier.weight(1f)
                 ) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                     Text(tx("CANCEL"))
                 }
                 Button(
                     onClick = {
-                        onCreate(content, checklistItems, labels, pinned, attachments, expiresAt, readOnce, reminderAt)
+                        onCreate(
+                            content,
+                            checklistItems,
+                            labels,
+                            pinned,
+                            attachments,
+                            expiresAt,
+                            readOnce,
+                            reminderAt,
+                            selectedShareKeyId.ifBlank { null }
+                        )
                         focusManager.clearFocus(force = true)
                         keyboardController?.hide()
                     },
@@ -4988,6 +5096,7 @@ private fun NewNoteScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
                     modifier = Modifier.weight(1f)
                 ) {
+                    Icon(imageVector = Icons.Filled.Lock, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                     Text(tx("SAVE NOTE"))
                 }
             }

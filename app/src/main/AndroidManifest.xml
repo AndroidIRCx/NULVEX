@@ -104,6 +104,13 @@
                     android:pathPrefix="/api/media/" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".quickcapture.PanicWipeConfirmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnTaskLaunch="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.AppCompat.Dialog.Alert" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -140,6 +147,17 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quick_capture_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".quickcapture.NulvexPanicWipeWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/panic_wipe_widget_info" />
         </receiver>
     </application>
 

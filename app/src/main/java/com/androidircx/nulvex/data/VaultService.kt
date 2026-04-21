@@ -30,6 +30,7 @@ class VaultService(
         checklist: List<ChecklistItem> = emptyList(),
         labels: List<String> = emptyList(),
         attachments: List<NoteAttachment> = emptyList(),
+        shareKeyId: String? = null,
         pinned: Boolean = false,
         expiresAt: Long? = null,
         readOnce: Boolean = false,
@@ -45,6 +46,7 @@ class VaultService(
             checklist = checklist,
             labels = labels,
             attachments = attachments,
+            shareKeyId = shareKeyId,
             pinned = pinned,
             noteKey = session.noteKey,
             expiresAt = expiresAt,
@@ -224,6 +226,7 @@ class VaultService(
             val noteObj = JSONObject().apply {
                 put("id", note.id)
                 put("text", note.text)
+                put("shareKeyId", note.shareKeyId ?: JSONObject.NULL)
                 put("pinned", note.pinned)
                 put("createdAt", note.createdAt)
                 put("updatedAt", note.updatedAt)
@@ -285,6 +288,7 @@ class VaultService(
         val noteObj = JSONObject().apply {
             put("id", note.id)
             put("text", note.text)
+            put("shareKeyId", note.shareKeyId ?: JSONObject.NULL)
             put("pinned", note.pinned)
             put("createdAt", note.createdAt)
             put("updatedAt", note.updatedAt)
@@ -353,6 +357,7 @@ class VaultService(
             val noteObj = notesArray.optJSONObject(i) ?: continue
             val noteId = noteObj.optString("id", "").ifBlank { UUID.randomUUID().toString() }
             val text = noteObj.optString("text", "")
+            val shareKeyId = noteObj.optString("shareKeyId", "").ifBlank { null }
             val pinned = noteObj.optBoolean("pinned", false)
             val createdAt = noteObj.optLong("createdAt", System.currentTimeMillis())
             val updatedAt = noteObj.optLong("updatedAt", createdAt)
@@ -416,7 +421,8 @@ class VaultService(
                 checklist = checklist,
                 labels = labels,
                 attachments = attachments,
-                pinned = pinned
+                pinned = pinned,
+                shareKeyId = shareKeyId
             )
             val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
             val ciphertext = noteCrypto.encrypt(plaintext, session.noteKey)

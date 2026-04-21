@@ -16,17 +16,20 @@ class SyncPreferencesTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val legacyPrefs = context.getSharedPreferences("nulvex_sync_prefs", Context.MODE_PRIVATE)
     private val securePrefs = context.getSharedPreferences("nulvex_sync_secure_prefs", Context.MODE_PRIVATE)
+    private val securePrefsV2 = context.getSharedPreferences("nulvex_sync_secure_prefs_v2", Context.MODE_PRIVATE)
 
     @Before
     fun setUp() {
         legacyPrefs.edit().clear().commit()
         securePrefs.edit().clear().commit()
+        securePrefsV2.edit().clear().commit()
     }
 
     @After
     fun tearDown() {
         legacyPrefs.edit().clear().commit()
         securePrefs.edit().clear().commit()
+        securePrefsV2.edit().clear().commit()
     }
 
     @Test

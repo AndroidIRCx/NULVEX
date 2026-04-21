@@ -105,7 +105,7 @@ class NulvexUiTest {
                     onUpdateThemeMode = {},
                     onOpenNew = onOpenNew,
                     onQuickCreate = onQuickCreate,
-                    onCreate = { _, _, _, _, _, _, _, _ -> },
+                    onCreate = { _, _, _, _, _, _, _, _, _ -> },
                     onOpenNote = onOpenNote,
                     onOpenLinkedNote = onOpenLinkedNote,
                     onToggleNoteSelection = onToggleNoteSelection,

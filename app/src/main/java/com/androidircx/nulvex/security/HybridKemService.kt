@@ -1,14 +1,14 @@
 package com.androidircx.nulvex.security
 
 import org.bouncycastle.crypto.SecretWithEncapsulation
+import org.bouncycastle.crypto.generators.MLKEMKeyPairGenerator
+import org.bouncycastle.crypto.kems.MLKEMExtractor
+import org.bouncycastle.crypto.kems.MLKEMGenerator
+import org.bouncycastle.crypto.params.MLKEMKeyGenerationParameters
+import org.bouncycastle.crypto.params.MLKEMParameters
+import org.bouncycastle.crypto.params.MLKEMPrivateKeyParameters
+import org.bouncycastle.crypto.params.MLKEMPublicKeyParameters
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.bouncycastle.pqc.crypto.mlkem.MLKEMExtractor
-import org.bouncycastle.pqc.crypto.mlkem.MLKEMGenerator
-import org.bouncycastle.pqc.crypto.mlkem.MLKEMKeyGenerationParameters
-import org.bouncycastle.pqc.crypto.mlkem.MLKEMKeyPairGenerator
-import org.bouncycastle.pqc.crypto.mlkem.MLKEMParameters
-import org.bouncycastle.pqc.crypto.mlkem.MLKEMPrivateKeyParameters
-import org.bouncycastle.pqc.crypto.mlkem.MLKEMPublicKeyParameters
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.Security

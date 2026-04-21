@@ -57,6 +57,14 @@
     <string name="settings_lock_timeout_1m">1m</string>
     <string name="settings_lock_timeout_5m">5m</string>
     <string name="settings_lock_timeout_10m">10m</string>
+    <string name="widget_panic_wipe_title">NULVEX</string>
+    <string name="widget_panic_wipe_button">Panik brisanje</string>
+    <string name="widget_panic_wipe_confirm_hint">Pritisnite ponovo u roku od 5 sekundi za potvrdu brisanja.</string>
+    <string name="widget_panic_wipe_confirm_title">Potvrda panic brisanja</string>
+    <string name="widget_panic_wipe_confirm_message">Da li želite da obrišete storage aplikacije? Nulvex će biti resetovan i svi podaci iz sefa će biti obrisani.</string>
+    <string name="widget_panic_wipe_confirm_erase">Obriši storage</string>
+    <string name="widget_panic_wipe_confirm_cancel">Otkaži</string>
+    <string name="widget_panic_wipe_failed">Panic brisanje nije uspelo. Pokušajte ponovo.</string>
     <plurals name="notes_count">
         <item quantity="one">%d beleška</item>
         <item quantity="few">%d beleške</item>

@@ -19,6 +19,7 @@ data class Note(
     val checklist: List<ChecklistItem>,
     val labels: List<String>,
     val attachments: List<NoteAttachment>,
+    val shareKeyId: String? = null,
     val pinned: Boolean,
     val createdAt: Long,
     val updatedAt: Long = createdAt,

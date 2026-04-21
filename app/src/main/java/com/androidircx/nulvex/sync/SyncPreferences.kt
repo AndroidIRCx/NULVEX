@@ -1,44 +1,41 @@
 package com.androidircx.nulvex.sync
 
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import com.androidircx.nulvex.security.LegacyEncryptedPrefsBridge
+import com.androidircx.nulvex.security.SecureTypedPreferences
 import java.util.UUID
 
 class SyncPreferences(context: Context) {
     private val appContext = context.applicationContext
     private val legacyPrefs = appContext.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
-    private val securePrefs: SharedPreferences? = createSecurePrefs(appContext)
-    private val prefs: SharedPreferences = securePrefs ?: legacyPrefs
+    private val securePrefs: SecureTypedPreferences? = SecureTypedPreferences.create(appContext, SECURE_PREFS_NAME)
 
     init {
         migrateLegacyPrefsIfNeeded()
+        migrateLegacyEncryptedPrefsIfNeeded()
     }
 
     fun getOrCreateDeviceId(): String {
-        val current = prefs.getString("device_id", null)
+        val current = getString("device_id", null)
         if (!current.isNullOrBlank()) return current
         val generated = UUID.randomUUID().toString()
-        prefs.edit().putString("device_id", generated).apply()
+        putString("device_id", generated)
         return generated
     }
 
     fun setAuthToken(profile: String, token: SyncAuthToken) {
-        prefs.edit()
-            .putString("access_token_$profile", token.accessToken)
-            .putString("refresh_token_$profile", token.refreshToken)
-            .putLong("expires_at_$profile", token.expiresAtEpochMillis)
-            .putString("token_device_id_$profile", token.deviceId)
-            .apply()
+        putString("access_token_$profile", token.accessToken)
+        putString("refresh_token_$profile", token.refreshToken)
+        putLong("expires_at_$profile", token.expiresAtEpochMillis)
+        putString("token_device_id_$profile", token.deviceId)
     }
 
     fun getAuthToken(profile: String): SyncAuthToken? {
-        val access = prefs.getString("access_token_$profile", null)?.trim().orEmpty()
+        val access = getString("access_token_$profile", null)?.trim().orEmpty()
         if (access.isBlank()) return null
-        val refresh = prefs.getString("refresh_token_$profile", null)
-        val expires = prefs.getLong("expires_at_$profile", 0L)
-        val deviceId = prefs.getString("token_device_id_$profile", null)
+        val refresh = getString("refresh_token_$profile", null)
+        val expires = getLong("expires_at_$profile", 0L)
+        val deviceId = getString("token_device_id_$profile", null)
             ?.takeIf { it.isNotBlank() }
             ?: getOrCreateDeviceId()
         return SyncAuthToken(
@@ -50,38 +47,71 @@ class SyncPreferences(context: Context) {
     }
 
     fun clearAuthToken(profile: String) {
-        prefs.edit()
-            .remove("access_token_$profile")
-            .remove("refresh_token_$profile")
-            .remove("expires_at_$profile")
-            .remove("token_device_id_$profile")
-            .apply()
+        remove(
+            "access_token_$profile",
+            "refresh_token_$profile",
+            "expires_at_$profile",
+            "token_device_id_$profile"
+        )
     }
 
     fun setLastSyncResult(timestampMillis: Long, conflictCount: Int) {
-        prefs.edit()
-            .putLong("last_sync_at", timestampMillis)
-            .putInt("last_sync_conflicts", conflictCount)
-            .apply()
+        putLong("last_sync_at", timestampMillis)
+        putInt("last_sync_conflicts", conflictCount)
     }
 
-    fun getLastSyncAt(): Long = prefs.getLong("last_sync_at", 0L)
+    fun getLastSyncAt(): Long = getLong("last_sync_at", 0L)
 
-    fun getLastSyncConflictCount(): Int = prefs.getInt("last_sync_conflicts", 0)
+    fun getLastSyncConflictCount(): Int = getInt("last_sync_conflicts", 0)
 
-    private fun createSecurePrefs(context: Context): SharedPreferences? {
-        return runCatching {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            EncryptedSharedPreferences.create(
-                context,
-                SECURE_PREFS_NAME,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        }.getOrNull()
+    private fun getString(key: String, defaultValue: String?): String? {
+        return securePrefs?.getString(key, defaultValue) ?: legacyPrefs.getString(key, defaultValue)
+    }
+
+    private fun getLong(key: String, defaultValue: Long): Long {
+        return securePrefs?.getLong(key, defaultValue) ?: legacyPrefs.getLong(key, defaultValue)
+    }
+
+    private fun getInt(key: String, defaultValue: Int): Int {
+        return securePrefs?.getInt(key, defaultValue) ?: legacyPrefs.getInt(key, defaultValue)
+    }
+
+    private fun putString(key: String, value: String?) {
+        val secure = securePrefs
+        if (secure != null) {
+            secure.putString(key, value)
+            return
+        }
+        legacyPrefs.edit().putString(key, value).apply()
+    }
+
+    private fun putLong(key: String, value: Long) {
+        val secure = securePrefs
+        if (secure != null) {
+            secure.putLong(key, value)
+            return
+        }
+        legacyPrefs.edit().putLong(key, value).apply()
+    }
+
+    private fun putInt(key: String, value: Int) {
+        val secure = securePrefs
+        if (secure != null) {
+            secure.putInt(key, value)
+            return
+        }
+        legacyPrefs.edit().putInt(key, value).apply()
+    }
+
+    private fun remove(vararg keys: String) {
+        val secure = securePrefs
+        if (secure != null) {
+            secure.remove(*keys)
+            return
+        }
+        val editor = legacyPrefs.edit()
+        keys.forEach { key -> editor.remove(key) }
+        editor.apply()
     }
 
     private fun migrateLegacyPrefsIfNeeded() {
@@ -89,29 +119,28 @@ class SyncPreferences(context: Context) {
         val legacyData = legacyPrefs.all
         if (legacyData.isEmpty()) return
 
-        val editor = secure.edit()
-        legacyData.forEach { (key, value) ->
-            when (value) {
-                is String -> editor.putString(key, value)
-                is Long -> editor.putLong(key, value)
-                is Int -> editor.putInt(key, value)
-                is Float -> editor.putFloat(key, value)
-                is Boolean -> editor.putBoolean(key, value)
-                is Set<*> -> {
-                    if (value.all { it is String }) {
-                        editor.putStringSet(key, value.filterIsInstance<String>().toSet())
-                    }
-                }
-            }
-        }
-        val copied = editor.commit()
+        val copied = secure.putAll(legacyData, overwriteExisting = false)
         if (copied) {
             legacyPrefs.edit().clear().apply()
         }
     }
 
+    private fun migrateLegacyEncryptedPrefsIfNeeded() {
+        val secure = securePrefs ?: return
+        if (secure.getBoolean(KEY_LEGACY_ENCRYPTED_MIGRATED, false)) return
+
+        val legacyEncrypted = LegacyEncryptedPrefsBridge.open(appContext, LEGACY_ENCRYPTED_PREFS_NAME)
+        val migratedData = legacyEncrypted?.all.orEmpty()
+        if (migratedData.isNotEmpty()) {
+            secure.putAll(migratedData, overwriteExisting = false)
+        }
+        secure.putBoolean(KEY_LEGACY_ENCRYPTED_MIGRATED, true)
+    }
+
     companion object {
         private const val LEGACY_PREFS_NAME = "nulvex_sync_prefs"
-        private const val SECURE_PREFS_NAME = "nulvex_sync_secure_prefs"
+        private const val LEGACY_ENCRYPTED_PREFS_NAME = "nulvex_sync_secure_prefs"
+        private const val SECURE_PREFS_NAME = "nulvex_sync_secure_prefs_v2"
+        private const val KEY_LEGACY_ENCRYPTED_MIGRATED = "__legacy_esp_migrated_v2"
     }
 }

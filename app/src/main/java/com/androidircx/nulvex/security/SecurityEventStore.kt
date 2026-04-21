@@ -1,9 +1,6 @@
 package com.androidircx.nulvex.security
 
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -17,7 +14,12 @@ data class SecurityEvent(
 
 class SecurityEventStore(context: Context) {
     private val appContext = context.applicationContext
-    private val prefs: SharedPreferences = createPrefs(appContext)
+    private val securePrefs = SecureTypedPreferences.create(appContext, SECURE_PREFS_NAME)
+    private val legacyPrefs = appContext.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+
+    init {
+        migrateLegacyDataIfNeeded()
+    }
 
     fun record(type: String, detail: String = "") {
         runCatching {
@@ -34,7 +36,7 @@ class SecurityEventStore(context: Context) {
             for (i in 0 until minOf(events.length(), MAX_EVENTS - 1)) {
                 updated.put(events.get(i))
             }
-            prefs.edit().putString(KEY_EVENTS, updated.toString()).apply()
+            writeRaw(updated.toString())
         }
     }
 
@@ -54,29 +56,40 @@ class SecurityEventStore(context: Context) {
     }
 
     private fun loadRaw(): JSONArray {
-        val raw = prefs.getString(KEY_EVENTS, null) ?: return JSONArray()
+        val raw = readRaw() ?: return JSONArray()
         return runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
     }
 
-    private fun createPrefs(context: Context): SharedPreferences {
-        return runCatching {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            EncryptedSharedPreferences.create(
-                context,
-                PREFS_NAME,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        }.getOrElse {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun readRaw(): String? {
+        return securePrefs?.getString(KEY_EVENTS, null) ?: legacyPrefs.getString(KEY_EVENTS, null)
+    }
+
+    private fun writeRaw(raw: String) {
+        val secure = securePrefs
+        if (secure != null) {
+            secure.putString(KEY_EVENTS, raw)
+            return
         }
+        legacyPrefs.edit().putString(KEY_EVENTS, raw).apply()
+    }
+
+    private fun migrateLegacyDataIfNeeded() {
+        val secure = securePrefs ?: return
+        if (secure.getBoolean(KEY_MIGRATION_DONE, false)) return
+
+        val legacyEncrypted = LegacyEncryptedPrefsBridge.open(appContext, LEGACY_PREFS_NAME)
+        val migratedRaw = legacyEncrypted?.getString(KEY_EVENTS, null)
+            ?: legacyPrefs.getString(KEY_EVENTS, null)
+        if (!migratedRaw.isNullOrBlank()) {
+            secure.putString(KEY_EVENTS, migratedRaw)
+        }
+        secure.putBoolean(KEY_MIGRATION_DONE, true)
     }
 
     companion object {
-        private const val PREFS_NAME = "nulvex_security_events"
+        private const val LEGACY_PREFS_NAME = "nulvex_security_events"
+        private const val SECURE_PREFS_NAME = "nulvex_security_events_v2"
+        private const val KEY_MIGRATION_DONE = "__migrated_v2"
         private const val KEY_EVENTS = "events"
         private const val MAX_EVENTS = 200
 
