@@ -923,4 +923,38 @@
     <string name="tx_auto_2dc2b0de3b">{time} remaining</string>
     <!-- auto-extracted from: app\src\main\java\com\androidircx\nulvex\ui\MainScreen.kt -->
     <string name="tx_auto_7e09c0135c">{time} {label}: {title}</string>
+
+    <!-- Restored default keys required by localized resources -->
+    <string name="tx_auto_0277959611">24h</string>
+    <string name="tx_auto_28e53a5fd1">Key manager restore failed: {reason}</string>
+    <string name="tx_auto_44933a8424">No keys available. Go to Settings &#x2192; Keys Manager to import a shared key first.</string>
+    <string name="tx_auto_452fa1301c">qr</string>
+    <string name="tx_auto_4b369ec8d5">nfc</string>
+    <string name="tx_auto_5d94be3725">Note share upload failed: {reason}</string>
+    <string name="tx_auto_67bd5810ec">generated</string>
+    <string name="tx_auto_6a673ec7c3">Key manager upload failed: {reason}</string>
+    <string name="tx_auto_6afb975034">Key import failed &#x2014; wrong password or corrupted file</string>
+    <string name="tx_auto_8eec7bc461">security</string>
+    <string name="tx_auto_954f97432b">Re-encrypting vault&#x2026;</string>
+    <string name="tx_auto_9d02c3b8c9">Import failed &#x2014; wrong key or corrupted file</string>
+    <string name="tx_auto_af6321ca7a">unknown error</string>
+    <string name="tx_auto_b363713a93">manual</string>
+    <string name="tx_auto_be3ef87947">Open conflicts &#x2014; local version was kept</string>
+    <string name="tx_auto_c032adc1ff">X</string>
+    <string name="tx_auto_cd18966f5e">Failed to generate OpenPGP key: {reason}</string>
+    <string name="tx_auto_cd226d1aa3">Failed to import key: {reason}</string>
+    <string name="tx_auto_e0711f8386">Local audit log &#x2014; unlock, wipe, key events</string>
+    <string name="tx_auto_e9c9f7bc39">1h</string>
+    <string name="tx_auto_ee4e9da931">Failed to generate XChaCha key: {reason}</string>
+    <string name="tx_auto_fd4a4c2d52">7d</string>
+
+    <!-- Restored additional default keys required by localized resources -->
+    <string name="tx_auto_105d4889c3">## Journal\n\nMood:\nWhat happened today:\nWhat I learned:\nNext step:</string>
+    <string name="tx_auto_160607c1d3">Keys Manager stores keys used for encrypted note sharing and backups.\n\n- OpenPGP key: generated/imported PGP key material.\n- XChaCha key: 32-byte symmetric key used for fast encrypted payload exchange.\n\nSources (manual/qr/nfc) are auto-tagged based on how key was imported.</string>
+    <string name="tx_auto_2afac3d8db">Backup modes:\n\n- Local backup: exports encrypted file to your phone storage.\n- Remote encrypted storage (Pro): uploads encrypted backup to Pro remote storage.\n\nIn both cases, decrypt requires the correct key.</string>
+    <string name="tx_auto_57a28588b4">## Meeting\n\n- Agenda:\n- Decisions:\n- Tasks:\n- Follow-up:</string>
+    <string name="tx_auto_62d963c772">SHARE SELECTED KEY lets you transfer a selected key to another Nulvex user.\n\n- QR: show code on screen for scan.\n- NFC: writes key payload to NFC tag.\n\nReceiver imports it via QR scanner or NFC read.</string>
+    <string name="tx_auto_b39cf074fb">Manual import accepts:\n\n1) OpenPGP armored key blocks (BEGIN PGP ... END PGP)\n2) XChaCha key as:\n- base64 string decoding to exactly 32 bytes, or\n- 64-char hex string (32 bytes).</string>
+    <string name="tx_auto_d7359a4863">Service:\nUsername:\nPassword:\nBackup code:\nNotes:</string>
+    <string name="tx_auto_dba1356f9f">Generate XChaCha creates a new random 32-byte symmetric key.\n\nGenerate PGP creates a new OpenPGP key pair stored in the app key vault.</string>
 </resources>
