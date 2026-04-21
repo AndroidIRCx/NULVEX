@@ -197,7 +197,7 @@ tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerificat
     sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
     executionData.setFrom(files(jacocoDebugExec, jacocoDebugAltExec))
 
-    val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.08"
+    val minimumLineCoverage = (findProperty("coverage.minimum.line") as String?) ?: "0.10"
 
     violationRules {
         rule {
@@ -205,6 +205,58 @@ tasks.register<JacocoCoverageVerification>("jacocoDebugUnitTestCoverageVerificat
                 counter = "LINE"
                 value = "COVEREDRATIO"
                 minimum = BigDecimal(minimumLineCoverage)
+            }
+        }
+    }
+}
+
+tasks.register<JacocoCoverageVerification>("jacocoCore100CoverageVerification") {
+    dependsOn("testDebugUnitTest")
+    dependsOn("jacocoDebugUnitTestReport")
+
+    val excludes = listOf(
+        "**/R.class",
+        "**/R$*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*",
+        "**/*Test*.*",
+        "android/**/*.*",
+        "**/*\$Lambda$*.*",
+        "**/*Companion*.*"
+    )
+
+    val coreIncludes = listOf(
+        "**/com/androidircx/nulvex/crypto/XChaCha20Poly1305NoteCrypto.class",
+        "**/com/androidircx/nulvex/security/Hkdf.class",
+        "**/com/androidircx/nulvex/security/VaultKeyManager.class",
+        "**/com/androidircx/nulvex/data/Note.class",
+        "**/com/androidircx/nulvex/data/NotePayloadCodec.class",
+        "**/com/androidircx/nulvex/data/SelfDestructService.class",
+        "**/com/androidircx/nulvex/billing/PlayBillingProducts.class",
+        "**/com/androidircx/nulvex/i18n/AppLocaleResolverKt.class"
+    )
+
+    classDirectories.setFrom(
+        files(
+            fileTree(debugKotlinClassesDir) {
+                exclude(excludes)
+                include(coreIncludes)
+            },
+            fileTree(debugJavaClassesDir) {
+                exclude(excludes)
+                include(coreIncludes)
+            }
+        )
+    )
+    sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
+    executionData.setFrom(files(jacocoDebugExec, jacocoDebugAltExec))
+
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = BigDecimal("1.00")
             }
         }
     }

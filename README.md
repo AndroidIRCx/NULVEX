@@ -272,11 +272,14 @@ app/src/main/java/com/androidircx/nulvex/
 
 ## Testing
 
-Current local status (February 19, 2026):
+Current local status (April 21, 2026):
 - `./gradlew test` passes
 - `./gradlew connectedAndroidTest` requires a running emulator/device
+- `@Test` count snapshot: JVM `172`, instrumented `206`, total `378`
+- JaCoCo JVM line coverage snapshot: `10.48%` (`1327 / 12668`)
 - JaCoCo report: `./gradlew :app:jacocoDebugUnitTestReport`
-- JaCoCo gate: `./gradlew :app:jacocoDebugUnitTestCoverageVerification` (default line threshold `0.05`, override with `-Pcoverage.minimum.line=...`)
+- JaCoCo gate: `./gradlew :app:jacocoDebugUnitTestCoverageVerification` (default line threshold `0.10`, override with `-Pcoverage.minimum.line=...`)
+- Core strict gate: `./gradlew :app:jacocoCore100CoverageVerification` (selected pure-core classes at `1.00` line coverage)
 
 **JVM unit tests** (`./gradlew test`, CI-ready):
 
@@ -285,21 +288,21 @@ Current local status (February 19, 2026):
 | `XChaCha20Poly1305NoteCryptoTest` | 8 | AEAD round-trip, nonce uniqueness, tamper detection |
 | `HkdfTest` | 8 | RFC 5869 vectors, key length flexibility, domain separation |
 | `VaultKeyManagerTest` | 11 | Master / DB / note key derivation, layer isolation |
-| `NoteRepositoryTest` | 11 | Encrypt-on-write, decrypt-on-read, secure delete (ciphertext zeroing) |
+| `NoteRepositoryTest` | 19 | Encrypt-on-write, decrypt-on-read, secure delete (ciphertext zeroing) |
 | `SelfDestructServiceTest` | 7 | Expired note sweep, ciphertext zeroing, VACUUM |
 | `VaultSessionManagerTest` | 5 | Session state machine, null-state thread safety |
-| `PlayBillingProductsTest` | 2 | One-time product IDs and INAPP query mapping |
+| `PlayBillingProductsTest` | 3 | One-time product IDs and INAPP query mapping |
 
 **Instrumented tests** (`./gradlew connectedAndroidTest`, requires device or emulator):
 
 | Suite | Tests | What it covers |
 |---|---|---|
 | `Argon2idKdfTest` | 8 | Native Argon2id: correct output length, determinism, salt/password sensitivity |
-| `VaultAuthServiceTest` | 12 | PIN setup/verify, real vs decoy resolution, clearDecoyPin, random salt per hash |
-| `NotePayloadCodecTest` | 12 | JSON codec: round-trip, unicode, special chars, optional fields |
-| `NoteDaoTest` | 16 | Room DAO: upsert, expiry queries, soft delete, purge, ciphertext overwrite |
-| `PanicWipeServiceTest` | 6 | Session closure, wipeAll/wipeDecoyOnly without throwing |
-| `NulvexUiTest` | 31 | Compose UI: onboarding, setup PIN, unlock pad, vault list, panic button, error banner |
+| `VaultAuthServiceTest` | 15 | PIN setup/verify, real vs decoy resolution, clearDecoyPin, random salt per hash |
+| `NotePayloadCodecTest` | 13 | JSON codec: round-trip, unicode, special chars, optional fields |
+| `NoteDaoTest` | 27 | Room DAO: upsert, expiry queries, soft delete, purge, ciphertext overwrite |
+| `PanicWipeServiceTest` | 7 | Session closure, wipeAll/wipeDecoyOnly without throwing |
+| `NulvexUiTest` | 65 | Compose UI: onboarding, setup PIN, unlock pad, vault list, panic button, error banner |
 
 CI workflow (`.github/workflows/android-unit-tests.yml`) runs JVM tests only (`./gradlew test` + JaCoCo report + JaCoCo coverage gate) on every push/PR to `main`, `master`, and `develop`, and uploads HTML/XML coverage artifacts.  
 `connectedAndroidTest` is not executed in GitHub Actions.
