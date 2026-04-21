@@ -5,8 +5,8 @@ buildscript {
             force("org.bouncycastle:bcpkix-jdk18on:1.84")
             force("org.bouncycastle:bcprov-jdk18on:1.84")
             force("org.bouncycastle:bcutil-jdk18on:1.84")
-            force("io.netty:netty-codec-http:4.1.132.Final")
-            force("io.netty:netty-codec-http2:4.1.132.Final")
+            force("io.netty:netty-codec-http:4.2.12.Final")
+            force("io.netty:netty-codec-http2:4.2.12.Final")
         }
     }
 }
