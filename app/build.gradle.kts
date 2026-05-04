@@ -7,7 +7,7 @@ import org.gradle.internal.os.OperatingSystem
 import java.util.Properties
 
 plugins {
-    alias(libs.plugins.android.application)
+    id("com.android.application")
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     id("com.google.gms.google-services")

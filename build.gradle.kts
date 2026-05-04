@@ -1,5 +1,6 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
+    val androidGradlePluginVersion = "9.2.0"
     val patchedBouncyCastleVersion = "1.84"
     val bouncyCastleBuildscriptModules = setOf(
         "bcpkix-jdk18on",
@@ -8,6 +9,15 @@ buildscript {
     )
 
     dependencies {
+        classpath("com.android.tools.build:gradle:$androidGradlePluginVersion") {
+            exclude(group = "org.bouncycastle", module = "bcpkix-jdk18on")
+            exclude(group = "org.bouncycastle", module = "bcprov-jdk18on")
+            exclude(group = "org.bouncycastle", module = "bcutil-jdk18on")
+        }
+        classpath("org.bouncycastle:bcpkix-jdk18on:$patchedBouncyCastleVersion")
+        classpath("org.bouncycastle:bcprov-jdk18on:$patchedBouncyCastleVersion")
+        classpath("org.bouncycastle:bcutil-jdk18on:$patchedBouncyCastleVersion")
+
         components {
             all {
                 if (id.group != "org.bouncycastle") {
@@ -37,7 +47,6 @@ buildscript {
 }
 
 plugins {
-    alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.ksp) apply false
     id("com.google.gms.google-services") version "4.4.4" apply false
