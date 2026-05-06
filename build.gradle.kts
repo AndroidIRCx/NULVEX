@@ -1,6 +1,6 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
-    val androidGradlePluginVersion = "9.2.0"
+    val androidGradlePluginVersion = "9.2.1"
     val patchedBouncyCastleVersion = "1.84"
     val bouncyCastleBuildscriptModules = setOf(
         "bcpkix-jdk18on",
@@ -40,8 +40,8 @@ buildscript {
             force("org.bouncycastle:bcpkix-jdk18on:$patchedBouncyCastleVersion")
             force("org.bouncycastle:bcprov-jdk18on:$patchedBouncyCastleVersion")
             force("org.bouncycastle:bcutil-jdk18on:$patchedBouncyCastleVersion")
-            force("io.netty:netty-codec-http:4.2.12.Final")
-            force("io.netty:netty-codec-http2:4.2.12.Final")
+            force("io.netty:netty-codec-http:4.2.13.Final")
+            force("io.netty:netty-codec-http2:4.2.13.Final")
         }
     }
 }
@@ -61,11 +61,11 @@ subprojects {
                 add("implementation", "com.google.protobuf:protobuf-javalite:4.34.1")
                 add("implementation", "com.google.protobuf:protobuf-kotlin:4.34.1")
                 add("implementation", "com.google.protobuf:protobuf-kotlin-lite:4.34.1")
-                add("implementation", "io.netty:netty-handler:4.2.12.Final")
-                add("implementation", "io.netty:netty-codec-http2:4.2.12.Final")
-                add("implementation", "io.netty:netty-codec-http:4.2.12.Final")
-                add("implementation", "io.netty:netty-codec:4.2.12.Final")
-                add("implementation", "io.netty:netty-common:4.2.12.Final")
+                add("implementation", "io.netty:netty-handler:4.2.13.Final")
+                add("implementation", "io.netty:netty-codec-http2:4.2.13.Final")
+                add("implementation", "io.netty:netty-codec-http:4.2.13.Final")
+                add("implementation", "io.netty:netty-codec:4.2.13.Final")
+                add("implementation", "io.netty:netty-common:4.2.13.Final")
                 add("implementation", "org.jdom:jdom2:2.0.6.1")
                 add("implementation", "org.bitbucket.b_c:jose4j:0.9.6")
                 add("implementation", "org.apache.commons:commons-lang3:3.20.0")
