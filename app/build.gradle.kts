@@ -348,7 +348,7 @@ if (txPullOnBuild) {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.14.0"))
     implementation("com.google.firebase:firebase-crashlytics")
     implementation("com.google.firebase:firebase-analytics")
 
@@ -385,7 +385,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.test.core)
-    testImplementation("org.json:json:20251224")
+    testImplementation("org.json:json:20260522")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
