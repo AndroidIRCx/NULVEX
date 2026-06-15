@@ -23,6 +23,14 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 Retry Play upload for existing release artifacts without rebuilding/bumping
 
+### android internal
+
+```sh
+[bundle exec] fastlane android internal
+```
+
+Build release APK and upload to Internal App Sharing (APK only)
+
 ### android closed
 
 ```sh
