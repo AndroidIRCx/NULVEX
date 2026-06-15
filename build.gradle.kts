@@ -57,10 +57,10 @@ subprojects {
     plugins.withId("com.android.application") {
         dependencies {
             constraints {
-                add("implementation", "com.google.protobuf:protobuf-java:4.35.0")
-                add("implementation", "com.google.protobuf:protobuf-javalite:4.35.0")
-                add("implementation", "com.google.protobuf:protobuf-kotlin:4.35.0")
-                add("implementation", "com.google.protobuf:protobuf-kotlin-lite:4.35.0")
+                add("implementation", "com.google.protobuf:protobuf-java:4.35.1")
+                add("implementation", "com.google.protobuf:protobuf-javalite:4.35.1")
+                add("implementation", "com.google.protobuf:protobuf-kotlin:4.35.1")
+                add("implementation", "com.google.protobuf:protobuf-kotlin-lite:4.35.1")
                 add("implementation", "io.netty:netty-handler:4.2.15.Final")
                 add("implementation", "io.netty:netty-codec-http2:4.2.15.Final")
                 add("implementation", "io.netty:netty-codec-http:4.2.15.Final")
