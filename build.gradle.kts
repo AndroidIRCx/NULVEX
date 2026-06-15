@@ -2,6 +2,7 @@
 buildscript {
     val androidGradlePluginVersion = "9.2.1"
     val patchedBouncyCastleVersion = "1.84"
+    val patchedNettyVersion = "4.2.15.Final"
     val bouncyCastleBuildscriptModules = setOf(
         "bcpkix-jdk18on",
         "bcprov-jdk18on",
@@ -17,6 +18,8 @@ buildscript {
         classpath("org.bouncycastle:bcpkix-jdk18on:$patchedBouncyCastleVersion")
         classpath("org.bouncycastle:bcprov-jdk18on:$patchedBouncyCastleVersion")
         classpath("org.bouncycastle:bcutil-jdk18on:$patchedBouncyCastleVersion")
+        classpath("com.google.gms:google-services:4.4.4")
+        classpath("com.google.firebase:firebase-crashlytics-gradle:3.0.7")
 
         components {
             all {
@@ -40,8 +43,17 @@ buildscript {
             force("org.bouncycastle:bcpkix-jdk18on:$patchedBouncyCastleVersion")
             force("org.bouncycastle:bcprov-jdk18on:$patchedBouncyCastleVersion")
             force("org.bouncycastle:bcutil-jdk18on:$patchedBouncyCastleVersion")
-            force("io.netty:netty-codec-http:4.2.15.Final")
-            force("io.netty:netty-codec-http2:4.2.15.Final")
+            force("io.netty:netty-buffer:$patchedNettyVersion")
+            force("io.netty:netty-codec:$patchedNettyVersion")
+            force("io.netty:netty-codec-http:$patchedNettyVersion")
+            force("io.netty:netty-codec-http2:$patchedNettyVersion")
+            force("io.netty:netty-codec-socks:$patchedNettyVersion")
+            force("io.netty:netty-common:$patchedNettyVersion")
+            force("io.netty:netty-handler:$patchedNettyVersion")
+            force("io.netty:netty-handler-proxy:$patchedNettyVersion")
+            force("io.netty:netty-resolver:$patchedNettyVersion")
+            force("io.netty:netty-transport:$patchedNettyVersion")
+            force("io.netty:netty-transport-native-unix-common:$patchedNettyVersion")
         }
     }
 }
@@ -49,18 +61,25 @@ buildscript {
 plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.ksp) apply false
-    id("com.google.gms.google-services") version "4.4.4" apply false
-    id("com.google.firebase.crashlytics") version "3.0.7" apply false
 }
 
 subprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "io.netty") {
+                useVersion("4.2.15.Final")
+                because("Keep GitHub dependency graph and Gradle resolution on patched Netty versions")
+            }
+        }
+    }
+
     plugins.withId("com.android.application") {
         dependencies {
             constraints {
-                add("implementation", "com.google.protobuf:protobuf-java:4.35.0")
-                add("implementation", "com.google.protobuf:protobuf-javalite:4.35.0")
-                add("implementation", "com.google.protobuf:protobuf-kotlin:4.35.0")
-                add("implementation", "com.google.protobuf:protobuf-kotlin-lite:4.35.0")
+                add("implementation", "com.google.protobuf:protobuf-java:4.35.1")
+                add("implementation", "com.google.protobuf:protobuf-javalite:4.35.1")
+                add("implementation", "com.google.protobuf:protobuf-kotlin:4.35.1")
+                add("implementation", "com.google.protobuf:protobuf-kotlin-lite:4.35.1")
                 add("implementation", "io.netty:netty-handler:4.2.15.Final")
                 add("implementation", "io.netty:netty-codec-http2:4.2.15.Final")
                 add("implementation", "io.netty:netty-codec-http:4.2.15.Final")

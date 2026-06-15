@@ -19,5 +19,11 @@ updates:
         patterns:
           - "*"
 
+    ignore:
+      # CodeQL currently supports Kotlin versions below 2.3.30.
+      - dependency-name: "org.jetbrains.kotlin.plugin.compose"
+        versions:
+          - ">= 2.4.0"
+
     # ako koristiš private repos / GitHub Packages
     registries: "*"
