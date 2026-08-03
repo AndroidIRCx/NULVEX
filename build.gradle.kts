@@ -2,7 +2,7 @@
 buildscript {
     val androidGradlePluginVersion = "9.3.1"
     val patchedBouncyCastleVersion = "1.85"
-    val patchedNettyVersion = "4.2.15.Final"
+    val patchedNettyVersion = "4.2.16.Final"
     val bouncyCastleBuildscriptModules = setOf(
         "bcpkix-jdk18on",
         "bcprov-jdk18on",
@@ -45,6 +45,7 @@ buildscript {
             force("org.bouncycastle:bcutil-jdk18on:$patchedBouncyCastleVersion")
             force("io.netty:netty-buffer:$patchedNettyVersion")
             force("io.netty:netty-codec:$patchedNettyVersion")
+            force("io.netty:netty-codec-compression:$patchedNettyVersion")
             force("io.netty:netty-codec-http:$patchedNettyVersion")
             force("io.netty:netty-codec-http2:$patchedNettyVersion")
             force("io.netty:netty-codec-socks:$patchedNettyVersion")
@@ -67,7 +68,7 @@ subprojects {
     configurations.configureEach {
         resolutionStrategy.eachDependency {
             if (requested.group == "io.netty") {
-                useVersion("4.2.15.Final")
+                useVersion("4.2.16.Final")
                 because("Keep GitHub dependency graph and Gradle resolution on patched Netty versions")
             }
             if (requested.group == "org.bouncycastle") {
@@ -84,11 +85,11 @@ subprojects {
                 add("implementation", "com.google.protobuf:protobuf-javalite:4.35.1")
                 add("implementation", "com.google.protobuf:protobuf-kotlin:4.35.1")
                 add("implementation", "com.google.protobuf:protobuf-kotlin-lite:4.35.1")
-                add("implementation", "io.netty:netty-handler:4.2.15.Final")
-                add("implementation", "io.netty:netty-codec-http2:4.2.15.Final")
-                add("implementation", "io.netty:netty-codec-http:4.2.15.Final")
-                add("implementation", "io.netty:netty-codec:4.2.15.Final")
-                add("implementation", "io.netty:netty-common:4.2.15.Final")
+                add("implementation", "io.netty:netty-handler:4.2.16.Final")
+                add("implementation", "io.netty:netty-codec-http2:4.2.16.Final")
+                add("implementation", "io.netty:netty-codec-http:4.2.16.Final")
+                add("implementation", "io.netty:netty-codec:4.2.16.Final")
+                add("implementation", "io.netty:netty-common:4.2.16.Final")
                 add("implementation", "org.jdom:jdom2:2.0.6.1")
                 add("implementation", "org.bitbucket.b_c:jose4j:0.9.6")
                 add("implementation", "org.apache.commons:commons-lang3:3.20.0")
