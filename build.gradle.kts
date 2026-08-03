@@ -70,6 +70,10 @@ subprojects {
                 useVersion("4.2.15.Final")
                 because("Keep GitHub dependency graph and Gradle resolution on patched Netty versions")
             }
+            if (requested.group == "org.bouncycastle") {
+                useVersion("1.85")
+                because("Keep androidLintTool and other tool classpaths on patched BouncyCastle (CVE-2025-14813)")
+            }
         }
     }
 
