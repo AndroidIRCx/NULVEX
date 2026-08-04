@@ -20,7 +20,7 @@ class KeystoreSecretProvider(
     private val keyIv = "secret_iv"
     private val keyCt = "secret_ct"
 
-    fun getOrCreateSecret(context: Context): ByteArray {
+    fun getOrCreateSecret(context: Context): ByteArray = synchronized(CryptoProvisioning.lock) {
         val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         val storedIv = prefs.getString(keyIv, null)
         val storedCt = prefs.getString(keyCt, null)
@@ -33,7 +33,9 @@ class KeystoreSecretProvider(
         val secret = ByteArray(32)
         SecureRandom().nextBytes(secret)
         val (iv, ct) = encrypt(secretKey, secret)
-        prefs.edit {
+        // commit (not apply): the secret feeds the master key that immediately
+        // creates the DB / wraps the biometric key; it must be durable before use.
+        prefs.edit(commit = true) {
             putString(keyIv, iv)
             putString(keyCt, ct)
         }

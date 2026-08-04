@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.core.content.edit
+import com.androidircx.nulvex.security.CryptoProvisioning
 import org.json.JSONArray
 import org.json.JSONObject
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -447,7 +448,7 @@ class SharedKeyStore(context: Context) {
         return cipher.doFinal(ct)
     }
 
-    private fun getOrCreateSecretKey(): SecretKey {
+    private fun getOrCreateSecretKey(): SecretKey = synchronized(CryptoProvisioning.lock) {
         val store = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
         val existing = (store.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.secretKey
         if (existing != null) return existing

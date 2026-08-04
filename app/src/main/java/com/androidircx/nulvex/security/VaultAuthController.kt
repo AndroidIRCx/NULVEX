@@ -42,17 +42,24 @@ class VaultAuthController(
     suspend fun changeRealPin(oldPin: CharArray, newPin: CharArray): Boolean {
         if (!authService.verifyRealPin(oldPin)) {
             oldPin.wipe()
+            newPin.wipe()
             return false
         }
+        // Compute the new PIN hash from a copy up front: deriveMasterKey() inside the
+        // vault rekey wipes the CharArray it receives, so passing newPin straight through
+        // would leave us hashing all-zeros — the previous behaviour that permanently
+        // locked users out after a PIN change. Store the hash only after the rekey
+        // succeeds so a failed rekey leaves the old PIN working.
+        val newHash = authService.computeRealPinHash(newPin.copyOf())
         return try {
-            vaultService.changeRealPin(oldPin, newPin)
-            authService.setRealPin(newPin)
-            newPin.wipe()
+            vaultService.changeRealPin(oldPin.copyOf(), newPin.copyOf())
+            authService.storeRealPinHash(newHash)
             true
         } catch (_: Exception) {
+            false
+        } finally {
             oldPin.wipe()
             newPin.wipe()
-            false
         }
     }
 

@@ -29,7 +29,7 @@ class BiometricKeyStore(
         val ct = cipher.doFinal(masterKey)
         val ivB64 = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
         val ctB64 = Base64.encodeToString(ct, Base64.NO_WRAP)
-        prefs.edit {
+        prefs.edit(commit = true) {
             putString(keyIv, ivB64)
             putString(keyCt, ctB64)
         }
@@ -71,7 +71,7 @@ class BiometricKeyStore(
         return keyStore.containsAlias(alias)
     }
 
-    private fun getOrCreateKey(): SecretKey {
+    private fun getOrCreateKey(): SecretKey = synchronized(CryptoProvisioning.lock) {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val existing = (keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry)?.secretKey
         if (existing != null) return existing

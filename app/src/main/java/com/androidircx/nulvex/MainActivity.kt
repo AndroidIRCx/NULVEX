@@ -12,6 +12,7 @@ import android.nfc.tech.Ndef
 import android.nfc.tech.NdefFormatable
 import android.os.Bundle
 import android.os.Build
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -70,6 +71,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 private data class PendingNoteCreateRequest(
     val text: String,
@@ -93,6 +95,10 @@ class MainActivity : AppCompatActivity() {
     private val decoyBiometricStore by lazy {
         BiometricKeyStore(applicationContext, "nulvex_biometric_decoy", "nulvex_biometric_decoy_key")
     }
+    // Guards against two BiometricPrompts being shown at once (e.g. the auto-unlock
+    // LaunchedEffect firing while the user also taps the fingerprint button, or an
+    // enrollment prompt overlapping an unlock prompt).
+    private val biometricPromptInFlight = AtomicBoolean(false)
     private val adManager by lazy { VaultServiceLocator.adManager() }
     private var billingClient: BillingClient? = null
     private var nfcAdapter: NfcAdapter? = null
@@ -304,7 +310,7 @@ class MainActivity : AppCompatActivity() {
                     onSetup = { realPin, decoyPin, enableBiometric ->
                         vm.setupPins(realPin, decoyPin) {
                             if (enableBiometric) {
-                                startBiometricEnrollment(realPin)
+                                startBiometricEnrollment(realPin, fromOnboarding = true)
                             }
                         }
                     },
@@ -318,7 +324,7 @@ class MainActivity : AppCompatActivity() {
                     onUpdateLockTimeout = vm::updateLockTimeout,
                     onUpdateDefaultExpiry = vm::updateDefaultExpiry,
                     onUpdateDefaultReadOnce = vm::updateDefaultReadOnce,
-                    onRequestBiometricEnroll = ::startBiometricEnrollment,
+                    onRequestBiometricEnroll = { pin -> startBiometricEnrollment(pin) },
                     onRequestBiometricUnlock = ::startBiometricUnlock,
                     onDisableBiometric = ::disableBiometric,
                     onToggleAutoBiometricPrompt = vm::setAutoBiometricPromptEnabled,
@@ -459,17 +465,19 @@ class MainActivity : AppCompatActivity() {
         handleIncomingIntent(intent)
     }
 
-    private fun startBiometricEnrollment(pin: String) {
+    private fun startBiometricEnrollment(pin: String, fromOnboarding: Boolean = false) {
         if (pin.isBlank()) {
             vm.showError(tx("PIN is required for fingerprint setup"))
             return
         }
+        if (!biometricPromptInFlight.compareAndSet(false, true)) return
         lifecycleScope.launch(Dispatchers.IO) {
             val ok = VaultServiceLocator.vaultAuthService()
                 .verifyRealPin(pin.toCharArray())
             withContext(Dispatchers.Main) {
                 if (!ok) {
                     vm.showError(tx("Current PIN is incorrect"))
+                    biometricPromptInFlight.set(false)
                     return@withContext
                 }
                 val canAuth = BiometricManager.from(this@MainActivity).canAuthenticate(
@@ -478,12 +486,13 @@ class MainActivity : AppCompatActivity() {
                 )
                 if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
                     vm.showError(tx("Fingerprint or device credential is not available"))
+                    biometricPromptInFlight.set(false)
                     return@withContext
                 }
-                val cipher = try {
-                    biometricStore.getEncryptCipher()
-                } catch (_: Exception) {
+                val cipher = obtainEnrollCipher(biometricStore)
+                if (cipher == null) {
                     vm.showError(tx("Unable to initialize fingerprint"))
+                    biometricPromptInFlight.set(false)
                     return@withContext
                 }
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -502,23 +511,63 @@ class MainActivity : AppCompatActivity() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             val authCipher = result.cryptoObject?.cipher ?: run {
                                 vm.showError(tx("Fingerprint setup failed"))
+                                biometricPromptInFlight.set(false)
                                 return
                             }
-                            val masterKey = VaultKeyManager(applicationContext)
-                                .deriveMasterKey(pin.toCharArray())
-                            biometricStore.storeEncryptedMasterKey(authCipher, masterKey)
-                            masterKey.fill(0)
-                            vm.enableBiometric()
-                            vm.setBiometricTargetVault("real")
+                            // Derive off the main thread (Argon2id is memory-hard) and only
+                            // after provisioning committed the salts/secret, so the wrapped
+                            // key matches the key the DB was created with.
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                try {
+                                    val masterKey = VaultKeyManager(applicationContext)
+                                        .deriveMasterKey(pin.toCharArray())
+                                    biometricStore.storeEncryptedMasterKey(authCipher, masterKey)
+                                    val forVault = if (fromOnboarding) masterKey.copyOf() else null
+                                    masterKey.fill(0)
+                                    withContext(Dispatchers.Main) {
+                                        vm.setBiometricTargetVault("real")
+                                        // During onboarding, open the vault directly with the
+                                        // key we just derived instead of showing a second
+                                        // BiometricPrompt via the auto-unlock effect.
+                                        if (forVault != null) {
+                                            vm.unlockWithMasterKey(forVault)
+                                        }
+                                        vm.enableBiometric()
+                                    }
+                                } catch (_: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        vm.showError(tx("Fingerprint setup failed"))
+                                    }
+                                } finally {
+                                    biometricPromptInFlight.set(false)
+                                }
+                            }
                         }
 
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                             vm.showError(errString.toString())
+                            biometricPromptInFlight.set(false)
                         }
                     }
                 )
                 prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
             }
+        }
+    }
+
+    /**
+     * Returns an encrypt cipher for enrollment, transparently recreating the
+     * keystore key if it was permanently invalidated by an OS fingerprint change
+     * (otherwise re-enrolling would keep failing on the stale key).
+     */
+    private fun obtainEnrollCipher(store: BiometricKeyStore): javax.crypto.Cipher? {
+        return try {
+            store.getEncryptCipher()
+        } catch (_: KeyPermanentlyInvalidatedException) {
+            store.clear()
+            runCatching { store.getEncryptCipher() }.getOrNull()
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -532,11 +581,17 @@ class MainActivity : AppCompatActivity() {
             vm.showError(tx("Fingerprint data is missing"))
             return
         }
+        if (!biometricPromptInFlight.compareAndSet(false, true)) return
         val (iv, ct) = pair
         val cipher = try {
             biometricStore.getDecryptCipher(iv)
+        } catch (_: KeyPermanentlyInvalidatedException) {
+            onBiometricKeyInvalidated(biometricStore, decoy = false)
+            biometricPromptInFlight.set(false)
+            return
         } catch (_: Exception) {
             vm.showError(tx("Fingerprint data is invalid"))
+            biometricPromptInFlight.set(false)
             return
         }
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -552,17 +607,41 @@ class MainActivity : AppCompatActivity() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 val authCipher = result.cryptoObject?.cipher ?: run {
                     vm.showError(tx("Fingerprint unlock failed"))
+                    biometricPromptInFlight.set(false)
                     return
                 }
-                val masterKey = authCipher.doFinal(ct)
+                val masterKey = try {
+                    authCipher.doFinal(ct)
+                } catch (_: KeyPermanentlyInvalidatedException) {
+                    onBiometricKeyInvalidated(biometricStore, decoy = false)
+                    biometricPromptInFlight.set(false)
+                    return
+                } catch (_: Exception) {
+                    vm.showError(tx("Fingerprint unlock failed"))
+                    biometricPromptInFlight.set(false)
+                    return
+                }
                 vm.unlockWithMasterKey(masterKey)
+                biometricPromptInFlight.set(false)
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 vm.showError(errString.toString())
+                biometricPromptInFlight.set(false)
             }
         })
         prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
+    }
+
+    /**
+     * The keystore-wrapped master key became permanently invalid because the user
+     * added/changed an OS fingerprint. Clear the stale biometric data and fall back
+     * to PIN so unlock never just silently fails; the user can re-enable fingerprint.
+     */
+    private fun onBiometricKeyInvalidated(store: BiometricKeyStore, decoy: Boolean) {
+        store.clear()
+        if (decoy) vm.disableDecoyBiometric() else vm.disableBiometric()
+        vm.showError(tx("Fingerprint changed on this device. Unlock with your PIN, then re-enable fingerprint in Settings."))
     }
 
     private fun disableBiometric() {
@@ -575,11 +654,13 @@ class MainActivity : AppCompatActivity() {
             vm.showError(tx("Enter your decoy PIN first"))
             return
         }
+        if (!biometricPromptInFlight.compareAndSet(false, true)) return
         lifecycleScope.launch(Dispatchers.IO) {
             val profile = VaultServiceLocator.vaultAuthService().resolveProfile(decoyPin.toCharArray())
             withContext(Dispatchers.Main) {
                 if (profile != VaultProfile.DECOY) {
                     vm.showError(tx("Incorrect decoy PIN"))
+                    biometricPromptInFlight.set(false)
                     return@withContext
                 }
                 val canAuth = BiometricManager.from(this@MainActivity).canAuthenticate(
@@ -588,12 +669,13 @@ class MainActivity : AppCompatActivity() {
                 )
                 if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
                     vm.showError(tx("Fingerprint or device credential is not available"))
+                    biometricPromptInFlight.set(false)
                     return@withContext
                 }
-                val cipher = try {
-                    decoyBiometricStore.getEncryptCipher()
-                } catch (_: Exception) {
+                val cipher = obtainEnrollCipher(decoyBiometricStore)
+                if (cipher == null) {
                     vm.showError(tx("Unable to initialize fingerprint for decoy"))
+                    biometricPromptInFlight.set(false)
                     return@withContext
                 }
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -612,18 +694,32 @@ class MainActivity : AppCompatActivity() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             val authCipher = result.cryptoObject?.cipher ?: run {
                                 vm.showError(tx("Decoy fingerprint setup failed"))
+                                biometricPromptInFlight.set(false)
                                 return
                             }
-                            val masterKey = VaultKeyManager(applicationContext, VaultProfile.DECOY)
-                                .deriveMasterKey(decoyPin.toCharArray())
-                            decoyBiometricStore.storeEncryptedMasterKey(authCipher, masterKey)
-                            masterKey.fill(0)
-                            vm.enableDecoyBiometric()
-                            vm.setBiometricTargetVault("decoy")
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                try {
+                                    val masterKey = VaultKeyManager(applicationContext, VaultProfile.DECOY)
+                                        .deriveMasterKey(decoyPin.toCharArray())
+                                    decoyBiometricStore.storeEncryptedMasterKey(authCipher, masterKey)
+                                    masterKey.fill(0)
+                                    withContext(Dispatchers.Main) {
+                                        vm.enableDecoyBiometric()
+                                        vm.setBiometricTargetVault("decoy")
+                                    }
+                                } catch (_: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        vm.showError(tx("Decoy fingerprint setup failed"))
+                                    }
+                                } finally {
+                                    biometricPromptInFlight.set(false)
+                                }
+                            }
                         }
 
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                             vm.showError(errString.toString())
+                            biometricPromptInFlight.set(false)
                         }
                     }
                 )
@@ -642,11 +738,17 @@ class MainActivity : AppCompatActivity() {
             vm.showError(tx("Decoy fingerprint data is missing"))
             return
         }
+        if (!biometricPromptInFlight.compareAndSet(false, true)) return
         val (iv, ct) = pair
         val cipher = try {
             decoyBiometricStore.getDecryptCipher(iv)
+        } catch (_: KeyPermanentlyInvalidatedException) {
+            onBiometricKeyInvalidated(decoyBiometricStore, decoy = true)
+            biometricPromptInFlight.set(false)
+            return
         } catch (_: Exception) {
             vm.showError(tx("Decoy fingerprint data is invalid"))
+            biometricPromptInFlight.set(false)
             return
         }
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -662,14 +764,27 @@ class MainActivity : AppCompatActivity() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 val authCipher = result.cryptoObject?.cipher ?: run {
                     vm.showError(tx("Decoy fingerprint unlock failed"))
+                    biometricPromptInFlight.set(false)
                     return
                 }
-                val masterKey = authCipher.doFinal(ct)
+                val masterKey = try {
+                    authCipher.doFinal(ct)
+                } catch (_: KeyPermanentlyInvalidatedException) {
+                    onBiometricKeyInvalidated(decoyBiometricStore, decoy = true)
+                    biometricPromptInFlight.set(false)
+                    return
+                } catch (_: Exception) {
+                    vm.showError(tx("Decoy fingerprint unlock failed"))
+                    biometricPromptInFlight.set(false)
+                    return
+                }
                 vm.unlockWithDecoyMasterKey(masterKey)
+                biometricPromptInFlight.set(false)
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 vm.showError(errString.toString())
+                biometricPromptInFlight.set(false)
             }
         })
         prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))

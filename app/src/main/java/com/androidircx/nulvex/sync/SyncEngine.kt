@@ -112,11 +112,14 @@ class SyncEngine(
                     resolutionPolicy = "lww"
                 )
                 pulledConflicts++
-            } else {
-                val shouldContinue = applyRemoteOp(op)
-                pulledApplied++
-                if (!shouldContinue) halted = true
             }
+            // Always hand the op to the applier: it resolves conflicts by last-writer-wins
+            // (comparing updatedAt), so a conflicting remote op is applied when it is newer
+            // rather than being silently dropped while the cursor advances past it — the
+            // previous behaviour lost the remote change permanently.
+            val shouldContinue = applyRemoteOp(op)
+            if (!conflict) pulledApplied++
+            if (!shouldContinue) halted = true
         }
         if (!halted) {
             pull.cursorToken?.let { stateStore.updateCursor(profile, it) }

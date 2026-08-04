@@ -25,6 +25,14 @@ class VaultAuthService(
         prefs.setDecoyPinHash(hash)
     }
 
+    /** Compute (but do not store) the Argon2id hash for a PIN. Wipes [pin]. */
+    fun computeRealPinHash(pin: CharArray): String = hashPin(pin)
+
+    /** Persist a precomputed real-PIN hash. */
+    fun storeRealPinHash(hash: String) {
+        prefs.setRealPinHash(hash)
+    }
+
     fun clearDecoyPin() {
         prefs.clearDecoyPinHash()
     }

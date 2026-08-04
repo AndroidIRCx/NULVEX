@@ -13,11 +13,17 @@ class SyncRemoteOpApplier(
         return when (val decoded = decode(op)) {
             is DecodedRemoteOp.Noop -> true
             is DecodedRemoteOp.Upsert -> {
-                noteDao.upsert(decoded.entity)
+                // Last-writer-wins: only take the remote note if it is at least as new as
+                // the local copy, otherwise a stale/blind remote op would clobber a newer
+                // local edit (the previous behaviour silently lost local changes).
+                val local = noteDao.getById(decoded.entity.id)
+                if (local == null || decoded.entity.updatedAt >= local.updatedAt) {
+                    noteDao.upsert(decoded.entity)
+                }
                 true
             }
             is DecodedRemoteOp.Delete -> {
-                applyDelete(decoded.entityId)
+                applyDelete(decoded.entityId, decoded.timestamp)
                 true
             }
             is DecodedRemoteOp.RemotePanicWipe -> {
@@ -27,11 +33,13 @@ class SyncRemoteOpApplier(
         }
     }
 
-    private suspend fun applyDelete(entityId: String) {
+    private suspend fun applyDelete(entityId: String, remoteTs: Long) {
         val existing = noteDao.getById(entityId) ?: return
+        // Last-writer-wins: keep the local note if it was edited after the remote delete.
+        if (existing.updatedAt > remoteTs) return
         noteDao.overwriteCiphertext(entityId, ByteArray(existing.ciphertext.size))
         noteDao.softDelete(entityId)
-        noteDao.setUpdatedAt(entityId, System.currentTimeMillis())
+        noteDao.setUpdatedAt(entityId, remoteTs)
     }
 
     internal fun decode(op: SyncPulledOp, now: Long = System.currentTimeMillis()): DecodedRemoteOp {
@@ -45,7 +53,7 @@ class SyncRemoteOpApplier(
 
         val entityId = payload.optString("entity_id", op.entityId).ifBlank { op.entityId }
         if (opType == "delete" || payload.optBoolean("deleted")) {
-            return DecodedRemoteOp.Delete(entityId)
+            return DecodedRemoteOp.Delete(entityId, payload.optLong("ts", now))
         }
 
         val notePayload = payload.optJSONObject("note") ?: return DecodedRemoteOp.Noop
@@ -90,6 +98,6 @@ class SyncRemoteOpApplier(
 internal sealed interface DecodedRemoteOp {
     data object Noop : DecodedRemoteOp
     data class Upsert(val entity: NoteEntity) : DecodedRemoteOp
-    data class Delete(val entityId: String) : DecodedRemoteOp
+    data class Delete(val entityId: String, val timestamp: Long) : DecodedRemoteOp
     data object RemotePanicWipe : DecodedRemoteOp
 }

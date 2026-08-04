@@ -18,14 +18,18 @@ class VaultPreferences(context: Context, profile: VaultProfile = VaultProfile.RE
         return getOrCreateSalt(dbSaltKey)
     }
 
-    private fun getOrCreateSalt(key: String): ByteArray {
+    private fun getOrCreateSalt(key: String): ByteArray = synchronized(CryptoProvisioning.lock) {
         val existing = prefs.getString(key, null)
         if (existing != null) {
             return Base64.decode(existing, Base64.NO_WRAP)
         }
         val salt = ByteArray(16)
         SecureRandom().nextBytes(salt)
-        prefs.edit { putString(key, Base64.encodeToString(salt, Base64.NO_WRAP)) }
+        // commit (not apply): the derived master/db key is used immediately to
+        // create the DB and to wrap the biometric key, so the salt must be durably
+        // persisted before we return — otherwise process death mid-provisioning
+        // regenerates a divergent salt on next launch.
+        prefs.edit(commit = true) { putString(key, Base64.encodeToString(salt, Base64.NO_WRAP)) }
         return salt
     }
 }

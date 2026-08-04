@@ -34,6 +34,17 @@ interface NoteDao {
     @Query("UPDATE notes SET ciphertext = :ciphertext WHERE id = :id")
     suspend fun overwriteCiphertext(id: String, ciphertext: ByteArray): Int
 
+    /** Every note row regardless of state — used when re-encrypting on a PIN change. */
+    @Query("SELECT * FROM notes")
+    suspend fun listAllForRekey(): List<NoteEntity>
+
+    /** Every revision snapshot — used when re-encrypting on a PIN change. */
+    @Query("SELECT * FROM note_revisions")
+    suspend fun listAllRevisionsForRekey(): List<NoteRevisionEntity>
+
+    @Query("UPDATE note_revisions SET ciphertextSnapshot = :ciphertext WHERE id = :id")
+    suspend fun overwriteRevisionCiphertext(id: String, ciphertext: ByteArray): Int
+
     @Query("UPDATE notes SET updatedAt = :updatedAt WHERE id = :id")
     suspend fun setUpdatedAt(id: String, updatedAt: Long): Int
 

@@ -638,6 +638,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setupPins(realPin: String, decoyPin: String?, onComplete: (() -> Unit)? = null) {
+        if (!decoyPin.isNullOrBlank() && decoyPin == realPin) {
+            // A decoy PIN equal to the real PIN can never resolve to the decoy vault
+            // (resolveProfile matches the real hash first), so reject it up front.
+            uiState.value = uiState.value.copy(
+                error = appContext.tx("Decoy PIN must be different from your main PIN")
+            )
+            return
+        }
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             authController.setupRealPin(realPin.toCharArray())
@@ -645,6 +653,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 authController.setupDecoyPin(decoyPin.toCharArray())
             } else {
                 authController.clearDecoyPin()
+            }
+            // Provision key material + DB up front so PIN and biometric unlock stay consistent.
+            vaultService.provision(realPin.toCharArray(), VaultProfile.REAL)
+            if (!decoyPin.isNullOrBlank()) {
+                vaultService.provision(decoyPin.toCharArray(), VaultProfile.DECOY)
             }
             withContext(Dispatchers.Main) {
                 uiState.value = uiState.value.copy(

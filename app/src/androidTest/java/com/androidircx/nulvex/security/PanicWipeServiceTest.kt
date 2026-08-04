@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
 import io.mockk.verify
+import org.junit.Assert.assertNull
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -67,6 +68,37 @@ class PanicWipeServiceTest {
         )
         service.wipeAll()
         verify { mockSessionManager.close() }
+    }
+
+    @Test
+    fun wipeAllClearsAuthHashesAndSharingKeys() {
+        // These global stores used to survive a panic wipe (PIN hashes for offline
+        // brute-force, sharing keys that decrypt cloud backups). They must be gone.
+        context.getSharedPreferences("nulvex_auth_prefs", Context.MODE_PRIVATE)
+            .edit().putString("real_pin_hash", "hash").putString("decoy_pin_hash", "hash").commit()
+        context.getSharedPreferences("nulvex_shared_keys", Context.MODE_PRIVATE)
+            .edit().putString("items", "payload").commit()
+        context.getSharedPreferences("nulvex_biometric", Context.MODE_PRIVATE)
+            .edit().putString("biometric_ct", "blob").commit()
+
+        PanicWipeService(context, mockSessionManager).wipeAll()
+
+        assertNull(
+            context.getSharedPreferences("nulvex_auth_prefs", Context.MODE_PRIVATE)
+                .getString("real_pin_hash", null)
+        )
+        assertNull(
+            context.getSharedPreferences("nulvex_auth_prefs", Context.MODE_PRIVATE)
+                .getString("decoy_pin_hash", null)
+        )
+        assertNull(
+            context.getSharedPreferences("nulvex_shared_keys", Context.MODE_PRIVATE)
+                .getString("items", null)
+        )
+        assertNull(
+            context.getSharedPreferences("nulvex_biometric", Context.MODE_PRIVATE)
+                .getString("biometric_ct", null)
+        )
     }
 
     // --- wipeDecoyOnly() ---

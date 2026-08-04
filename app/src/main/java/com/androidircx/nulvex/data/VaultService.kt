@@ -3,6 +3,7 @@ package com.androidircx.nulvex.data
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import androidx.room.withTransaction
 import com.androidircx.nulvex.crypto.NoteCrypto
 import com.androidircx.nulvex.crypto.XChaCha20Poly1305NoteCrypto
 import com.androidircx.nulvex.security.VaultKeyManager
@@ -57,6 +58,19 @@ class VaultService(
         )
         enqueueSyncOperation(entityId = noteId, opType = "upsert", baseRevision = null)
         return noteId
+    }
+
+    /**
+     * Eagerly create and persist all key material (argon salt, keystore secret, db salt)
+     * and the encrypted DB for [profile], atomically, then close. This guarantees that a
+     * later PIN unlock and a later biometric unlock derive the *same* master key — the
+     * root cause of the onboarding fingerprint/PIN failures was that this material used to
+     * be created lazily on divergent code paths. No session is left active afterwards.
+     */
+    suspend fun provision(pin: CharArray, profile: VaultProfile = VaultProfile.REAL) {
+        sessionManager.open(pin, profile)
+        sessionManager.close()
+        pin.wipe()
     }
 
     suspend fun unlock(pin: CharArray, profile: VaultProfile = VaultProfile.REAL) {
@@ -540,16 +554,50 @@ class VaultService(
         val newDbKey = keyManager.deriveDbKey(newMasterKey)
         val newNoteKey = keyManager.deriveNoteKey(newMasterKey)
 
-        val noteDao = session.database.noteDao()
-        val entities = noteDao.listActive()
-        for (entity in entities) {
-            val plaintext = noteCrypto.decrypt(entity.ciphertext, session.noteKey)
-            val ciphertext = noteCrypto.encrypt(plaintext, newNoteKey)
-            plaintext.fill(0)
-            noteDao.overwriteCiphertext(entity.id, ciphertext)
+        val database = session.database
+        val noteDao = database.noteDao()
+        val profileId = sessionManager.getActiveProfile()?.id ?: VaultProfile.REAL.id
+
+        // Re-encrypt EVERY note and revision (not just active ones) with the new note key
+        // inside a single transaction. Previously only listActive() rows were re-encrypted,
+        // silently breaking archived/trashed notes and all revisions after a PIN change.
+        val attachmentJobs = mutableListOf<Pair<String, List<NoteAttachment>>>()
+        database.withTransaction {
+            for (entity in noteDao.listAllForRekey()) {
+                val plaintext = noteCrypto.decrypt(entity.ciphertext, session.noteKey)
+                val ciphertext = noteCrypto.encrypt(plaintext, newNoteKey)
+                noteDao.overwriteCiphertext(entity.id, ciphertext)
+                NotePayloadCodec.decode(plaintext.toString(Charsets.UTF_8))
+                    ?.attachments
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { attachmentJobs.add(entity.id to it) }
+                plaintext.fill(0)
+            }
+            for (revision in noteDao.listAllRevisionsForRekey()) {
+                val plaintext = noteCrypto.decrypt(revision.ciphertextSnapshot, session.noteKey)
+                val ciphertext = noteCrypto.encrypt(plaintext, newNoteKey)
+                plaintext.fill(0)
+                noteDao.overwriteRevisionCiphertext(revision.id, ciphertext)
+            }
         }
 
-        val db = session.database.openHelper.writableDatabase
+        // Attachment blobs live on the filesystem (outside the DB transaction). Re-encrypt
+        // each with the new note key; best-effort per file so one bad blob can't abort the
+        // whole PIN change. Note-key material is independent of the DB key, so ordering
+        // relative to the rekey below does not matter.
+        for ((noteId, attachments) in attachmentJobs) {
+            for (att in attachments) {
+                runCatching {
+                    val encrypted = attachmentStore.readEncrypted(profileId, noteId, att.id) ?: return@runCatching
+                    val plaintext = noteCrypto.decrypt(encrypted, session.noteKey)
+                    val ciphertext = noteCrypto.encrypt(plaintext, newNoteKey)
+                    plaintext.fill(0)
+                    attachmentStore.writeEncrypted(profileId, noteId, att.id, ciphertext)
+                }
+            }
+        }
+
+        val db = database.openHelper.writableDatabase
         db.execSQL("PRAGMA rekey = \"x'${newDbKey.toHex()}'\"")
         sessionManager.close()
         newMasterKey.wipe()

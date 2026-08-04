@@ -143,6 +143,26 @@ class VaultAuthServiceTest {
     }
 
     @Test
+    fun computeAndStoreRealPinHashRoundTrips() {
+        val hash = authService.computeRealPinHash("4321".toCharArray())
+        authService.storeRealPinHash(hash)
+        assertTrue(authService.verifyRealPin("4321".toCharArray()))
+        assertFalse(authService.verifyRealPin("0000".toCharArray()))
+    }
+
+    @Test
+    fun computeRealPinHashOnCopyStillVerifiesOriginal() {
+        // Mirrors the change-PIN fix: the KDF wipes the CharArray it receives, so the
+        // hash must be computed from a copy while the original PIN survives to be used.
+        // The previous bug hashed the already-wiped (all-zero) array, permanently
+        // locking users out after a PIN change.
+        val newPin = "7788".toCharArray()
+        val hash = authService.computeRealPinHash(newPin.copyOf())
+        authService.storeRealPinHash(hash)
+        assertTrue(authService.verifyRealPin(newPin))
+    }
+
+    @Test
     fun resolveProfileAcceptsLegacyArgon2iHash() {
         val pinBytes = "2468".toByteArray(Charsets.UTF_8)
         val legacyHash = Argon2Kt()

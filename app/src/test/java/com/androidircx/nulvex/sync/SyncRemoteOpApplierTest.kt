@@ -79,6 +79,81 @@ class SyncRemoteOpApplierTest {
     }
 
     @Test
+    fun apply_upsert_isSkipped_whenLocalCopyIsNewer() = runTest {
+        val dao = mockk<NoteDao>(relaxed = true)
+        coEvery { dao.getById("n-1") } returns NoteEntity(
+            id = "n-1",
+            ciphertext = byteArrayOf(7, 7),
+            createdAt = 1L,
+            expiresAt = null,
+            readOnce = false,
+            deleted = false,
+            updatedAt = 500L
+        )
+        val applier = SyncRemoteOpApplier(noteDao = dao, onRemotePanicWipe = {})
+        val noteCipher = byteArrayOf(1, 2)
+        val payload = """
+            {"op_type":"upsert","entity_id":"n-1",
+             "note":{"ciphertext_b64":"${Base64.getEncoder().encodeToString(noteCipher)}",
+                     "created_at":100,"updated_at":200}}
+        """.trimIndent().toByteArray()
+
+        val keepRunning = applier.apply(
+            SyncPulledOp("op-1", "n-1", "r1", null, payload)
+        )
+
+        assertTrue(keepRunning)
+        // Remote updated_at (200) < local updatedAt (500) → local wins, no overwrite.
+        coVerify(exactly = 0) { dao.upsert(any()) }
+    }
+
+    @Test
+    fun apply_upsert_isApplied_whenRemoteIsNewer() = runTest {
+        val dao = mockk<NoteDao>(relaxed = true)
+        coEvery { dao.getById("n-1") } returns NoteEntity(
+            id = "n-1",
+            ciphertext = byteArrayOf(7, 7),
+            createdAt = 1L,
+            expiresAt = null,
+            readOnce = false,
+            deleted = false,
+            updatedAt = 100L
+        )
+        val applier = SyncRemoteOpApplier(noteDao = dao, onRemotePanicWipe = {})
+        val noteCipher = byteArrayOf(1, 2)
+        val payload = """
+            {"op_type":"upsert","entity_id":"n-1",
+             "note":{"ciphertext_b64":"${Base64.getEncoder().encodeToString(noteCipher)}",
+                     "created_at":100,"updated_at":900}}
+        """.trimIndent().toByteArray()
+
+        applier.apply(SyncPulledOp("op-1", "n-1", "r1", null, payload))
+
+        coVerify(exactly = 1) { dao.upsert(any()) }
+    }
+
+    @Test
+    fun apply_delete_isSkipped_whenLocalEditIsNewerThanDelete() = runTest {
+        val dao = mockk<NoteDao>(relaxed = true)
+        coEvery { dao.getById("n-del") } returns NoteEntity(
+            id = "n-del",
+            ciphertext = byteArrayOf(9, 9, 9),
+            createdAt = 1L,
+            expiresAt = null,
+            readOnce = false,
+            deleted = false,
+            updatedAt = 9_000L
+        )
+        val applier = SyncRemoteOpApplier(noteDao = dao, onRemotePanicWipe = {})
+        // Remote delete stamped older than the local edit → local wins, no delete.
+        val payload = """{"op_type":"delete","entity_id":"n-del","ts":100}""".toByteArray()
+
+        applier.apply(SyncPulledOp("op-del", "n-del", null, null, payload))
+
+        coVerify(exactly = 0) { dao.softDelete(any()) }
+    }
+
+    @Test
     fun apply_remotePanicPayload_invokesCallbackAndStopsCycle() = runTest {
         val dao = mockk<NoteDao>(relaxed = true)
         var panicCalled = false

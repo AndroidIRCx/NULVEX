@@ -75,7 +75,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun runCycle_recordsConflict_whenBaseRevisionMismatches() = runTest {
+    fun runCycle_recordsConflict_andStillAppliesRemote_whenBaseRevisionMismatches() = runTest {
         coEvery { stateStore.pollReadyOutbox(any(), any()) } returns emptyList()
         coEvery { stateStore.getCursor("real") } returns null
         coEvery { api.pull("real", token, null, any(), any()) } returns SyncPullResult(
@@ -91,17 +91,21 @@ class SyncEngineTest {
             )
         )
 
+        // On conflict the op must STILL be handed to the applier (which resolves by
+        // last-writer-wins), otherwise the remote change is silently dropped and the
+        // cursor advances past it, losing it forever.
+        var applied = 0
         val engine = SyncEngine(
             api = api,
             stateStore = stateStore,
             localRevisionLookup = { "local-r0" },
-            applyRemoteOp = { throw IllegalStateException("Should not apply on conflict") }
+            applyRemoteOp = { applied++; true }
         )
 
         val report = engine.runCycle(profile = "real", token = token)
 
         assertEquals(1, report.pulledConflicts)
-        assertEquals(0, report.pulledApplied)
+        assertEquals(1, applied)
         assertTrue(report.pushedAccepted == 0 && report.pushedRejected == 0)
         coVerify(exactly = 1) {
             stateStore.recordConflict(
@@ -114,6 +118,7 @@ class SyncEngineTest {
                 now = any()
             )
         }
+        coVerify(exactly = 1) { stateStore.updateCursor("real", "cur-10", any()) }
     }
 
     @Test
