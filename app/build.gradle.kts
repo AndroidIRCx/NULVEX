@@ -101,19 +101,24 @@ android {
 }
 
 tasks.register("incrementVersionCode") {
+    // `-PskipVersionBump` → don't touch version.properties at all (rebuild same version).
+    onlyIf { !project.hasProperty("skipVersionBump") }
     doLast {
         // Bump versionCode (always increments: 7 → 8 → 9 …)
         val nextCode = (versionProps.getProperty("versionCode")?.toIntOrNull() ?: 1) + 1
         versionProps.setProperty("versionCode", nextCode.toString())
 
-        // Bump versionName patch segment (1.02 → 1.03, 1.09 → 1.10, 1.99 → 2.00)
-        val currentName = versionProps.getProperty("versionName") ?: "1.00"
-        val parts = currentName.split(".")
-        val major = parts.getOrNull(0)?.toIntOrNull() ?: 1
-        val patch = parts.getOrNull(1)?.toIntOrNull() ?: 0
-        val nextPatch = patch + 1
-        val nextName = if (nextPatch > 99) "${major + 1}.00" else "$major.${nextPatch.toString().padStart(2, '0')}"
-        versionProps.setProperty("versionName", nextName)
+        // `-PskipVersionNameBump` → bump versionCode only, keep versionName unchanged.
+        // Otherwise bump versionName patch segment (1.02 → 1.03, 1.09 → 1.10, 1.99 → 2.00).
+        if (!project.hasProperty("skipVersionNameBump")) {
+            val currentName = versionProps.getProperty("versionName") ?: "1.00"
+            val parts = currentName.split(".")
+            val major = parts.getOrNull(0)?.toIntOrNull() ?: 1
+            val patch = parts.getOrNull(1)?.toIntOrNull() ?: 0
+            val nextPatch = patch + 1
+            val nextName = if (nextPatch > 99) "${major + 1}.00" else "$major.${nextPatch.toString().padStart(2, '0')}"
+            versionProps.setProperty("versionName", nextName)
+        }
 
         versionProps.store(FileOutputStream(versionPropsFile), null)
     }

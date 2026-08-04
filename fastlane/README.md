@@ -15,21 +15,15 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 ## Android
 
-### android retry_production_upload
-
-```sh
-[bundle exec] fastlane android retry_production_upload
-```
-
-Retry Play upload for existing release artifacts without rebuilding/bumping
-
 ### android internal
 
 ```sh
 [bundle exec] fastlane android internal
 ```
 
-Build release APK and upload to Internal App Sharing (APK only)
+Build & upload a Release AAB to the Internal testing track
+
+Options: skip_bump:true | code_only:true | promote:<code> | skip_upload:true | skip_push:true
 
 ### android closed
 
@@ -37,7 +31,9 @@ Build release APK and upload to Internal App Sharing (APK only)
 [bundle exec] fastlane android closed
 ```
 
-Build, bump version, push to git, upload to Closed testing (Alpha)
+Build & upload a Release AAB to Closed testing (Alpha)
+
+Options: skip_bump:true | code_only:true | promote:<code> | skip_upload:true | skip_push:true
 
 ### android production
 
@@ -45,7 +41,25 @@ Build, bump version, push to git, upload to Closed testing (Alpha)
 [bundle exec] fastlane android production
 ```
 
-Build, bump version, push to git, upload to Production
+Build & upload a Release AAB to Production
+
+Options: skip_bump:true | code_only:true | promote:<code> | skip_upload:true | skip_push:true
+
+### android internal_share
+
+```sh
+[bundle exec] fastlane android internal_share
+```
+
+Build a Release APK and upload to Internal App Sharing (APK only, no bump)
+
+### android retry_production_upload
+
+```sh
+[bundle exec] fastlane android retry_production_upload
+```
+
+Retry Play upload for existing release artifacts without rebuilding/bumping
 
 ### android test
 
