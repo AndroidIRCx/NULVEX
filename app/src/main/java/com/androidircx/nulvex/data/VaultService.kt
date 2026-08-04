@@ -25,6 +25,14 @@ class VaultService(
             ?: throw IllegalStateException("Vault is locked")
     }
 
+    // Deletes a note's encrypted attachment blobs for the currently active profile; wired
+    // into the destroy paths (trash purge, self-destruct/expiry) so attachments are not
+    // orphaned on disk after their note is destroyed.
+    private fun attachmentDeleter(): suspend (String) -> Unit = { noteId ->
+        val profileId = sessionManager.getActiveProfile()?.id ?: VaultProfile.REAL.id
+        attachmentStore.deleteAll(profileId, noteId)
+    }
+
     suspend fun createNote(
         id: String = UUID.randomUUID().toString(),
         text: String,
@@ -40,7 +48,7 @@ class VaultService(
         reminderRepeat: String? = null
     ): String {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val noteId = repo.saveNote(
             id = id,
             text = text,
@@ -75,14 +83,14 @@ class VaultService(
 
     suspend fun unlock(pin: CharArray, profile: VaultProfile = VaultProfile.REAL) {
         val session = sessionManager.open(pin, profile)
-        val sweeper = SelfDestructService(session.database)
+        val sweeper = SelfDestructService(session.database, attachmentDeleter())
         sweeper.sweepExpired(vacuum = false)
         pin.wipe()
     }
 
     suspend fun unlockWithMasterKey(masterKey: ByteArray, profile: VaultProfile = VaultProfile.REAL) {
         val session = sessionManager.openWithMasterKey(masterKey, profile)
-        val sweeper = SelfDestructService(session.database)
+        val sweeper = SelfDestructService(session.database, attachmentDeleter())
         sweeper.sweepExpired(vacuum = false)
         masterKey.wipe()
     }
@@ -93,25 +101,25 @@ class VaultService(
 
     suspend fun readNote(id: String): Note? {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         return repo.getNoteById(id, session.noteKey)
     }
 
     suspend fun listNotes(archived: Boolean = false): List<Note> {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         return repo.listNotes(session.noteKey, archived)
     }
 
     suspend fun listTrashedNotes(): List<Note> {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         return repo.listTrashedNotes(session.noteKey)
     }
 
     suspend fun updateNote(note: Note): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val ok = repo.updateNote(note, session.noteKey)
         if (ok) enqueueSyncOperation(entityId = note.id, opType = "upsert", baseRevision = note.updatedAt.toString())
         return ok
@@ -119,13 +127,13 @@ class VaultService(
 
     suspend fun listNoteRevisions(noteId: String, limit: Int = 20): List<NoteRevision> {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         return repo.listRevisions(noteId, session.noteKey, limit)
     }
 
     suspend fun restoreNoteRevision(noteId: String, revisionId: String): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         return repo.restoreRevision(noteId, revisionId, session.noteKey)
     }
 
@@ -135,7 +143,7 @@ class VaultService(
 
     suspend fun moveNoteToTrash(id: String): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val ok = repo.moveNoteToTrash(id)
         if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
         return ok
@@ -143,7 +151,7 @@ class VaultService(
 
     suspend fun restoreNoteFromTrash(id: String): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val ok = repo.restoreFromTrash(id)
         if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
         return ok
@@ -151,7 +159,7 @@ class VaultService(
 
     suspend fun deleteNotePermanently(id: String): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val note = repo.getNoteById(id, session.noteKey) ?: return false
         deleteNoteInternal(note, session)
         enqueueSyncOperation(entityId = id, opType = "delete", baseRevision = note.updatedAt.toString())
@@ -160,13 +168,13 @@ class VaultService(
 
     suspend fun purgeOldTrash(retentionDays: Long = 7L): Int {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         return repo.purgeOldTrash(retentionDays = retentionDays)
     }
 
     suspend fun setArchived(id: String, archived: Boolean): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val ok = repo.setArchived(id, archived)
         if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
         return ok
@@ -174,7 +182,7 @@ class VaultService(
 
     suspend fun setReminder(id: String, reminderAt: Long?, reminderDone: Boolean, reminderRepeat: String?): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val ok = repo.setReminder(id, reminderAt, reminderDone, reminderRepeat)
         if (ok) enqueueSyncOperation(entityId = id, opType = "metadata", baseRevision = null)
         return ok
@@ -182,7 +190,7 @@ class VaultService(
 
     suspend fun sweepExpired(vacuum: Boolean = false) {
         val session = requireSession()
-        val sweeper = SelfDestructService(session.database)
+        val sweeper = SelfDestructService(session.database, attachmentDeleter())
         sweeper.sweepExpired(vacuum = vacuum)
     }
 
@@ -215,7 +223,7 @@ class VaultService(
 
     suspend fun removeAttachment(noteId: String, attachmentId: String): Boolean {
         val session = requireSession()
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val note = repo.getNoteById(noteId, session.noteKey) ?: return false
         val updatedAttachments = note.attachments.filterNot { it.id == attachmentId }
         if (updatedAttachments.size == note.attachments.size) return false
@@ -358,7 +366,7 @@ class VaultService(
             root.has("note") -> JSONArray().also { arr -> root.optJSONObject("note")?.let { arr.put(it) } }
             else -> JSONArray()
         }
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
 
         if (!merge) {
             val existing = repo.listNotes(session.noteKey)
@@ -369,7 +377,10 @@ class VaultService(
         val profileId = sessionManager.getActiveProfile()?.id ?: VaultProfile.REAL.id
         for (i in 0 until notesArray.length()) {
             val noteObj = notesArray.optJSONObject(i) ?: continue
-            val noteId = noteObj.optString("id", "").ifBlank { UUID.randomUUID().toString() }
+            // Reject unsafe (path-traversal) ids from imported payloads; fall back to a fresh id.
+            val noteId = noteObj.optString("id", "")
+                .takeIf { NoteAttachmentStore.isSafeId(it) }
+                ?: UUID.randomUUID().toString()
             val text = noteObj.optString("text", "")
             val shareKeyId = noteObj.optString("shareKeyId", "").ifBlank { null }
             val pinned = noteObj.optBoolean("pinned", false)
@@ -410,7 +421,7 @@ class VaultService(
             for (j in 0 until attachmentArray.length()) {
                 val att = attachmentArray.optJSONObject(j) ?: continue
                 val attId = att.optString("id", "")
-                if (attId.isBlank()) continue
+                if (!NoteAttachmentStore.isSafeId(attId)) continue
 
                 val dataB64 = att.optString("data", "")
                 if (dataB64.isNotBlank()) {
@@ -522,7 +533,7 @@ class VaultService(
     private suspend fun deleteNoteInternal(note: Note, session: VaultSession) {
         val profileId = sessionManager.getActiveProfile()?.id ?: VaultProfile.REAL.id
         attachmentStore.deleteAll(profileId, note.id)
-        val repo = NoteRepository(session.database.noteDao(), noteCrypto)
+        val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         repo.deleteNote(note.id)
     }
 

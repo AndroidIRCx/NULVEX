@@ -86,6 +86,17 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun reminderSchedules_persistRepeatUnit() {
+        prefs.upsertReminderSchedule("note-r", 5000L, "daily")
+        assertEquals(5000L, prefs.getReminderSchedules()["note-r"])
+        assertEquals("daily", prefs.getReminderRepeat("note-r"))
+
+        // A one-shot schedule stores no repeat.
+        prefs.upsertReminderSchedule("note-once", 6000L)
+        assertNull(prefs.getReminderRepeat("note-once"))
+    }
+
+    @Test
     fun pendingReminderAction_roundTripAndClear_work() {
         assertNull(prefs.getPendingReminderAction())
 

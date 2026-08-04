@@ -8,6 +8,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.androidircx.nulvex.MainActivity
 import com.androidircx.nulvex.R
+import com.androidircx.nulvex.security.AppPreferences
 import kotlin.math.abs
 
 class NoteReminderReceiver : BroadcastReceiver() {
@@ -70,5 +71,27 @@ class NoteReminderReceiver : BroadcastReceiver() {
             .build()
 
         NotificationManagerCompat.from(context).notify(abs(noteId.hashCode()), notification)
+
+        // Keep repeating reminders going without requiring the user to tap "Done": arm the
+        // next occurrence here, purely from plain prefs (the encrypted note's repeat unit is
+        // mirrored into the schedule so it is readable while the vault is locked). One-shot
+        // reminders are removed so they don't re-fire on every reboot.
+        val prefs = AppPreferences(context)
+        val triggerAt = prefs.getReminderSchedules()[noteId]
+        val repeat = prefs.getReminderRepeat(noteId)
+        val next = if (triggerAt != null) ReminderRepeat.next(triggerAt, repeat) else null
+        if (next != null) {
+            prefs.upsertReminderSchedule(noteId, next, repeat)
+            AlarmManagerNoteReminderScheduler(context).schedule(
+                ReminderRequest(
+                    noteId = noteId,
+                    triggerAtEpochMillis = next,
+                    title = context.getString(R.string.app_name),
+                    preview = ""
+                )
+            )
+        } else {
+            prefs.removeReminderSchedule(noteId)
+        }
     }
 }

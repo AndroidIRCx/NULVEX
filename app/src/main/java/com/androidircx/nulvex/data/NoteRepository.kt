@@ -5,7 +5,10 @@ import java.util.UUID
 
 class NoteRepository(
     private val noteDao: NoteDao,
-    private val noteCrypto: NoteCrypto
+    private val noteCrypto: NoteCrypto,
+    // Deletes a note's encrypted attachment blobs from the filesystem when the note is
+    // destroyed (trash purge / permanent delete). Null keeps read-only callers cheap.
+    private val attachmentDeleter: (suspend (String) -> Unit)? = null
 ) {
     private companion object {
         const val MAX_REVISIONS_PER_NOTE = 20
@@ -210,6 +213,7 @@ class NoteRepository(
         val zeroed = ByteArray(entity.ciphertext.size)
         noteDao.overwriteCiphertext(entity.id, zeroed)
         noteDao.softDelete(entity.id)
+        runCatching { attachmentDeleter?.invoke(entity.id) }
     }
 
     private fun decodeEntity(entity: NoteEntity, noteKey: ByteArray): Note? {

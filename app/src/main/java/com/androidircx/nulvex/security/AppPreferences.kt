@@ -115,16 +115,16 @@ class AppPreferences(context: Context) {
         return updated
     }
 
-    fun upsertReminderSchedule(noteId: String, triggerAt: Long) {
+    fun upsertReminderSchedule(noteId: String, triggerAt: Long, repeat: String? = null) {
         if (noteId.isBlank() || triggerAt <= 0L) return
-        val current = getReminderSchedules().toMutableMap()
-        current[noteId] = triggerAt
+        val current = getReminderScheduleEntries().toMutableMap()
+        current[noteId] = ReminderSchedule(triggerAt, repeat?.trim()?.takeIf { it.isNotBlank() })
         prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
     }
 
     fun removeReminderSchedule(noteId: String) {
         if (noteId.isBlank()) return
-        val current = getReminderSchedules().toMutableMap()
+        val current = getReminderScheduleEntries().toMutableMap()
         current.remove(noteId)
         prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
     }
@@ -134,15 +134,26 @@ class AppPreferences(context: Context) {
     }
 
     fun getReminderSchedules(): Map<String, Long> {
+        return getReminderScheduleEntries().mapValues { it.value.triggerAt }
+    }
+
+    /** The repeat unit persisted alongside a scheduled reminder, if any. */
+    fun getReminderRepeat(noteId: String): String? {
+        return getReminderScheduleEntries()[noteId]?.repeat
+    }
+
+    fun getReminderScheduleEntries(): Map<String, ReminderSchedule> {
         val raw = prefs.getStringSet(reminderSchedulesKey, emptySet()) ?: emptySet()
-        val result = linkedMapOf<String, Long>()
+        val result = linkedMapOf<String, ReminderSchedule>()
         raw.forEach { entry ->
-            val idx = entry.indexOf("::")
-            if (idx <= 0) return@forEach
-            val noteId = entry.substring(0, idx)
-            val trigger = entry.substring(idx + 2).toLongOrNull() ?: return@forEach
+            // Format: "noteId::triggerAt" (legacy) or "noteId::triggerAt::repeat".
+            val parts = entry.split("::")
+            if (parts.size < 2) return@forEach
+            val noteId = parts[0]
+            val trigger = parts[1].toLongOrNull() ?: return@forEach
+            val repeat = parts.getOrNull(2)?.takeIf { it.isNotBlank() }
             if (noteId.isNotBlank() && trigger > 0L) {
-                result[noteId] = trigger
+                result[noteId] = ReminderSchedule(trigger, repeat)
             }
         }
         return result
@@ -170,7 +181,15 @@ class AppPreferences(context: Context) {
             .apply()
     }
 
-    private fun encodeReminderSchedules(entries: Map<String, Long>): Set<String> {
-        return entries.map { (noteId, triggerAt) -> "$noteId::$triggerAt" }.toSet()
+    private fun encodeReminderSchedules(entries: Map<String, ReminderSchedule>): Set<String> {
+        return entries.map { (noteId, schedule) ->
+            if (schedule.repeat.isNullOrBlank()) {
+                "$noteId::${schedule.triggerAt}"
+            } else {
+                "$noteId::${schedule.triggerAt}::${schedule.repeat}"
+            }
+        }.toSet()
     }
 }
+
+data class ReminderSchedule(val triggerAt: Long, val repeat: String?)

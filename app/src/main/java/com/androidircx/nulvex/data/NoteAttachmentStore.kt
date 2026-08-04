@@ -33,10 +33,27 @@ class NoteAttachmentStore(
     }
 
     private fun attachmentFile(profileId: String, noteId: String, attachmentId: String): File {
-        return File(noteDir(profileId, noteId), "$attachmentId.bin")
+        return File(noteDir(profileId, noteId), "${requireSafe(attachmentId)}.bin")
     }
 
     private fun noteDir(profileId: String, noteId: String): File {
-        return File(File(File(context.filesDir, "attachments"), profileId), noteId)
+        return File(File(File(context.filesDir, "attachments"), requireSafe(profileId)), requireSafe(noteId))
+    }
+
+    /**
+     * Guards against path traversal: ids come from imported (.nulvxbk/.nulvex) payloads and
+     * are used directly as filesystem path components, so a crafted id like "../../databases"
+     * could otherwise write outside the attachments tree. Legitimate ids are UUIDs / "real" /
+     * "decoy", all of which satisfy this pattern.
+     */
+    private fun requireSafe(component: String): String {
+        require(isSafeId(component)) { "Unsafe attachment path component" }
+        return component
+    }
+
+    companion object {
+        private val SAFE_ID = Regex("^[A-Za-z0-9_-]{1,128}$")
+
+        fun isSafeId(component: String): Boolean = SAFE_ID.matches(component)
     }
 }
