@@ -446,7 +446,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun restoreLocalEncryptedBackupPayload(payload: ByteArray, keyId: String, merge: Boolean): Int {
-        val imported = encryptedBackupService.restoreFromEncryptedBytes(payload, keyId, merge)
+        val imported = encryptedBackupService.restoreFromEncryptedBytes(
+            payload, keyId, merge, isPro = adPreferences.hasProFeaturesLifetime()
+        )
         val notes = listCurrentNotes()
         withContext(Dispatchers.Main) {
             uiState.value = uiState.value.copy(
@@ -985,7 +987,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val imported = encryptedBackupService.restoreFromEncryptedBytes(bytes, keyId, merge, mimeType)
+                val imported = encryptedBackupService.restoreFromEncryptedBytes(
+                    bytes, keyId, merge, mimeType, isPro = adPreferences.hasProFeaturesLifetime()
+                )
                 val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
@@ -2343,7 +2347,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun validateIncomingPayload(bytesSize: Int, mimeType: String): String? {
         return try {
-            ImportPayloadValidator.validateSizeOrThrow(bytesSize, mimeType)
+            // Tiered cap: Pro users get the larger limits (note-share 50 MB, backup 1 GB),
+            // free users the smaller ones (10 MB / 50 MB).
+            ImportPayloadValidator.validateSizeOrThrow(
+                bytesSize,
+                mimeType,
+                isPro = adPreferences.hasProFeaturesLifetime()
+            )
             null
         } catch (e: Exception) {
             when (e) {

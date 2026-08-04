@@ -49,6 +49,40 @@ class ImportPayloadValidatorTest {
     }
 
     @Test
+    fun `tiered limits differ between free and pro`() {
+        assertEquals(
+            ImportPayloadValidator.NOTE_SHARE_MAX_BYTES_FREE,
+            ImportPayloadValidator.maxBytesForMime(NulvexFileTypes.NOTE_SHARE_MIME, isPro = false)
+        )
+        assertEquals(
+            ImportPayloadValidator.NOTE_SHARE_MAX_BYTES,
+            ImportPayloadValidator.maxBytesForMime(NulvexFileTypes.NOTE_SHARE_MIME, isPro = true)
+        )
+        assertEquals(
+            ImportPayloadValidator.BACKUP_MAX_BYTES_FREE,
+            ImportPayloadValidator.maxBytesForMime(NulvexFileTypes.BACKUP_MIME, isPro = false)
+        )
+        assertEquals(
+            ImportPayloadValidator.BACKUP_MAX_BYTES,
+            ImportPayloadValidator.maxBytesForMime(NulvexFileTypes.BACKUP_MIME, isPro = true)
+        )
+
+        // A note-share just over the free cap is rejected for free users, allowed for Pro.
+        assertThrows(PayloadTooLargeException::class.java) {
+            ImportPayloadValidator.validateSizeOrThrow(
+                ImportPayloadValidator.NOTE_SHARE_MAX_BYTES_FREE + 1,
+                NulvexFileTypes.NOTE_SHARE_MIME,
+                isPro = false
+            )
+        }
+        ImportPayloadValidator.validateSizeOrThrow(
+            ImportPayloadValidator.NOTE_SHARE_MAX_BYTES_FREE + 1,
+            NulvexFileTypes.NOTE_SHARE_MIME,
+            isPro = true
+        )
+    }
+
+    @Test
     fun `maxBytesForMime returns configured limits`() {
         assertEquals(
             ImportPayloadValidator.NOTE_SHARE_MAX_BYTES,
