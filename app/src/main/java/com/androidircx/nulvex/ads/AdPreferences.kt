@@ -75,6 +75,11 @@ class AdPreferences(context: Context) {
 
     fun hasRemoveAdsLifetime(): Boolean = prefs.getBoolean(KEY_REMOVE_ADS_LIFETIME, false)
 
+    /** Revokes the permanent ad-removal entitlement (e.g. after a refund/chargeback). */
+    fun disableRemoveAdsLifetime() {
+        prefs.edit().putBoolean(KEY_REMOVE_ADS_LIFETIME, false).apply()
+    }
+
     // -------------------------------------------------------------------------
     // Share credits
     // -------------------------------------------------------------------------
@@ -87,6 +92,11 @@ class AdPreferences(context: Context) {
     }
 
     fun hasProFeaturesLifetime(): Boolean = prefs.getBoolean(KEY_PRO_FEATURES_LIFETIME, false)
+
+    /** Revokes the permanent Pro-features entitlement (e.g. after a refund/chargeback). */
+    fun disableProFeaturesLifetime() {
+        prefs.edit().putBoolean(KEY_PRO_FEATURES_LIFETIME, false).apply()
+    }
 
     fun hasUnlimitedShares(): Boolean = hasProFeaturesLifetime()
 

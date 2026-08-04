@@ -273,6 +273,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         uiState.value = uiState.value.copy(hasProFeatures = true)
     }
 
+    fun revokeLifetimeRemoveAds() {
+        adPreferences.disableRemoveAdsLifetime()
+        uiState.value = uiState.value.copy(
+            isAdFree = adPreferences.isAdFree(),
+            adFreeUntil = adPreferences.getAdFreeUntil()
+        )
+    }
+
+    fun revokeLifetimeProFeatures() {
+        adPreferences.disableProFeaturesLifetime()
+        uiState.value = uiState.value.copy(hasProFeatures = false)
+    }
+
     fun refreshSharedKeys() {
         uiState.value = uiState.value.copy(
             sharedKeys = sharedKeyStore.listKeys(),

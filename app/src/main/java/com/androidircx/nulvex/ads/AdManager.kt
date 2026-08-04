@@ -37,7 +37,11 @@ class AdManager(private val adPreferences: AdPreferences) {
      * If the ad fails to load, [onGranted] is NOT called — the user is not
      * penalised for a network issue.
      */
-    fun showRewardedNoAds(activity: Activity, onGranted: (rewardAmount: Int) -> Unit) {
+    fun showRewardedNoAds(
+        activity: Activity,
+        onGranted: (rewardAmount: Int) -> Unit,
+        onUnavailable: (() -> Unit)? = null
+    ) {
         RewardedAd.load(
             activity,
             AD_UNIT_REWARDED_NO_ADS,
@@ -46,7 +50,7 @@ class AdManager(private val adPreferences: AdPreferences) {
                 override fun onAdLoaded(ad: RewardedAd) {
                     ad.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdFailedToShowFullScreenContent(error: AdError) {
-                            // Ad failed to display — do nothing
+                            onUnavailable?.invoke()
                         }
                     }
                     ad.show(activity) { rewardItem ->
@@ -55,7 +59,8 @@ class AdManager(private val adPreferences: AdPreferences) {
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    // Silently fail — do not grant reward
+                    // Do not grant reward, but tell the caller so the UI can react.
+                    onUnavailable?.invoke()
                 }
             }
         )
@@ -73,7 +78,11 @@ class AdManager(private val adPreferences: AdPreferences) {
      *
      * TODO: wire the granted amount to the Laravel API once the backend is ready.
      */
-    fun showRewardedShare(activity: Activity, onGranted: (rewardAmount: Int) -> Unit) {
+    fun showRewardedShare(
+        activity: Activity,
+        onGranted: (rewardAmount: Int) -> Unit,
+        onUnavailable: (() -> Unit)? = null
+    ) {
         RewardedAd.load(
             activity,
             AD_UNIT_REWARDED_SHARE,
@@ -82,7 +91,7 @@ class AdManager(private val adPreferences: AdPreferences) {
                 override fun onAdLoaded(ad: RewardedAd) {
                     ad.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdFailedToShowFullScreenContent(error: AdError) {
-                            // Ad failed to display — do nothing
+                            onUnavailable?.invoke()
                         }
                     }
                     ad.show(activity) { rewardItem ->
@@ -91,7 +100,7 @@ class AdManager(private val adPreferences: AdPreferences) {
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    // Silently fail
+                    onUnavailable?.invoke()
                 }
             }
         )

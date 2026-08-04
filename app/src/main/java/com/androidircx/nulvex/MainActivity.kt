@@ -377,15 +377,21 @@ class MainActivity : AppCompatActivity() {
                     onRestoreNoteRevision = vm::restoreNoteRevision,
                     onClearError = vm::clearError,
                     onWatchAdToRemoveAds = {
-                        adManager.showRewardedNoAds(this) { amount ->
-                            vm.grantAdFree(amount)
-                        }
+                        adManager.showRewardedNoAds(
+                            this,
+                            onGranted = { amount -> vm.grantAdFree(amount) },
+                            onUnavailable = { vm.showError(tx("No ad available right now. Please try again later.")) }
+                        )
                     },
                     onWatchAdForShares = {
-                        adManager.showRewardedShare(this) { amount ->
-                            vm.grantShareCredits(amount)
-                            // TODO: when Laravel backend is ready, also POST credits to API
-                        }
+                        adManager.showRewardedShare(
+                            this,
+                            onGranted = { amount ->
+                                vm.grantShareCredits(amount)
+                                // TODO: when Laravel backend is ready, also POST credits to API
+                            },
+                            onUnavailable = { vm.showError(tx("No ad available right now. Please try again later.")) }
+                        )
                     },
                     onOpenPurchases = vm::openPurchases,
                     onClosePurchases = vm::closePurchases,
@@ -1191,6 +1197,8 @@ class MainActivity : AppCompatActivity() {
         override fun showError(message: String) = vm.showError(message)
         override fun grantLifetimeRemoveAds() = vm.grantLifetimeRemoveAds()
         override fun grantLifetimeProFeatures() = vm.grantLifetimeProFeatures()
+        override fun revokeLifetimeRemoveAds() = vm.revokeLifetimeRemoveAds()
+        override fun revokeLifetimeProFeatures() = vm.revokeLifetimeProFeatures()
         override fun onProSyncTokenAvailable(purchaseToken: String) {
             val token = purchaseToken.trim()
             if (token.isBlank()) return

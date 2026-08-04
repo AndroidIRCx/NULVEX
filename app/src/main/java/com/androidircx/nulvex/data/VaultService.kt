@@ -500,16 +500,19 @@ class VaultService(
 
     private fun buildSyncPayload(note: NoteEntity?, entityId: String, opType: String): ByteArray {
         val now = System.currentTimeMillis()
+        // A delete (or an already soft-deleted row) is a tombstone: emit only the delete
+        // marker, never the note body (which for a destroyed note is just zeroed bytes).
+        val isTombstone = opType == "delete" || note == null || note.deleted
         val payload = JSONObject().apply {
             put("v", 1)
             put("entity_id", entityId)
             put("op_type", opType)
             put("ts", now)
-            if (note == null && opType == "delete") {
+            if (isTombstone) {
                 put("deleted", true)
             }
         }
-        if (note != null) {
+        if (note != null && !isTombstone) {
             payload.put(
                 "note",
                 JSONObject().apply {

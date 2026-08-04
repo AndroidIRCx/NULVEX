@@ -13,6 +13,8 @@ interface PlayBillingStateSink {
     fun showError(message: String)
     fun grantLifetimeRemoveAds()
     fun grantLifetimeProFeatures()
+    fun revokeLifetimeRemoveAds()
+    fun revokeLifetimeProFeatures()
     fun onProSyncTokenAvailable(purchaseToken: String)
     fun refreshAdFreeState()
 }
@@ -51,8 +53,29 @@ class PlayBillingCoordinator(
     fun restorePurchases() {
         gateway.queryPurchases { ok, purchases ->
             if (!ok) return@queryPurchases
-            processPurchases(purchases)
+            reconcileEntitlements(purchases)
         }
+    }
+
+    /**
+     * queryPurchases returns the authoritative set of currently-owned purchases, so use it
+     * to both grant new entitlements AND revoke ones no longer backed by a purchase (refund
+     * / chargeback). Only called from the full restore path — never from the incremental
+     * onPurchasesUpdated, which carries only the just-changed purchases.
+     */
+    private fun reconcileEntitlements(purchases: List<BillingPurchaseInfo>) {
+        processPurchases(purchases)
+        val ownedProducts = purchases
+            .filter { it.state == BillingPurchaseState.PURCHASED }
+            .flatMap { it.products }
+            .toSet()
+        if (!ownedProducts.contains(PlayBillingProducts.REMOVE_ADS_ONE_TIME)) {
+            sink.revokeLifetimeRemoveAds()
+        }
+        if (!ownedProducts.contains(PlayBillingProducts.PRO_FEATURES_ONE_TIME)) {
+            sink.revokeLifetimeProFeatures()
+        }
+        sink.refreshAdFreeState()
     }
 
     fun buy(productId: String) {

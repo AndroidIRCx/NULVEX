@@ -47,6 +47,8 @@ class PlayBillingCoordinatorTest {
         var lastError: String? = null
         var removeAdsGranted = 0
         var proGranted = 0
+        var removeAdsRevoked = 0
+        var proRevoked = 0
         val proSyncTokens = mutableListOf<String>()
         var refreshCalls = 0
 
@@ -68,6 +70,14 @@ class PlayBillingCoordinatorTest {
 
         override fun grantLifetimeProFeatures() {
             proGranted++
+        }
+
+        override fun revokeLifetimeRemoveAds() {
+            removeAdsRevoked++
+        }
+
+        override fun revokeLifetimeProFeatures() {
+            proRevoked++
         }
 
         override fun onProSyncTokenAvailable(purchaseToken: String) {
