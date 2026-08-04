@@ -21,7 +21,7 @@ class SecurityEventStore(context: Context) {
         migrateLegacyDataIfNeeded()
     }
 
-    fun record(type: String, detail: String = "") {
+    fun record(type: String, detail: String = "") = synchronized(LOCK) {
         runCatching {
             val events = loadRaw()
             val event = JSONObject().apply {
@@ -87,6 +87,9 @@ class SecurityEventStore(context: Context) {
     }
 
     companion object {
+        // Serializes the load-modify-write of the shared event log across instances.
+        private val LOCK = Any()
+
         private const val LEGACY_PREFS_NAME = "nulvex_security_events"
         private const val SECURE_PREFS_NAME = "nulvex_security_events_v2"
         private const val KEY_MIGRATION_DONE = "__migrated_v2"

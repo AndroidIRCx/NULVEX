@@ -43,6 +43,7 @@ class VaultAuthService(
         val pinBytes = pin.concatToString().toByteArray(Charsets.UTF_8)
         val matchReal = realHash != null && verifyAgainstKnownModes(realHash, pinBytes)
         if (matchReal) {
+            pinBytes.fill(0)
             return VaultProfile.REAL
         }
         val matchDecoy = decoyHash != null && verifyAgainstKnownModes(decoyHash, pinBytes)

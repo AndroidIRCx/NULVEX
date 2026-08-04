@@ -147,7 +147,7 @@ class SharedKeyStore(context: Context) {
         )
     }
 
-    fun deleteKey(id: String): Boolean {
+    fun deleteKey(id: String): Boolean = synchronized(LOCK) {
         val current = loadArray()
         val updated = JSONArray()
         var removed = false
@@ -305,6 +305,7 @@ class SharedKeyStore(context: Context) {
         val root = JSONObject(plaintext.toString(Charsets.UTF_8))
         val array = root.optJSONArray("items") ?: JSONArray()
         var imported = 0
+        synchronized(LOCK) {
         val current = loadArray()
         val existingById = mutableMapOf<String, JSONObject>()
         for (i in 0 until current.length()) {
@@ -338,6 +339,7 @@ class SharedKeyStore(context: Context) {
         val updated = JSONArray()
         existingById.values.forEach { updated.put(it) }
         saveArray(updated)
+        }
         return imported
     }
 
@@ -375,9 +377,11 @@ class SharedKeyStore(context: Context) {
             put(KEY_IV, ivB64)
             put(KEY_CT, ctB64)
         }
-        val array = loadArray()
-        array.put(item)
-        saveArray(array)
+        synchronized(LOCK) {
+            val array = loadArray()
+            array.put(item)
+            saveArray(array)
+        }
         return SharedKeyInfo(
             id = id,
             label = label,
@@ -467,6 +471,10 @@ class SharedKeyStore(context: Context) {
     }
 
     companion object {
+        // Serializes load-modify-save of the shared key list across instances so concurrent
+        // imports (e.g. QR + NFC) don't clobber each other and drop a key.
+        private val LOCK = Any()
+
         private const val PREFS_NAME = "nulvex_shared_keys"
         private const val KEY_ITEMS = "items"
 

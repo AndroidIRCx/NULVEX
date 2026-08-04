@@ -21,7 +21,7 @@ class AdPreferences(context: Context) {
     // -------------------------------------------------------------------------
 
     /** Returns true if the current time is before the stored ad-free expiry. */
-    fun isAdFree(): Boolean {
+    fun isAdFree(): Boolean = synchronized(LOCK) {
         if (hasRemoveAdsLifetime()) return true
 
         val now = System.currentTimeMillis()
@@ -47,14 +47,16 @@ class AdPreferences(context: Context) {
      * If an existing window is still active it is pushed forward by [durationMs]
      * from its current expiry, so repeated watches stack properly.
      */
-    fun extendAdFreeBy(durationMs: Long) {
+    fun extendAdFreeBy(durationMs: Long) = synchronized(LOCK) {
         val now = System.currentTimeMillis()
         val currentExpiry = prefs.getLong(KEY_AD_FREE_UNTIL, 0L)
         // Stack on top of remaining time if still active; otherwise start fresh
         val base = if (currentExpiry > now) currentExpiry else now
+        // The rollback watermark must only move forward; never let it regress on a rolled-back clock.
+        val watermark = maxOf(now, prefs.getLong(KEY_LAST_KNOWN_TIME, 0L))
         prefs.edit()
             .putLong(KEY_AD_FREE_UNTIL, base + durationMs)
-            .putLong(KEY_LAST_KNOWN_TIME, now)
+            .putLong(KEY_LAST_KNOWN_TIME, watermark)
             .apply()
     }
 
@@ -89,7 +91,7 @@ class AdPreferences(context: Context) {
     fun hasUnlimitedShares(): Boolean = hasProFeaturesLifetime()
 
     /** Adds [amount] share credits to the balance. */
-    fun addShareCredits(amount: Int) {
+    fun addShareCredits(amount: Int) = synchronized(LOCK) {
         val current = prefs.getInt(KEY_SHARE_CREDITS, 0)
         prefs.edit().putInt(KEY_SHARE_CREDITS, current + amount).apply()
     }
@@ -98,7 +100,7 @@ class AdPreferences(context: Context) {
      * Consumes [amount] share credits. Returns true if the balance was sufficient,
      * false if not enough credits (balance unchanged).
      */
-    fun consumeShareCredits(amount: Int): Boolean {
+    fun consumeShareCredits(amount: Int): Boolean = synchronized(LOCK) {
         if (hasUnlimitedShares()) return true
         val current = prefs.getInt(KEY_SHARE_CREDITS, 0)
         if (current < amount) return false
@@ -107,6 +109,11 @@ class AdPreferences(context: Context) {
     }
 
     companion object {
+        // Process-wide lock: AdPreferences is instantiated in several places but backs a
+        // single prefs file, so credit/timer read-modify-writes must serialize across
+        // instances (reward callbacks are not guaranteed to run on the main thread).
+        private val LOCK = Any()
+
         private const val PREFS_NAME = "nulvex_ad_prefs"
         private const val KEY_AD_FREE_UNTIL = "ad_free_until"
         private const val KEY_REMOVE_ADS_LIFETIME = "remove_ads_lifetime"

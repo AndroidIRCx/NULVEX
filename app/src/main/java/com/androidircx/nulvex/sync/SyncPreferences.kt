@@ -15,7 +15,7 @@ class SyncPreferences(context: Context) {
         migrateLegacyEncryptedPrefsIfNeeded()
     }
 
-    fun getOrCreateDeviceId(): String {
+    fun getOrCreateDeviceId(): String = synchronized(LOCK) {
         val current = getString("device_id", null)
         if (!current.isNullOrBlank()) return current
         val generated = UUID.randomUUID().toString()
@@ -138,6 +138,10 @@ class SyncPreferences(context: Context) {
     }
 
     companion object {
+        // Serializes device-id get-or-create so concurrent callers (first note enqueue on
+        // IO vs. a pro token store on main) don't generate two different device ids.
+        private val LOCK = Any()
+
         private const val LEGACY_PREFS_NAME = "nulvex_sync_prefs"
         private const val LEGACY_ENCRYPTED_PREFS_NAME = "nulvex_sync_secure_prefs"
         private const val SECURE_PREFS_NAME = "nulvex_sync_secure_prefs_v2"

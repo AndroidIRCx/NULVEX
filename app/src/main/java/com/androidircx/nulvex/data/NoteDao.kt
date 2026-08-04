@@ -57,7 +57,10 @@ interface NoteDao {
     @Query("UPDATE notes SET reminderAt = :reminderAt, reminderDone = :reminderDone, reminderRepeat = :reminderRepeat WHERE id = :id")
     suspend fun setReminder(id: String, reminderAt: Long?, reminderDone: Boolean, reminderRepeat: String?): Int
 
-    @Query("UPDATE notes SET trashedAt = :trashedAt, archivedAt = NULL, reminderAt = NULL, reminderDone = 0 WHERE id = :id")
+    // Only toggles trashedAt. Archive/reminder metadata is preserved so trash -> restore
+    // is lossless (trashed rows are already excluded from the active/archived/reminder
+    // queries via `trashedAt IS NULL`).
+    @Query("UPDATE notes SET trashedAt = :trashedAt WHERE id = :id")
     suspend fun setTrashedAt(id: String, trashedAt: Long?): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

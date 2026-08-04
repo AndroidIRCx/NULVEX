@@ -126,10 +126,17 @@ class EncryptedBackupService(
         }
     }
 
-    suspend fun restoreFromEncryptedBytes(wrapper: ByteArray, keyId: String, merge: Boolean): Int {
+    suspend fun restoreFromEncryptedBytes(
+        wrapper: ByteArray,
+        keyId: String,
+        merge: Boolean,
+        mimeType: String = NulvexFileTypes.BACKUP_MIME
+    ): Int {
+        // Enforce the per-type cap (note-share = 5 MB, backup = 50 MB) rather than always
+        // applying the larger backup limit.
         ImportPayloadValidator.validateSizeOrThrow(
             sizeBytes = wrapper.size,
-            mimeType = NulvexFileTypes.BACKUP_MIME
+            mimeType = mimeType
         )
         val plaintext = decryptWrapper(wrapper, keyId)
         try {

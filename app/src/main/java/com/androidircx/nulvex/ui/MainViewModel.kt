@@ -985,7 +985,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         setBusy(true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val imported = encryptedBackupService.restoreFromEncryptedBytes(bytes, keyId, merge)
+                val imported = encryptedBackupService.restoreFromEncryptedBytes(bytes, keyId, merge, mimeType)
                 val notes = listCurrentNotes()
                 withContext(Dispatchers.Main) {
                     uiState.value = uiState.value.copy(
@@ -2047,7 +2047,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onAppBackgrounded() {
-        if (shouldAutoLock()) {
+        if (shouldLockOnBackground()) {
             lock()
         } else {
             clearInactivityTimer()
@@ -2358,6 +2358,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return when (uiState.value.screen) {
             Screen.Vault, Screen.NewNote, Screen.NoteDetail -> true
             Screen.Onboarding, Screen.Setup, Screen.Unlock, Screen.Settings, Screen.Purchases -> false
+        }
+    }
+
+    /**
+     * Whether backgrounding the app should lock the vault. Unlike [shouldAutoLock] this also
+     * covers Settings/Purchases (which expose decoy config, key manager and the security
+     * timeline) — we don't auto-lock while the user reads those, but we must lock when the
+     * app leaves the foreground.
+     */
+    private fun shouldLockOnBackground(): Boolean {
+        return when (uiState.value.screen) {
+            Screen.Vault, Screen.NewNote, Screen.NoteDetail, Screen.Settings, Screen.Purchases -> true
+            Screen.Onboarding, Screen.Setup, Screen.Unlock -> false
         }
     }
 

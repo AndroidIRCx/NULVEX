@@ -45,5 +45,8 @@ object KeyManagerBackupCodec {
         return factory.generateSecret(spec).encoded
     }
 
-    private const val PBKDF2_ITERATIONS = 120_000
+    // OWASP-recommended PBKDF2-HMAC-SHA256 work factor. Raised from 120k; safe because the
+    // iteration count is stored per-export in the "iter" field and read back on decrypt,
+    // so existing .nulvxkeys files still open with their original (lower) count.
+    private const val PBKDF2_ITERATIONS = 600_000
 }

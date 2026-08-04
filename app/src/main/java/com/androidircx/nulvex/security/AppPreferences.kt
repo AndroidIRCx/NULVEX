@@ -101,7 +101,7 @@ class AppPreferences(context: Context) {
             .sorted()
     }
 
-    fun addCustomLabel(label: String): List<String> {
+    fun addCustomLabel(label: String): List<String> = synchronized(LOCK) {
         val trimmed = label.trim()
         if (trimmed.isBlank()) return getCustomLabels()
         val updated = (getCustomLabels() + trimmed).distinct().sorted()
@@ -109,7 +109,7 @@ class AppPreferences(context: Context) {
         return updated
     }
 
-    fun removeCustomLabel(label: String): List<String> {
+    fun removeCustomLabel(label: String): List<String> = synchronized(LOCK) {
         val updated = getCustomLabels().filterNot { it == label.trim() }.sorted()
         prefs.edit().putStringSet(customLabelsKey, updated.toSet()).apply()
         return updated
@@ -117,16 +117,20 @@ class AppPreferences(context: Context) {
 
     fun upsertReminderSchedule(noteId: String, triggerAt: Long, repeat: String? = null) {
         if (noteId.isBlank() || triggerAt <= 0L) return
-        val current = getReminderScheduleEntries().toMutableMap()
-        current[noteId] = ReminderSchedule(triggerAt, repeat?.trim()?.takeIf { it.isNotBlank() })
-        prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
+        synchronized(LOCK) {
+            val current = getReminderScheduleEntries().toMutableMap()
+            current[noteId] = ReminderSchedule(triggerAt, repeat?.trim()?.takeIf { it.isNotBlank() })
+            prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
+        }
     }
 
     fun removeReminderSchedule(noteId: String) {
         if (noteId.isBlank()) return
-        val current = getReminderScheduleEntries().toMutableMap()
-        current.remove(noteId)
-        prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
+        synchronized(LOCK) {
+            val current = getReminderScheduleEntries().toMutableMap()
+            current.remove(noteId)
+            prefs.edit().putStringSet(reminderSchedulesKey, encodeReminderSchedules(current)).apply()
+        }
     }
 
     fun clearReminderSchedules() {
@@ -179,6 +183,12 @@ class AppPreferences(context: Context) {
             .remove(pendingReminderActionKey)
             .remove(pendingReminderNoteIdKey)
             .apply()
+    }
+
+    companion object {
+        // Serializes read-modify-write on the shared label / reminder-schedule sets across
+        // AppPreferences instances (it is constructed in many places but backs one file).
+        private val LOCK = Any()
     }
 
     private fun encodeReminderSchedules(entries: Map<String, ReminderSchedule>): Set<String> {
