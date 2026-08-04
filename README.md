@@ -34,6 +34,9 @@ Built for secure local notes with strong encryption, clean UX, and production di
 - **Pinned notes** — pin important notes to the top of the list
 - **Checklists** — toggle, reorder, add and remove checklist items
 - **Labels** — tag and filter notes by label
+- **Reminders** — schedule note reminders with optional daily / weekly / monthly repeat; survive reboot
+- **Version history** — restore previous versions of a note
+- **Trash** — soft-delete with restore; archive and reminder state preserved across restore
 - **Encrypted note share links** — export note as encrypted `.nulvex` package and share remote link
 
 ### UX
@@ -49,6 +52,7 @@ Built for secure local notes with strong encryption, clean UX, and production di
 - **Key Manager export/import** — full keys storage export as plaintext or password-encrypted package
 - **Local encrypted backup** — export/import vault backup file (`.nulvxbk`) directly on device
 - **Remote media backup (Pro)** — upload encrypted backup blobs to media server and restore via saved link/token
+- **Tiered import limits** — note-share and backup size caps scale with entitlement: free 10 MB note-share / 50 MB backup, Pro 50 MB note-share / 1 GB backup
 
 File types:
 - `.nulvex` — encrypted note-share package
@@ -107,9 +111,9 @@ Biometrics authenticate the user but do not derive cryptographic keys — the ma
 
 ## Requirements
 
-- Android 8.0+ (API 26)
-- Kotlin 2.3.10
-- AGP 9.0.1 / Gradle 9.3.1
+- Android 8.0+ (API 26), target API 36
+- Kotlin 2.3.21
+- AGP 9.3.1 / Gradle 9.6.1
 
 ---
 
@@ -325,7 +329,9 @@ CI workflow (`.github/workflows/android-unit-tests.yml`) runs JVM tests only (`.
 - [x] Remote panic wipe — cross-device trigger (Pro)
 - [x] Encrypted export / backup (local + remote foundation)
 - [x] Keys Manager with OpenPGP + XChaCha import/export
+- [x] Auth/crypto hardening pass (atomic key provisioning, crash-safe PIN change, complete panic wipe, concurrency-safe stores)
 - [~] Translations workflow (Transifex + multi-language resources; EN/SR active, SR-Cyrl/DE expansion pending)
+- [ ] UI refresh with customizable themes
 
 ---
 

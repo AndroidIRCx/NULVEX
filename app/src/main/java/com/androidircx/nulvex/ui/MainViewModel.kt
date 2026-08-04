@@ -236,6 +236,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    /**
+     * Spends one share credit for a local note-share. Pro users have unlimited shares
+     * (no credit consumed). Returns false when a free user has no credits left, so the
+     * caller can prompt them to watch a rewarded ad. Refreshes the visible balance.
+     */
+    fun consumeShareCredit(): Boolean {
+        val allowed = adPreferences.consumeShareCredits(1)
+        if (allowed) {
+            uiState.value = uiState.value.copy(
+                shareCredits = adPreferences.getShareCredits(),
+                hasProFeatures = adPreferences.hasProFeaturesLifetime()
+            )
+        }
+        return allowed
+    }
+
     fun openPurchases() {
         uiState.value = uiState.value.copy(screen = Screen.Purchases, error = null)
         resetInactivityTimer()

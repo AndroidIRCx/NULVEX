@@ -956,6 +956,12 @@ class MainActivity : AppCompatActivity() {
             vm.showError(tx("Import at least one key in Keys Manager before sharing"))
             return
         }
+        // Each local share costs one credit for free users (Pro shares are unlimited).
+        // Consume after the key check so a credit isn't wasted on a share that can't proceed.
+        if (!vm.consumeShareCredit()) {
+            vm.showError(tx("No share credits left. Watch an ad to earn one."))
+            return
+        }
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val payload = vm.buildLocalEncryptedNoteSharePayload(noteId, keyId)
