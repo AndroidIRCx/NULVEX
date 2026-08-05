@@ -43,6 +43,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -69,6 +71,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -89,6 +94,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
@@ -117,6 +126,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -171,6 +181,9 @@ import com.androidircx.nulvex.ui.theme.Ink
 import com.androidircx.nulvex.ui.theme.Moss
 import com.androidircx.nulvex.ui.theme.Sand
 import com.androidircx.nulvex.ui.theme.ThemeMode
+import com.androidircx.nulvex.ui.theme.ThemePalette
+import com.androidircx.nulvex.ui.theme.ThemeColors
+import com.androidircx.nulvex.ui.theme.BuiltInThemes
 import kotlin.math.max
 import android.net.Uri
 import android.content.Intent
@@ -233,10 +246,14 @@ fun MainScreen(
     onToggleHidePinLength: (Boolean) -> Unit = {},
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
+    onUpdateThemePalette: (String) -> Unit = {},
+    onToggleDynamicColor: (Boolean) -> Unit = {},
+    onSaveCustomTheme: (com.androidircx.nulvex.ui.theme.ThemePalette) -> Unit = {},
+    onDeleteCustomTheme: (String) -> Unit = {},
     onUpdateLanguage: (String) -> Unit = {},
     onOpenNew: () -> Unit,
     onQuickCreate: (QuickCreateType) -> Unit = {},
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean, Long?, String?) -> Unit,
+    onCreate: (String, String, List<ChecklistItem>, List<String>, Boolean, List<android.net.Uri>, Long?, Boolean, Long?, String?) -> Unit,
     onOpenNote: (String) -> Unit,
     onOpenLinkedNote: (String) -> Unit = {},
     onToggleNoteSelection: (String) -> Unit = {},
@@ -247,7 +264,7 @@ fun MainScreen(
     onBulkSetReminderSelected: (Long) -> Unit = {},
     onCloseNote: () -> Unit,
     onUpdateNoteText: (String, String, Long?) -> Unit,
-    onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit = { _, _, _, _, _ -> },
+    onSaveEditedNote: (String, String, String, List<String>, List<android.net.Uri>, Long?) -> Unit = { _, _, _, _, _, _ -> },
     onShareNote: (String) -> Unit = {},
     onExportNoteFile: (String) -> Unit = {},
     onDelete: (String) -> Unit,
@@ -416,6 +433,10 @@ fun MainScreen(
                             onToggleHidePinLength = onToggleHidePinLength,
                             onChangeRealPin = onChangeRealPin,
                             onUpdateThemeMode = onUpdateThemeMode,
+                            onUpdateThemePalette = onUpdateThemePalette,
+                            onToggleDynamicColor = onToggleDynamicColor,
+                            onSaveCustomTheme = onSaveCustomTheme,
+                            onDeleteCustomTheme = onDeleteCustomTheme,
                             onUpdateLanguage = onUpdateLanguage,
                             onClose = {
                                 decoyVisible = false
@@ -1841,6 +1862,10 @@ private fun SettingsScreen(
     onToggleHidePinLength: (Boolean) -> Unit = {},
     onChangeRealPin: (String, String, String) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
+    onUpdateThemePalette: (String) -> Unit = {},
+    onToggleDynamicColor: (Boolean) -> Unit = {},
+    onSaveCustomTheme: (com.androidircx.nulvex.ui.theme.ThemePalette) -> Unit = {},
+    onDeleteCustomTheme: (String) -> Unit = {},
     onUpdateLanguage: (String) -> Unit,
     onClose: () -> Unit,
     onWatchAdToRemoveAds: () -> Unit = {},
@@ -2223,6 +2248,14 @@ private fun SettingsScreen(
                         Chip(tx("Dark"), state.themeMode == ThemeMode.DARK) { onUpdateThemeMode(ThemeMode.DARK) }
                         Chip(tx("Light"), state.themeMode == ThemeMode.LIGHT) { onUpdateThemeMode(ThemeMode.LIGHT) }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    ThemePaletteSection(
+                        state = state,
+                        onUpdateThemePalette = onUpdateThemePalette,
+                        onToggleDynamicColor = onToggleDynamicColor,
+                        onSaveCustomTheme = onSaveCustomTheme,
+                        onDeleteCustomTheme = onDeleteCustomTheme
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(stringResource(R.string.settings_language_title), style = MaterialTheme.typography.labelLarge, color = onSurface)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -4128,6 +4161,17 @@ private fun NoteCard(
             )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (note.title.isNotBlank()) {
+                Text(
+                    text = note.title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = onSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val previewText = when {
                     preview.isNotBlank() -> preview
@@ -4392,7 +4436,7 @@ private fun FeatureHint(icon: ImageVector, text: String) {
 @Composable
 private fun NewNoteScreen(
     state: UiState,
-    onCreate: (String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean, Long?, String?) -> Unit,
+    onCreate: (String, String, List<ChecklistItem>, List<String>, Boolean, List<Uri>, Long?, Boolean, Long?, String?) -> Unit,
     onCancel: () -> Unit,
     defaultExpiry: String,
     defaultReadOnce: Boolean,
@@ -4426,6 +4470,13 @@ private fun NewNoteScreen(
     }
     var pendingChecklistItemScroll by remember { mutableStateOf(false) }
     var pendingChecklistInputReveal by remember { mutableStateOf(false) }
+    // Rich-editor state: selection (for cursor-aware formatting inserts), resizable height,
+    // and the Edit/Preview toggle. `content` stays the String source of truth.
+    var editorSelection by remember { mutableStateOf(TextRange.Zero) }
+    var editorHeight by remember { mutableStateOf(300.dp) }
+    var showPreview by remember { mutableStateOf(false) }
+    var title by remember { mutableStateOf("") }
+    val editorDensity = LocalDensity.current
     val context = LocalContext.current
     var appliedQuickCreate by remember { mutableStateOf<QuickCreateType?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -4646,7 +4697,31 @@ private fun NewNoteScreen(
                     .verticalScroll(scrollState)
             ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(tx("New note"), style = MaterialTheme.typography.titleLarge, color = onSurface, modifier = Modifier.weight(1f))
+                // Editable note title (Google Keep style): the header itself is the title
+                // field. Empty = untitled; the clear (X) resets it.
+                BasicTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.titleLarge.copy(color = onSurface),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { innerTextField ->
+                        if (title.isEmpty()) {
+                            Text(
+                                tx("New note"),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
+                if (title.isNotEmpty()) {
+                    IconButton(onClick = { title = "" }) {
+                        Icon(Icons.Filled.Clear, contentDescription = tx("Clear title"), tint = onSurface.copy(alpha = 0.7f))
+                    }
+                }
                 IconButton(onClick = onCancel) {
                     Icon(Icons.Filled.Close, contentDescription = tx("Cancel"), tint = onSurface.copy(alpha = 0.7f))
                 }
@@ -4684,6 +4759,8 @@ private fun NewNoteScreen(
                         }
                     }
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                MarkupChip(if (showPreview) tx("Edit") else tx("Preview")) { showPreview = !showPreview }
                 DropdownMenu(
                     expanded = showAddMenu,
                     onDismissRequest = { showAddMenu = false }
@@ -4725,17 +4802,122 @@ private fun NewNoteScreen(
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = content,
-                onValueChange = { content = it },
-                label = { Text(tx("Write safely...")) },
-                minLines = 10,
-                maxLines = Int.MAX_VALUE,
-                modifier = Modifier
+            fun applyWrap(before: String, after: String, placeholder: String) {
+                val len = content.length
+                val start = editorSelection.min.coerceIn(0, len)
+                val end = editorSelection.max.coerceIn(0, len)
+                val selected = content.substring(start, end).ifEmpty { placeholder }
+                content = content.substring(0, start) + before + selected + after + content.substring(end)
+                editorSelection = TextRange(start + before.length + selected.length + after.length)
+            }
+            fun applyLinePrefix(prefix: String) {
+                val len = content.length
+                val pos = editorSelection.min.coerceIn(0, len)
+                val lineStart = content.lastIndexOf('\n', (pos - 1).coerceAtLeast(0)).let { if (it < 0) 0 else it + 1 }
+                content = content.substring(0, lineStart) + prefix + content.substring(lineStart)
+                editorSelection = TextRange(pos + prefix.length)
+            }
+            // Precompute placeholder strings here (tx() is @Composable and can't run inside onClick).
+            val phBold = tx("bold")
+            val phItalic = tx("italic")
+            val phCode = tx("code")
+            val phText = tx("text")
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            ) {
+                MarkupChip("B") { applyWrap("**", "**", phBold) }
+                MarkupChip("I") { applyWrap("*", "*", phItalic) }
+                MarkupChip("H") { applyLinePrefix("# ") }
+                MarkupChip("•") { applyLinePrefix("- ") }
+                MarkupChip("❝") { applyLinePrefix("> ") }
+                MarkupChip("</>") { applyWrap("`", "`", phCode) }
+                MarkupChip("{ }") { applyWrap("\n```\n", "\n```\n", phCode) }
+                MarkupChip("link") { applyWrap("[", "](https://)", phText) }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { showPreview = !showPreview }) {
+                    Text(if (showPreview) tx("EDIT") else tx("PREVIEW"), color = Moss)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (showPreview) {
+                val previewModifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 260.dp)
-                    .bringIntoViewOnFocus()
-            )
+                    .height(editorHeight)
+                    .border(1.dp, onSurface.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+                if (NoteMarkup.containsHtml(content)) {
+                    val bg = MaterialTheme.colorScheme.surface
+                    val accent = MaterialTheme.colorScheme.primary
+                    val codeBg = MaterialTheme.colorScheme.surfaceVariant
+                    val html = remember(content, bg, onSurface, accent, codeBg) {
+                        NoteMarkup.toHtmlDocument(
+                            content,
+                            backgroundHex = bg.toCssHex(),
+                            textHex = onSurface.toCssHex(),
+                            accentHex = accent.toCssHex(),
+                            codeBgHex = codeBg.toCssHex()
+                        )
+                    }
+                    SandboxedHtmlPreview(html = html, modifier = previewModifier)
+                } else {
+                    val primary = MaterialTheme.colorScheme.primary
+                    if (content.isBlank()) {
+                        Box(modifier = previewModifier) {
+                            Text(tx("Nothing to preview"), color = onSurface.copy(alpha = 0.5f))
+                        }
+                    } else {
+                        val rendered = remember(content, primary) {
+                            NoteMarkup.toAnnotatedString(content, linkColor = primary, codeColor = primary)
+                        }
+                        Box(modifier = previewModifier.verticalScroll(rememberScrollState())) {
+                            Text(rendered, color = onSurface)
+                        }
+                    }
+                }
+            } else {
+                OutlinedTextField(
+                    value = TextFieldValue(
+                        text = content,
+                        selection = TextRange(
+                            editorSelection.start.coerceIn(0, content.length),
+                            editorSelection.end.coerceIn(0, content.length)
+                        )
+                    ),
+                    onValueChange = {
+                        content = it.text
+                        editorSelection = it.selection
+                    },
+                    label = { Text(tx("Write safely...")) },
+                    maxLines = Int.MAX_VALUE,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(editorHeight)
+                        .bringIntoViewOnFocus()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(22.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                val deltaDp = with(editorDensity) { dragAmount.y.toDp() }
+                                editorHeight = (editorHeight + deltaDp).coerceIn(160.dp, 640.dp)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(onSurface.copy(alpha = 0.3f))
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(6.dp))
             val voicePrompt = stringResource(R.string.notes_voice_prompt)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -5095,6 +5277,7 @@ private fun NewNoteScreen(
                 Button(
                     onClick = {
                         onCreate(
+                            title.trim(),
                             content,
                             checklistItems,
                             labels,
@@ -5126,7 +5309,7 @@ private fun NoteDetailScreen(
     onClose: () -> Unit,
     onOpenLinkedNote: (String) -> Unit,
     onUpdateNoteText: (String, String, Long?) -> Unit,
-    onSaveEditedNote: (String, String, List<String>, List<android.net.Uri>, Long?) -> Unit,
+    onSaveEditedNote: (String, String, String, List<String>, List<android.net.Uri>, Long?) -> Unit,
     onShareNote: (String) -> Unit,
     onExportNoteFile: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -5157,6 +5340,7 @@ private fun NoteDetailScreen(
         return
     }
     var isEditing by remember { mutableStateOf(false) }
+    var editTitle by remember(note.id) { mutableStateOf(note.title) }
     var editText by remember(note.id) { mutableStateOf(note.text) }
     var editLabels by remember(note.id) { mutableStateOf(note.labels) }
     var newLabel by remember { mutableStateOf("") }
@@ -5315,7 +5499,7 @@ private fun NoteDetailScreen(
     }
 
     fun saveEditing() {
-        onSaveEditedNote(note.id, editText, editLabels, newAttachments, editedExpiresAt)
+        onSaveEditedNote(note.id, editTitle, editText, editLabels, newAttachments, editedExpiresAt)
         isEditing = false
         editingChecklistId = null
         focusManager.clearFocus(force = true)
@@ -5336,11 +5520,41 @@ private fun NoteDetailScreen(
                     .padding(top = if (isEditing) 48.dp else 0.dp)
             ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(tx("Note"),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = onSurface,
-                    modifier = Modifier.weight(1f)
-                )
+                if (isEditing) {
+                    // Editable title (Google Keep style), same as the create screen.
+                    BasicTextField(
+                        value = editTitle,
+                        onValueChange = { editTitle = it },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.titleLarge.copy(color = onSurface),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { innerTextField ->
+                            if (editTitle.isEmpty()) {
+                                Text(
+                                    tx("Title"),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                            innerTextField()
+                        }
+                    )
+                    if (editTitle.isNotEmpty()) {
+                        IconButton(onClick = { editTitle = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = tx("Clear title"), tint = onSurface.copy(alpha = 0.7f))
+                        }
+                    }
+                } else {
+                    Text(
+                        text = note.title.ifBlank { tx("Note") },
+                        style = MaterialTheme.typography.titleLarge,
+                        color = onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 IconButton(onClick = {
                     if (note.trashedAt != null) return@IconButton
                     if (isEditing) {
@@ -6352,3 +6566,234 @@ private fun LabelsMenu(
         }
     }
 }
+
+@Composable
+private fun ThemePaletteSection(
+    state: UiState,
+    onUpdateThemePalette: (String) -> Unit,
+    onToggleDynamicColor: (Boolean) -> Unit,
+    onSaveCustomTheme: (ThemePalette) -> Unit,
+    onDeleteCustomTheme: (String) -> Unit
+) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val darkNow = when (state.themeMode) {
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+    var editorTarget by remember { mutableStateOf<ThemePalette?>(null) }
+    var showEditor by remember { mutableStateOf(false) }
+
+    Text(tx("Color theme"), style = MaterialTheme.typography.labelLarge, color = onSurface)
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState())
+    ) {
+        state.availableThemes.forEach { theme ->
+            ThemeSwatch(
+                theme = theme,
+                dark = darkNow,
+                selected = theme.id == state.themePaletteId,
+                onClick = { onUpdateThemePalette(theme.id) },
+                onEdit = if (!theme.builtIn) {
+                    { editorTarget = theme; showEditor = true }
+                } else {
+                    null
+                }
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(tx("Material You"), style = MaterialTheme.typography.bodyMedium, color = onSurface)
+            Text(
+                tx("Use system wallpaper colors (Android 12+)"),
+                style = MaterialTheme.typography.labelSmall,
+                color = onSurface.copy(alpha = 0.6f)
+            )
+        }
+        Switch(checked = state.dynamicColor, onCheckedChange = onToggleDynamicColor)
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    OutlinedButton(onClick = { editorTarget = null; showEditor = true }) {
+        Text(tx("Create custom theme"))
+    }
+
+    if (showEditor) {
+        CustomThemeEditorDialog(
+            existing = editorTarget,
+            onDismiss = { showEditor = false },
+            onSave = { palette ->
+                onSaveCustomTheme(palette)
+                showEditor = false
+            },
+            onDelete = editorTarget?.let { target ->
+                {
+                    onDeleteCustomTheme(target.id)
+                    showEditor = false
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ThemeSwatch(
+    theme: ThemePalette,
+    dark: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onEdit: (() -> Unit)?
+) {
+    val colors = theme.colorsFor(dark)
+    val primary = MaterialTheme.colorScheme.primary
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(Color(colors.background))
+                .border(
+                    width = if (selected) 3.dp else 1.dp,
+                    color = if (selected) primary else onSurface.copy(alpha = 0.3f),
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Color(colors.primary))
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(theme.name, style = MaterialTheme.typography.labelSmall, color = onSurface)
+        if (onEdit != null) {
+            Text(
+                tx("Edit"),
+                style = MaterialTheme.typography.labelSmall,
+                color = primary,
+                modifier = Modifier.clickable(onClick = onEdit)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomThemeEditorDialog(
+    existing: ThemePalette?,
+    onDismiss: () -> Unit,
+    onSave: (ThemePalette) -> Unit,
+    onDelete: (() -> Unit)?
+) {
+    val seed = existing?.dark ?: BuiltInThemes.DEFAULT.dark
+    var name by remember { mutableStateOf(existing?.name ?: "My theme") }
+    var primary by remember { mutableStateOf(hexOf(seed.primary)) }
+    var secondary by remember { mutableStateOf(hexOf(seed.secondary)) }
+    var tertiary by remember { mutableStateOf(hexOf(seed.tertiary)) }
+    var background by remember { mutableStateOf(hexOf(seed.background)) }
+    var surface by remember { mutableStateOf(hexOf(seed.surface)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (existing == null) tx("Create theme") else tx("Edit theme")) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(tx("Name")) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                HexColorField(tx("Primary"), primary) { primary = it }
+                HexColorField(tx("Secondary"), secondary) { secondary = it }
+                HexColorField(tx("Accent"), tertiary) { tertiary = it }
+                HexColorField(tx("Background"), background) { background = it }
+                HexColorField(tx("Surface"), surface) { surface = it }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val colors = ThemeColors(
+                    primary = parseHexColor(primary),
+                    secondary = parseHexColor(secondary),
+                    tertiary = parseHexColor(tertiary),
+                    background = parseHexColor(background),
+                    surface = parseHexColor(surface)
+                )
+                val id = existing?.id ?: "custom_${System.currentTimeMillis()}"
+                onSave(ThemePalette(id, name.ifBlank { "Custom" }, false, colors, colors))
+            }) { Text(tx("Save")) }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) { Text(tx("Delete")) }
+                }
+                TextButton(onClick = onDismiss) { Text(tx("Cancel")) }
+            }
+        }
+    )
+}
+
+@Composable
+private fun HexColorField(label: String, value: String, onValueChange: (String) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(parseHexColor(value)))
+                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+}
+
+private fun hexOf(c: Long): String = "#%06X".format(c and 0xFFFFFFL)
+
+private fun parseHexColor(s: String): Long {
+    val h = s.trim().removePrefix("#")
+    val v = h.toLongOrNull(16) ?: return 0xFF000000L
+    return if (h.length <= 6) 0xFF000000L or v else v
+}
+
+@Composable
+private fun MarkupChip(label: String, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
+    }
+}
+
+private fun Color.toCssHex(): String =
+    "#%02X%02X%02X".format((red * 255).toInt(), (green * 255).toInt(), (blue * 255).toInt())

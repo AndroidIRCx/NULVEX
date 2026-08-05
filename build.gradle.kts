@@ -75,6 +75,13 @@ subprojects {
                 useVersion("1.85")
                 because("Keep androidLintTool and other tool classpaths on patched BouncyCastle (CVE-2025-14813)")
             }
+            if (
+                requested.group == "org.jetbrains.kotlinx" &&
+                (requested.name == "kotlinx-coroutines-core" || requested.name == "kotlinx-coroutines-android")
+            ) {
+                useVersion("1.11.0")
+                because("Align coroutines runtime UP to match kotlinx-coroutines-test 1.11.0 (never downgrade)")
+            }
         }
     }
 

@@ -1,41 +1,18 @@
 package com.androidircx.nulvex.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Brass,
-    secondary = Moss,
-    tertiary = Ember,
-    background = Ink,
-    surface = Coal,
-    onPrimary = Ink,
-    onSecondary = Ice,
-    onTertiary = Ice,
-    onBackground = Ice,
-    onSurface = Ice
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Moss,
-    secondary = Brass,
-    tertiary = Ember,
-    background = Sand,
-    surface = Ice,
-    onPrimary = Ink,
-    onSecondary = Ink,
-    onTertiary = Ink,
-    onBackground = Ink,
-    onSurface = Ink
-)
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun NULVEXTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    // Dynamic color is available on Android 12+
+    palette: ThemePalette = BuiltInThemes.DEFAULT,
+    // Material You (Android 12+). When on, the OS wallpaper colors override the palette.
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
@@ -44,7 +21,12 @@ fun NULVEXTheme(
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
     }
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val context = LocalContext.current
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        else -> palette.colorsFor(darkTheme).toColorScheme(darkTheme)
+    }
 
     MaterialTheme(
         colorScheme = colorScheme,

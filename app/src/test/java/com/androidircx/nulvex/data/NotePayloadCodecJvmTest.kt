@@ -41,6 +41,28 @@ class NotePayloadCodecJvmTest {
     }
 
     @Test
+    fun `encode and decode preserve title`() {
+        val payload = NotePayload(
+            text = "body",
+            checklist = emptyList(),
+            labels = emptyList(),
+            attachments = emptyList(),
+            pinned = false,
+            title = "My Title"
+        )
+        val decoded = NotePayloadCodec.decode(NotePayloadCodec.encode(payload))
+        assertNotNull(decoded)
+        assertEquals("My Title", decoded!!.title)
+    }
+
+    @Test
+    fun `decode defaults title to empty for legacy payload without title`() {
+        val decoded = NotePayloadCodec.decode("""{"v":1,"text":"x","pinned":false}""")
+        assertNotNull(decoded)
+        assertEquals("", decoded!!.title)
+    }
+
+    @Test
     fun `decode returns null for non json payload`() {
         assertNull(NotePayloadCodec.decode("not-json"))
     }

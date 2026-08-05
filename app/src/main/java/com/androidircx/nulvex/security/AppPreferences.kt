@@ -57,6 +57,24 @@ class AppPreferences(context: Context) {
         prefs.edit().putString("theme_mode", value).apply()
     }
 
+    fun getThemePaletteId(): String = prefs.getString("theme_palette_id", "vault") ?: "vault"
+
+    fun setThemePaletteId(value: String) {
+        prefs.edit().putString("theme_palette_id", value).apply()
+    }
+
+    fun isDynamicColor(): Boolean = prefs.getBoolean("dynamic_color", false)
+
+    fun setDynamicColor(value: Boolean) {
+        prefs.edit().putBoolean("dynamic_color", value).apply()
+    }
+
+    fun getCustomThemesJson(): String = prefs.getString("custom_themes_json", "[]") ?: "[]"
+
+    fun setCustomThemesJson(value: String) {
+        prefs.edit().putString("custom_themes_json", value).apply()
+    }
+
     fun hasSeenOnboarding(): Boolean = prefs.getBoolean("has_seen_onboarding", false)
 
     fun setHasSeenOnboarding(value: Boolean) {

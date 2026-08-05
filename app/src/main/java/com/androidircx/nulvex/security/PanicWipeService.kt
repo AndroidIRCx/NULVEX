@@ -52,7 +52,13 @@ class PanicWipeService(
     }
 
     private fun deletePrefs(name: String) {
-        runCatching { context.deleteSharedPreferences(name) }
+        // Clear the contents rather than deleteSharedPreferences(): stores like
+        // nulvex_app_settings are held by long-lived singletons, and deleting the file
+        // orphans those in-memory instances so later reads/writes silently diverge. Clearing
+        // the cached instance wipes the data and keeps every holder consistent.
+        runCatching {
+            context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+        }
     }
 
     private fun deleteKeystoreAlias(alias: String) {

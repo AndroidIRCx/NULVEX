@@ -17,6 +17,7 @@ class NoteRepository(
 
     suspend fun saveNote(
         id: String = UUID.randomUUID().toString(),
+        title: String = "",
         text: String,
         checklist: List<ChecklistItem> = emptyList(),
         labels: List<String> = emptyList(),
@@ -37,7 +38,8 @@ class NoteRepository(
             labels = labels,
             attachments = attachments,
             pinned = pinned,
-            shareKeyId = shareKeyId
+            shareKeyId = shareKeyId,
+            title = title
         )
         val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
         val ciphertext = noteCrypto.encrypt(plaintext, noteKey)
@@ -106,7 +108,8 @@ class NoteRepository(
             labels = note.labels,
             attachments = note.attachments,
             pinned = note.pinned,
-            shareKeyId = note.shareKeyId
+            shareKeyId = note.shareKeyId,
+            title = note.title
         )
         val plaintext = NotePayloadCodec.encode(payload).toByteArray(Charsets.UTF_8)
         val ciphertext = noteCrypto.encrypt(plaintext, noteKey)
@@ -229,6 +232,7 @@ class NoteRepository(
         )
         return Note(
             id = entity.id,
+            title = payload.title,
             text = payload.text,
             checklist = payload.checklist,
             labels = payload.labels,
@@ -260,6 +264,7 @@ class NoteRepository(
         )
         return Note(
             id = entity.noteId,
+            title = payload.title,
             text = payload.text,
             checklist = payload.checklist,
             labels = payload.labels,

@@ -15,6 +15,7 @@ data class NoteAttachment(
 
 data class Note(
     val id: String,
+    val title: String = "",
     val text: String,
     val checklist: List<ChecklistItem>,
     val labels: List<String>,
@@ -34,6 +35,7 @@ data class Note(
     fun matchesQuery(query: String): Boolean {
         if (query.isBlank()) return true
         val lowered = query.trim().lowercase()
+        if (title.lowercase().contains(lowered)) return true
         if (text.lowercase().contains(lowered)) return true
         if (labels.any { it.lowercase().contains(lowered) }) return true
         if (attachments.any { it.name.lowercase().contains(lowered) }) return true

@@ -31,6 +31,8 @@ Built for secure local notes with strong encryption, clean UX, and production di
 - **Read-once** — note is permanently destroyed after the first open (burn after reading)
 - **Auto-expiry** — set a TTL per note; expired notes swept automatically via WorkManager
 - **Note editing** — edit in place; SAVE re-encrypts, CANCEL reverts
+- **Optional titles** — inline editable note title (untitled by default)
+- **Rich editor** — resizable editor with a Markdown / BBCode formatting toolbar, code and sanitized HTML support (scripts stripped), and an Edit / Preview toggle
 - **Pinned notes** — pin important notes to the top of the list
 - **Checklists** — toggle, reorder, add and remove checklist items
 - **Labels** — tag and filter notes by label
@@ -41,7 +43,7 @@ Built for secure local notes with strong encryption, clean UX, and production di
 
 ### UX
 - **Secure PIN pad** — custom circular numpad, no system keyboard; dot indicator, haptic feedback
-- **Light / Dark / System theme**
+- **Themes** — Light / Dark / System appearance, multiple built-in color themes, user-created custom themes (editable seed colors), and Material You dynamic color (Android 12+)
 - **Settings search** — section/options search with clear button
 - **Collapsible settings sections** — cleaner navigation as settings grow
 - **Rewards & Ads first** — monetization section moved to top of Settings
@@ -80,7 +82,7 @@ NULVEX is live in production.
 
 - Firebase Analytics is enabled.
 - Google Mobile Ads SDK (AdMob) is integrated.
-- Crashlytics is not enabled in the current Gradle config.
+- Firebase Crashlytics is integrated for crash reporting.
 
 ---
 
@@ -278,11 +280,11 @@ app/src/main/java/com/androidircx/nulvex/
 
 ## Testing
 
-Current local status (April 21, 2026):
-- `./gradlew test` passes
-- `./gradlew connectedAndroidTest` requires a running emulator/device
-- `@Test` count snapshot: JVM `172`, instrumented `206`, total `378`
-- JaCoCo JVM line coverage snapshot: `10.48%` (`1327 / 12668`)
+Current local status (August 5, 2026):
+- `./gradlew test` passes (JVM unit tests)
+- `./gradlew connectedAndroidTest` passes — all instrumented tests green on emulator
+- `@Test` count snapshot: JVM `188`, instrumented `210`, total `398`
+- JaCoCo JVM line coverage snapshot: `10.52%` (`1464 / 13918`)
 - JaCoCo report: `./gradlew :app:jacocoDebugUnitTestReport`
 - JaCoCo gate: `./gradlew :app:jacocoDebugUnitTestCoverageVerification` (default line threshold `0.10`, override with `-Pcoverage.minimum.line=...`)
 - Core strict gate: `./gradlew :app:jacocoCore100CoverageVerification` (selected pure-core classes at `1.00` line coverage)
@@ -298,40 +300,32 @@ Current local status (April 21, 2026):
 | `SelfDestructServiceTest` | 7 | Expired note sweep, ciphertext zeroing, VACUUM |
 | `VaultSessionManagerTest` | 5 | Session state machine, null-state thread safety |
 | `PlayBillingProductsTest` | 3 | One-time product IDs and INAPP query mapping |
+| `NotePayloadCodecJvmTest` | 9 | Note payload JSON codec incl. title round-trip and legacy defaults |
+| `NoteMarkupTest` | 5 | Markdown/BBCode → HTML, raw-HTML passthrough, script/JS sanitization |
+| `ImportPayloadValidatorTest` | 6 | Per-tier import size caps (free vs Pro) |
+| `ReminderRepeatTest` | 3 | Repeat interval math advances past now |
+| `NoteAttachmentIdTest` | 2 | Path-traversal-safe attachment id validation |
+| `SyncEngineTest` / `SyncRemoteOpApplierTest` | 11 | Sync push/pull, last-writer-wins conflict resolution |
+
+(Representative subset; `./gradlew test` runs 188 JVM tests in total.)
 
 **Instrumented tests** (`./gradlew connectedAndroidTest`, requires device or emulator):
 
 | Suite | Tests | What it covers |
 |---|---|---|
 | `Argon2idKdfTest` | 8 | Native Argon2id: correct output length, determinism, salt/password sensitivity |
-| `VaultAuthServiceTest` | 15 | PIN setup/verify, real vs decoy resolution, clearDecoyPin, random salt per hash |
+| `VaultAuthServiceTest` | 17 | PIN setup/verify, real vs decoy resolution, clearDecoyPin, PIN-hash compute/store |
 | `NotePayloadCodecTest` | 13 | JSON codec: round-trip, unicode, special chars, optional fields |
 | `NoteDaoTest` | 27 | Room DAO: upsert, expiry queries, soft delete, purge, ciphertext overwrite |
-| `PanicWipeServiceTest` | 7 | Session closure, wipeAll/wipeDecoyOnly without throwing |
-| `NulvexUiTest` | 65 | Compose UI: onboarding, setup PIN, unlock pad, vault list, panic button, error banner |
+| `AppPreferencesTest` | 10 | Labels, reminder schedules (incl. repeat unit), pending reminder action |
+| `PanicWipeServiceTest` | 8 | Session closure, complete wipe (auth hashes, sharing keys, biometric) |
+| `EncryptedBackupServiceTest` | 6 | Local/remote encrypted backup + key-manager upload/restore |
+| `NulvexUiTest` | 65 | Compose UI (v2 test rule): onboarding, setup, unlock, vault, panic, error banner |
+
+(Representative subset; `./gradlew connectedAndroidTest` runs 210 instrumented tests in total.)
 
 CI workflow (`.github/workflows/android-unit-tests.yml`) runs JVM tests only (`./gradlew test` + JaCoCo report + JaCoCo coverage gate) on every push/PR to `main`, `master`, and `develop`, and uploads HTML/XML coverage artifacts.  
 `connectedAndroidTest` is not executed in GitHub Actions.
-
----
-
-## Roadmap
-
-- [x] Core test suite (crypto, vault, self-destruct, panic, DAO)
-- [x] UI flow tests (Compose: onboarding, setup, unlock, vault, panic, error banner)
-- [x] Firebase Gradle plugin + Analytics dependency
-- [x] Play Billing base wiring (product IDs + BillingClient factory)
-- [x] Purchase flow integration (query, launch billing flow, entitlement persistence)
-- [x] Security whitepaper + crypto flow diagram
-- [x] Play Store listing + privacy policy
-- [x] Device matrix test (StrongBox / no StrongBox, API 26 / 30 / 33 / 34+)
-- [x] Zero-knowledge sync backend (Pro)
-- [x] Remote panic wipe — cross-device trigger (Pro)
-- [x] Encrypted export / backup (local + remote foundation)
-- [x] Keys Manager with OpenPGP + XChaCha import/export
-- [x] Auth/crypto hardening pass (atomic key provisioning, crash-safe PIN change, complete panic wipe, concurrency-safe stores)
-- [~] Translations workflow (Transifex + multi-language resources; EN/SR active, SR-Cyrl/DE expansion pending)
-- [ ] UI refresh with customizable themes
 
 ---
 

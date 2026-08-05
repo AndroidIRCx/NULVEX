@@ -86,6 +86,9 @@ data class UiState(
     val decoyBiometricEnabled: Boolean = false,
     val biometricTargetVault: String = "real",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val themePaletteId: String = "vault",
+    val dynamicColor: Boolean = false,
+    val availableThemes: List<com.androidircx.nulvex.ui.theme.ThemePalette> = emptyList(),
     val searchQuery: String = "",
     val activeLabel: String? = null,
     val showArchived: Boolean = false,
@@ -153,6 +156,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val reminderScheduler = VaultServiceLocator.noteReminderScheduler()
     private val securityEventStore = VaultServiceLocator.securityEventStore()
     private val syncPreferences = VaultServiceLocator.syncPreferences()
+    private val themeStore = com.androidircx.nulvex.ui.theme.ThemeStore(appPreferences)
     private val noteEditHistory = NoteEditHistory()
     private var inactivityJob: Job? = null
     private var autoSaveEditJob: Job? = null
@@ -175,6 +179,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             decoyBiometricEnabled = appPreferences.isDecoyBiometricEnabled(),
             biometricTargetVault = appPreferences.getBiometricTargetVault(),
             themeMode = ThemeMode.fromId(appPreferences.getThemeMode()),
+            themePaletteId = themeStore.selectedId(),
+            dynamicColor = themeStore.dynamicColorEnabled(),
+            availableThemes = themeStore.availableThemes(),
             wrongAttempts = appPreferences.getWrongAttempts(),
             lockoutUntil = appPreferences.getLockoutUntil(),
             isAdFree = adPreferences.isAdFree(),
@@ -797,11 +804,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateNoteText(noteId: String, newText: String, expiresAt: Long?) {
         val note = findNote(noteId) ?: return
-        saveEditedNote(noteId, newText, note.labels, emptyList(), expiresAt)
+        saveEditedNote(noteId, note.title, newText, note.labels, emptyList(), expiresAt)
     }
 
     fun saveEditedNote(
         noteId: String,
+        newTitle: String,
         newText: String,
         labels: List<String>,
         newAttachments: List<Uri>,
@@ -818,6 +826,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             sanitizedLabels.forEach { appPreferences.addCustomLabel(it) }
             val storedAttachments = vaultService.storeAttachments(noteId, newAttachments)
             val updated = note.copy(
+                title = newTitle.trim(),
                 text = newText,
                 labels = sanitizedLabels,
                 attachments = note.attachments + storedAttachments,
@@ -1303,6 +1312,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         uiState.value = uiState.value.copy(themeMode = mode)
     }
 
+    fun updateThemePalette(id: String) {
+        themeStore.setSelectedId(id)
+        uiState.value = uiState.value.copy(themePaletteId = id)
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        themeStore.setDynamicColorEnabled(enabled)
+        uiState.value = uiState.value.copy(dynamicColor = enabled)
+    }
+
+    fun saveCustomTheme(palette: com.androidircx.nulvex.ui.theme.ThemePalette) {
+        themeStore.saveCustom(palette)
+        themeStore.setSelectedId(palette.id)
+        uiState.value = uiState.value.copy(
+            availableThemes = themeStore.availableThemes(),
+            themePaletteId = palette.id
+        )
+    }
+
+    fun deleteCustomTheme(id: String) {
+        themeStore.deleteCustom(id)
+        uiState.value = uiState.value.copy(
+            availableThemes = themeStore.availableThemes(),
+            themePaletteId = themeStore.selectedId()
+        )
+    }
+
     fun updateLanguage(languageTag: String) {
         appPreferences.setLanguageTag(languageTag)
         uiState.value = uiState.value.copy(languageTag = languageTag)
@@ -1508,6 +1544,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun createNote(
+        title: String = "",
         text: String,
         checklist: List<ChecklistItem>,
         labels: List<String>,
@@ -1518,7 +1555,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         reminderAt: Long?,
         shareKeyId: String? = null
     ) {
-        val hasContent = text.isNotBlank() || checklist.any { it.text.isNotBlank() } || attachments.isNotEmpty()
+        val hasContent = title.isNotBlank() || text.isNotBlank() ||
+            checklist.any { it.text.isNotBlank() } || attachments.isNotEmpty()
         if (!hasContent) {
             uiState.value = uiState.value.copy(error = appContext.tx("Note cannot be empty"))
             return
@@ -1529,6 +1567,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val storedAttachments = vaultService.storeAttachments(noteId, attachments)
             vaultService.createNote(
                 id = noteId,
+                title = title,
                 text = text,
                 checklist = checklist,
                 labels = labels,

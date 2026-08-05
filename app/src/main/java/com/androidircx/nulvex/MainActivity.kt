@@ -74,6 +74,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 private data class PendingNoteCreateRequest(
+    val title: String,
     val text: String,
     val checklist: List<com.androidircx.nulvex.data.ChecklistItem>,
     val labels: List<String>,
@@ -88,6 +89,8 @@ private data class PendingNoteCreateRequest(
 class MainActivity : AppCompatActivity() {
     companion object {
         const val ACTION_QUICK_CAPTURE = "com.androidircx.nulvex.action.QUICK_CAPTURE"
+        // Stable value of the deprecated NfcAdapter.ACTION_TAG_DISCOVERED constant.
+        private const val NFC_ACTION_TAG_DISCOVERED = "android.nfc.action.TAG_DISCOVERED"
     }
 
     private val vm: MainViewModel by viewModels()
@@ -212,6 +215,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (createRequest != null) {
                     vm.createNote(
+                        createRequest.title,
                         createRequest.text,
                         createRequest.checklist,
                         createRequest.labels,
@@ -303,7 +307,13 @@ class MainActivity : AppCompatActivity() {
                     startBiometricUnlock()
                 }
             }
-            NULVEXTheme(themeMode = state.themeMode) {
+            val palette = state.availableThemes.firstOrNull { it.id == state.themePaletteId }
+                ?: com.androidircx.nulvex.ui.theme.BuiltInThemes.DEFAULT
+            NULVEXTheme(
+                themeMode = state.themeMode,
+                palette = palette,
+                dynamicColor = state.dynamicColor
+            ) {
                 MainScreen(
                     state = state,
                     onCompleteOnboarding = vm::completeOnboarding,
@@ -335,6 +345,10 @@ class MainActivity : AppCompatActivity() {
                     onToggleHidePinLength = vm::setHidePinLength,
                     onChangeRealPin = vm::changeRealPin,
                     onUpdateThemeMode = vm::updateThemeMode,
+                    onUpdateThemePalette = vm::updateThemePalette,
+                    onToggleDynamicColor = vm::setDynamicColor,
+                    onSaveCustomTheme = vm::saveCustomTheme,
+                    onDeleteCustomTheme = vm::deleteCustomTheme,
                     onUpdateLanguage = ::updateLanguage,
                     onOpenNew = vm::openNewNote,
                     onQuickCreate = vm::openNewNote,
@@ -908,6 +922,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createNoteWithReminderPermission(
+        title: String,
         text: String,
         checklist: List<com.androidircx.nulvex.data.ChecklistItem>,
         labels: List<String>,
@@ -919,12 +934,13 @@ class MainActivity : AppCompatActivity() {
         shareKeyId: String?
     ) {
         if (reminderAt == null) {
-            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, null, shareKeyId)
+            vm.createNote(title, text, checklist, labels, pinned, attachments, expiresAt, readOnce, null, shareKeyId)
             return
         }
         ensureNotificationsPermission(
             onDenied = {
                 pendingNoteCreateRequest = PendingNoteCreateRequest(
+                    title = title,
                     text = text,
                     checklist = checklist,
                     labels = labels,
@@ -937,7 +953,7 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         ) {
-            vm.createNote(text, checklist, labels, pinned, attachments, expiresAt, readOnce, reminderAt, shareKeyId)
+            vm.createNote(title, text, checklist, labels, pinned, attachments, expiresAt, readOnce, reminderAt, shareKeyId)
         }
     }
 
@@ -1111,7 +1127,9 @@ class MainActivity : AppCompatActivity() {
         val action = intent.action ?: return
         if (action != NfcAdapter.ACTION_NDEF_DISCOVERED &&
             action != NfcAdapter.ACTION_TECH_DISCOVERED &&
-            action != NfcAdapter.ACTION_TAG_DISCOVERED
+            // NfcAdapter.ACTION_TAG_DISCOVERED is deprecated; its intent-action string is a
+            // stable Android contract, so match the literal to stay warning-free.
+            action != NFC_ACTION_TAG_DISCOVERED
         ) {
             return
         }
@@ -1360,7 +1378,7 @@ fun GreetingPreview() {
             onUpdateThemeMode = {},
             onOpenNew = {},
             onQuickCreate = {},
-            onCreate = { _, _, _, _, _, _, _, _, _ -> },
+            onCreate = { _, _, _, _, _, _, _, _, _, _ -> },
             onOpenNote = {},
             onOpenLinkedNote = {},
             onToggleNoteSelection = {},

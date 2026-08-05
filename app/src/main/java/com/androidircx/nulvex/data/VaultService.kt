@@ -35,6 +35,7 @@ class VaultService(
 
     suspend fun createNote(
         id: String = UUID.randomUUID().toString(),
+        title: String = "",
         text: String,
         checklist: List<ChecklistItem> = emptyList(),
         labels: List<String> = emptyList(),
@@ -51,6 +52,7 @@ class VaultService(
         val repo = NoteRepository(session.database.noteDao(), noteCrypto, attachmentDeleter())
         val noteId = repo.saveNote(
             id = id,
+            title = title,
             text = text,
             checklist = checklist,
             labels = labels,
@@ -247,6 +249,7 @@ class VaultService(
         for (note in notes) {
             val noteObj = JSONObject().apply {
                 put("id", note.id)
+                put("title", note.title)
                 put("text", note.text)
                 put("shareKeyId", note.shareKeyId ?: JSONObject.NULL)
                 put("pinned", note.pinned)
@@ -309,6 +312,7 @@ class VaultService(
         }
         val noteObj = JSONObject().apply {
             put("id", note.id)
+            put("title", note.title)
             put("text", note.text)
             put("shareKeyId", note.shareKeyId ?: JSONObject.NULL)
             put("pinned", note.pinned)
@@ -382,6 +386,7 @@ class VaultService(
                 .takeIf { NoteAttachmentStore.isSafeId(it) }
                 ?: UUID.randomUUID().toString()
             val text = noteObj.optString("text", "")
+            val title = noteObj.optString("title", "")
             val shareKeyId = noteObj.optString("shareKeyId", "").ifBlank { null }
             val pinned = noteObj.optBoolean("pinned", false)
             val createdAt = noteObj.optLong("createdAt", System.currentTimeMillis())
@@ -442,6 +447,7 @@ class VaultService(
             }
 
             val payload = NotePayload(
+                title = title,
                 text = text,
                 checklist = checklist,
                 labels = labels,

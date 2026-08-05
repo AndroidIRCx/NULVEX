@@ -112,13 +112,13 @@ class EncryptedBackupServiceTest {
         val apiClient = mockk<LaravelMediaApiClient>()
 
         val expected = ByteArray(16) { 42 }
-        coEvery { apiClient.download("media-km", null, null) } returns expected
+        coEvery { apiClient.download("media-km", null, null, any()) } returns expected
 
         val service = EncryptedBackupService(vaultService, sharedKeyStore, backupRegistryStore, apiClient)
         val result = service.downloadKeyManagerBackup("media-km")
 
         assertTrue(result.contentEquals(expected))
-        coVerify { apiClient.download("media-km", null, null) }
+        coVerify { apiClient.download("media-km", null, null, any()) }
     }
 
     @Test
@@ -146,14 +146,14 @@ class EncryptedBackupServiceTest {
             createdAt = 1L
         )
 
-        coEvery { apiClient.download("download-path-a", "d-token", 999L) } returns wrapper
+        coEvery { apiClient.download("download-path-a", "d-token", 999L, any()) } returns wrapper
         every { sharedKeyStore.getKeyMaterial("key-restore") } answers { ByteArray(32) { 9 } }
         coEvery { vaultService.importBackupJsonBytes(any(), merge = false) } returns 4
 
         val imported = service.restoreFromStoredRecord("rec-1", merge = false)
 
         assertEquals(4, imported)
-        coVerify { apiClient.download("download-path-a", "d-token", 999L) }
+        coVerify { apiClient.download("download-path-a", "d-token", 999L, any()) }
     }
 
     @Test

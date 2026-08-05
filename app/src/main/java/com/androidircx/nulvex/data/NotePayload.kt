@@ -9,11 +9,13 @@ data class NotePayload(
     val labels: List<String>,
     val attachments: List<NoteAttachment>,
     val pinned: Boolean,
-    val shareKeyId: String? = null
+    val shareKeyId: String? = null,
+    val title: String = ""
 )
 
 object NotePayloadCodec {
     private const val KEY_VERSION = "v"
+    private const val KEY_TITLE = "title"
     private const val KEY_TEXT = "text"
     private const val KEY_CHECKLIST = "checklist"
     private const val KEY_LABELS = "labels"
@@ -25,6 +27,7 @@ object NotePayloadCodec {
     fun encode(payload: NotePayload): String {
         val root = JSONObject()
         root.put(KEY_VERSION, VERSION)
+        root.put(KEY_TITLE, payload.title)
         root.put(KEY_TEXT, payload.text)
         root.put(KEY_PINNED, payload.pinned)
         root.put(KEY_SHARE_KEY_ID, payload.shareKeyId ?: JSONObject.NULL)
@@ -62,6 +65,7 @@ object NotePayloadCodec {
             val root = JSONObject(trimmed)
             if (!root.has(KEY_TEXT)) return null
             val text = root.optString(KEY_TEXT, "")
+            val title = root.optString(KEY_TITLE, "")
             val pinned = root.optBoolean(KEY_PINNED, false)
             val shareKeyId = root.optString(KEY_SHARE_KEY_ID, "").trim().ifBlank { null }
             val checklist = mutableListOf<ChecklistItem>()
@@ -106,7 +110,8 @@ object NotePayloadCodec {
                 labels = labels,
                 attachments = attachments,
                 pinned = pinned,
-                shareKeyId = shareKeyId
+                shareKeyId = shareKeyId,
+                title = title
             )
         } catch (_: Exception) {
             null
