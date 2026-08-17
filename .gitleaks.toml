@@ -1,0 +1,16 @@
+# Gitleaks configuration for NULVEX — extends the built-in ruleset.
+title = "NULVEX gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Non-secret format-label constants. These are algorithm identifiers stored as
+JSON "format" field values (not credentials); the generic-api-key rule trips on
+the variable name containing KEY plus the string entropy.
+"""
+regexTarget = "match"
+regexes = [
+  '''xchacha20poly1305_key''',
+]
