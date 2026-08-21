@@ -101,7 +101,7 @@ subprojects {
                 add("implementation", "org.bitbucket.b_c:jose4j:0.9.6")
                 add("implementation", "org.apache.commons:commons-lang3:3.20.0")
                 add("implementation", "org.apache.httpcomponents:httpclient:4.5.14")
-                add("implementation", "com.google.guava:guava:33.6.0-android")
+                add("implementation", "com.google.guava:guava:33.7.0-android")
             }
         }
     }
